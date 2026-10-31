@@ -6,7 +6,7 @@ import { loadMapData, type MapData } from '../map/mapData'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
-import { perf, QUALITY_PRESETS, getQuality, setQuality, useQuality } from './quality'
+import { MAX_FPS, perf, QUALITY_PRESETS, getQuality, setQuality, useQuality } from './quality'
 import { Sky } from './Sky'
 import { Terrain } from './Terrain'
 import { Trees } from './Trees'
@@ -39,6 +39,38 @@ function PerfMonitor() {
   return null
 }
 
+/**
+ * Draws at most {@link MAX_FPS}. The canvas is `frameloop="never"`, so this loop is the only
+ * one that renders — orbit-control invalidations cannot slip extra frames through.
+ *
+ * r3f reads `clock.getDelta()` before it applies the timestamp passed to `advance`, and that
+ * read would fight a manual clock. Elapsed time comes only from the timestamp, in seconds.
+ */
+function FrameCap() {
+  const advance = useThree((s) => s.advance)
+  const clock = useThree((s) => s.clock)
+  useEffect(() => {
+    const minDeltaMs = 1000 / MAX_FPS
+    const origin = performance.now()
+    let last = origin - minDeltaMs
+    let raf = 0
+    const previousGetDelta = clock.getDelta.bind(clock)
+    clock.getDelta = () => 0
+    const tick = (now: number) => {
+      raf = requestAnimationFrame(tick)
+      if (now - last < minDeltaMs) return
+      last = now
+      advance((now - origin) / 1000)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf)
+      clock.getDelta = previousGetDelta
+    }
+  }, [advance, clock])
+  return null
+}
+
 /** Applies the DPR cap of the active quality preset to the renderer. */
 function QualityApplier() {
   const quality = useQuality()
@@ -62,13 +94,12 @@ function Lighting() {
 function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
   const map = use(mapPromise)
 
-  // Start just outside West Harbor's breakwater, looking back at the piers and town with the hills behind.
+  // Just outside West Harbor's east-facing entrance, high enough to read the basin.
   const { cameraPos, target } = useMemo(() => {
-    const h = map.harbors[0]
-    const s = new THREE.Vector2(h.seaward[0], h.seaward[1]).normalize()
-    const target = new THREE.Vector3(h.x + s.x * 120, 4, h.z + s.y * 120)
-    const cameraPos = new THREE.Vector3(h.x + s.x * 560 + s.y * 140, 22, h.z + s.y * 560 - s.x * 140)
-    return { cameraPos, target }
+    const m = map.metersPerPixel
+    const at = (px: number, py: number, y: number) =>
+      new THREE.Vector3((px - map.width / 2) * m, y, (py - map.height / 2) * m)
+    return { cameraPos: at(186, 298, 96), target: at(112, 240, 3) }
   }, [map])
 
   const camera = useThree((s) => s.camera)
@@ -134,6 +165,7 @@ export function Scene({ onReady }: { onReady?: () => void }) {
 
   return (
     <Canvas
+      frameloop="never"
       // MSAA is expensive on tile-based mobile GPUs; DPR is capped per quality level instead.
       gl={{
         antialias: false,
@@ -153,6 +185,7 @@ export function Scene({ onReady }: { onReady?: () => void }) {
       style={{ touchAction: 'none' }}
     >
       <QualityApplier />
+      <FrameCap />
       <PerfMonitor />
       <Suspense fallback={null}>
         <World mapPromise={mapPromise} />

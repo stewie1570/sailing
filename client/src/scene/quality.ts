@@ -1,5 +1,8 @@
 import { useSyncExternalStore } from 'react'
 
+/** The view never redraws faster than this. Thirty is enough for the water and the camera. */
+export const MAX_FPS = 30
+
 export type QualityLevel = 'low' | 'medium' | 'high'
 
 export interface QualityPreset {
