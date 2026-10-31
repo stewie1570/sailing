@@ -41,8 +41,9 @@ export function chaseOffset(yaw: number, back = 12, height = 5.2): { x: number; 
 }
 
 /**
- * Accelerate, coast, and yaw. On contact the pose returns to the last clear
- * spot and the speed is zero — no slide and no bounce.
+ * Accelerate, coast, and yaw. On contact the hull is walked back to the last
+ * clear pose along that step and the speed goes to zero — no slide, no bounce.
+ * The walk keeps the stop on the mesh instead of a full step short of it.
  */
 export function integrate(
   pose: Pose,
@@ -65,13 +66,22 @@ export function integrate(
     pose.yaw += turn * MOTION.turnRate * step
     pose.x += Math.sin(pose.yaw) * pose.speed * step
     pose.z += Math.cos(pose.yaw) * pose.speed * step
-    if (hit(pose.x, pose.z, pose.yaw)) {
-      pose.x = prevX
-      pose.z = prevZ
-      pose.yaw = prevYaw
-      pose.speed = 0
-      return
+    if (!hit(pose.x, pose.z, pose.yaw)) continue
+    const endX = pose.x
+    const endZ = pose.z
+    const endYaw = pose.yaw
+    let lo = 0
+    let hi = 1
+    for (let i = 0; i < 8; i++) {
+      const mid = (lo + hi) * 0.5
+      if (hit(prevX + (endX - prevX) * mid, prevZ + (endZ - prevZ) * mid, prevYaw + (endYaw - prevYaw) * mid)) hi = mid
+      else lo = mid
     }
+    pose.x = prevX + (endX - prevX) * lo
+    pose.z = prevZ + (endZ - prevZ) * lo
+    pose.yaw = prevYaw + (endYaw - prevYaw) * lo
+    pose.speed = 0
+    return
   }
 }
 
