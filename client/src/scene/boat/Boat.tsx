@@ -2,6 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
+import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld } from './collision'
 import { buildSailboat } from './geometry'
 import { clearHelmSource, helmInput, setHelm, type HelmDir } from './helm'
@@ -17,13 +18,18 @@ const KEYS: Record<string, HelmDir> = {
 type OrbitLike = { target: THREE.Vector3; update: () => void }
 
 /**
- * The player's sloop. Arrows (and the on-screen pad) accelerate and yaw;
- * striking a dock, buoy, beacon, or the shore stops the boat where it is.
- * The orbit camera keeps its angle and rides along with the hull.
+ * The player's sloop. Arrows (and the on-screen pad) accelerate and yaw.
+ * The hull stops when it meets the shore, a dock, or any other solid mesh,
+ * and not before those meshes touch. The camera keeps its angle and rides along.
  */
 export function Boat({ map }: { map: MapData }) {
   const mesh = useMemo(() => buildSailboat(), [])
-  const world = useMemo(() => colliderWorld(map), [map])
+  const quality = useQuality()
+  const preset = QUALITY_PRESETS[quality]
+  const world = useMemo(
+    () => colliderWorld(map, preset.terrainSegments, preset.treeFraction),
+    [map, preset.terrainSegments, preset.treeFraction],
+  )
   const pose = useMemo<Pose>(() => spawnPose(map), [map])
   const group = useRef<THREE.Group>(null)
   const follow = useRef({ x: pose.x, y: 0, z: pose.z })
@@ -97,9 +103,10 @@ export function Boat({ map }: { map: MapData }) {
 
   useFrame((state, delta) => {
     const { throttle, turn } = helmInput()
-    integrate(pose, throttle, turn, delta, (x, z, yaw) => blocked(map, world, x, z, yaw))
+    const time = state.clock.elapsedTime
+    integrate(pose, throttle, turn, delta, (x, z, yaw) => blocked(world, x, z, yaw, swell(x, z, time)))
 
-    const y = swell(pose.x, pose.z, state.clock.elapsedTime)
+    const y = swell(pose.x, pose.z, time)
     const g = group.current
     if (g) {
       g.position.set(pose.x, y, pose.z)

@@ -144,3 +144,68 @@ export function chartToWorld(map: MapData, px: number, py: number, y = 0) {
 
 /** Beacon bases, in chart pixels. The column stands on the mole head. */
 export const BEACONS: [number, number][] = MARINAS.map((h) => h.beacon)
+
+/**
+ * Unit cylinder (radius 1 at the base, 0.7 at the top, height 1) scaled into the column and the lamp.
+ * World radius is the unit radius times `xz`.
+ */
+export const BEACON_COLUMN = { radiusBottom: 1, radiusTop: 0.7, baseY: 2.6, height: 11, xz: 3.2 }
+export const BEACON_LAMP = { radiusBottom: 1, radiusTop: 0.7, baseY: 13.6, height: 2.2, xz: 2.4 }
+
+const TOWNS = [
+  { x0: 46, y0: 176, x1: 80, y1: 238, step: 9 },
+  { x0: 926, y0: 508, x1: 972, y1: 570, step: 9.5 },
+]
+
+export interface TownBuilding {
+  k: number
+  x: number
+  z: number
+  ground: number
+  rotationY: number
+  w: number
+  d: number
+  h: number
+  shed: boolean
+}
+
+/** How far the wall mesh is sunk into the ground so the foundation doesn't float. */
+export const BUILDING_SINK = 0.3
+/** ConeGeometry radius of the hip roof, in the unscaled mesh. */
+export const ROOF_CONE_RADIUS = 0.72
+export const ROOF_PAD = 1.08
+
+export function roofHeight(shed: boolean) {
+  return shed ? 3.6 : 2.8
+}
+
+/** Shore buildings. The same list drives the meshes and the collision boxes. */
+export function townBuildings(map: MapData): TownBuilding[] {
+  const out: TownBuilding[] = []
+  let k = 0
+  for (const town of TOWNS) {
+    for (let py = town.y0; py <= town.y1; py += town.step) {
+      for (let px = town.x0; px <= town.x1; px += town.step) {
+        const jx = px + ((k * 5) % 4) * 0.45
+        const jz = py + ((k * 3) % 5) * 0.35
+        const c = chartToWorld(map, jx, jz, 0)
+        const ground = map.heightAt(c.x, c.z)
+        if (ground < 0.5 || !map.isLand(c.x, c.z)) { k++; continue }
+        const shed = k % 8 === 0
+        out.push({
+          k,
+          x: c.x,
+          z: c.z,
+          ground,
+          rotationY: ((k * 37) % 9 - 4) * 0.08,
+          w: (shed ? 22 : 12) + (k % 3) * 3,
+          d: (shed ? 14 : 8) + ((k * 7) % 4) * 2,
+          h: (shed ? 7 : 4.5) + (k % 3) * 1.4,
+          shed,
+        })
+        k++
+      }
+    }
+  }
+  return out
+}

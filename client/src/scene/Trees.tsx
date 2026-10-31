@@ -3,18 +3,22 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { MapData } from '../map/mapData'
 import { QUALITY_PRESETS, useQuality } from './quality'
+import { CANOPY, TRUNK, eachVisibleTree, treeFrame, treeOriginY } from './treeLayout'
 
 /**
  * Trunk + two stacked canopy cones, 28 triangles. Faces that can never be seen (trunk ends, the upper
  * cone's base inside the lower cone) are omitted. Vertex colours separate bark from foliage.
  */
 function buildTreeGeometry(): THREE.BufferGeometry {
-  const trunk = new THREE.CylinderGeometry(0.35, 0.5, 3.2, 5, 1, true)
-  trunk.translate(0, 1.6, 0)
-  const lower = new THREE.ConeGeometry(3.6, 7, 6, 1, false)
-  lower.translate(0, 6.2, 0)
-  const upper = new THREE.ConeGeometry(2.4, 6, 6, 1, true)
-  upper.translate(0, 10.5, 0)
+  const trunk = new THREE.CylinderGeometry(TRUNK.radiusTop, TRUNK.radiusBottom, TRUNK.height, 5, 1, true)
+  trunk.translate(0, TRUNK.height / 2, 0)
+  const cones = CANOPY.map((cone) => {
+    const height = cone.y1 - cone.y0
+    const geo = new THREE.ConeGeometry(cone.radius, height, 6, 1, cone.open)
+    geo.translate(0, (cone.y0 + cone.y1) / 2, 0)
+    return geo
+  })
+  const [lower, upper] = cones
 
   const paint = (geo: THREE.BufferGeometry, color: THREE.Color) => {
     const n = geo.attributes.position.count
@@ -46,21 +50,19 @@ export function Trees({ map }: { map: MapData }) {
     const p = new THREE.Vector3()
     const color = new THREE.Color()
     // Deterministic selection: stride through the list so thinning stays spatially uniform.
-    const stride = map.trees.length / Math.max(count, 1)
-    for (let i = 0; i < count; i++) {
-      const [x, z, scale] = map.trees[Math.floor(i * stride)]
+    eachVisibleTree(map, fraction, (i, x, z, scale) => {
       const y = map.heightAt(x, z)
-      p.set(x, Math.max(y, 0) - 0.3, z)
+      p.set(x, treeOriginY(y), z)
       q.setFromAxisAngle(THREE.Object3D.DEFAULT_UP, (i * 2.399) % (Math.PI * 2)) // golden-angle rotation
-      const h = scale * 1.4
-      s.set(h * (0.9 + ((i * 7919) % 100) / 500), h, h * (0.9 + ((i * 104729) % 100) / 500))
+      const frame = treeFrame(i, scale)
+      s.set(frame.sx, frame.sy, frame.sz)
       m.compose(p, q, s)
       inst.setMatrixAt(i, m)
       // foliage variation: olive to deep green
       const t = ((i * 48271) % 1000) / 1000
       color.setRGB(0.10 + 0.14 * t, 0.26 + 0.16 * (1 - t), 0.07 + 0.05 * t)
       inst.setColorAt(i, color)
-    }
+    })
     inst.instanceMatrix.needsUpdate = true
     if (inst.instanceColor) inst.instanceColor.needsUpdate = true
     inst.frustumCulled = false

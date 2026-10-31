@@ -7,17 +7,22 @@ import * as THREE from 'three'
  * boom and standing rigging are there.
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
- * and the triangle count stays in the low thousands.
+ * and the triangle count stays in the low thousands. Collision uses the same
+ * loft (see boatShape), not a box around it.
  */
-export const BOAT = {
-  /**
-   * Collision box in local space. The stem rakes forward of the keel, so the
-   * box is centred a little ahead of the origin and stays just inside the sheer.
-   */
-  halfLength: 7.3,
-  halfBeam: 2.13,
-  originZ: 0.53,
-}
+const MAST_Z = 2.15
+const MAST_H = 16.4
+const MAST_R = 0.13
+const BOOM_DROP = 1.45
+const BOOM_LEN = 5.6
+const BOOM_R = 0.055
+const SPREADERS: readonly (readonly [number, number])[] = [[0.38, 1.15], [0.62, 0.72]]
+const RAIL_H = 0.62
+const CABIN_X = 1.22
+const CABIN_Z_BACK = 0.55
+const CABIN_Z_FRONT = 4.15
+const CABIN_SLOPE_Z = 3.35
+const CABIN_H = 1.05
 
 const STERN = -6.55
 const BOW = 6.85
@@ -265,11 +270,11 @@ function addCylinderBetween(g: Geo, ax: number, ay: number, az: number, bx: numb
 function addCabin(g: Geo) {
   const deckY = hullPoint(0.62, 1).y
   const y0 = deckY + 0.02
-  const y1 = deckY + 1.05
-  const x = 1.22
-  const zFront = 4.15
-  const zBack = 0.55
-  const slope = 3.35
+  const y1 = deckY + CABIN_H
+  const x = CABIN_X
+  const zFront = CABIN_Z_FRONT
+  const zBack = CABIN_Z_BACK
+  const slope = CABIN_SLOPE_Z
   // Sides
   for (const s of [1, -1]) {
     const a = vert(g, s * x, y0, zBack, CABIN)
@@ -388,17 +393,17 @@ function addKeelAndRudder(g: Geo) {
 
 function addRig(g: Geo) {
   const deckY = hullPoint(0.7, 1).y
-  const mastZ = 2.15
-  const mastH = 16.4
-  addMast(g, 0, deckY, mastZ, mastH, 0.13, 0.055, 8, METAL)
+  const mastZ = MAST_Z
+  const mastH = MAST_H
+  addMast(g, 0, deckY, mastZ, mastH, MAST_R, 0.055, 8, METAL)
   // Spreaders
-  for (const [t, reach] of [[0.38, 1.15], [0.62, 0.72]] as const) {
+  for (const [t, reach] of SPREADERS) {
     const y = deckY + mastH * t
     addBox(g, 0, y, mastZ, reach * 2, 0.04, 0.06, METAL_DARK)
   }
   // Boom, parked on the centreline. No sail.
-  const boomY = deckY + 1.45
-  addCylinderBetween(g, 0, boomY, mastZ, 0, boomY, mastZ - 5.6, 0.055, METAL)
+  const boomY = deckY + BOOM_DROP
+  addCylinderBetween(g, 0, boomY, mastZ, 0, boomY, mastZ - BOOM_LEN, BOOM_R, METAL)
   addBox(g, 0, boomY, mastZ, 0.12, 0.1, 0.18, METAL_DARK)
   // Standing rigging.
   const tipY = deckY + mastH
@@ -422,8 +427,8 @@ function addRails(g: Geo) {
     for (const u of stations) {
       const p = hullPoint(u, 1)
       const x = s * (p.x - 0.02)
-      addCylinderBetween(g, x, p.y, p.z, x, p.y + 0.62, p.z, 0.02, METAL)
-      posts.push(new THREE.Vector3(x, p.y + 0.62, p.z))
+      addCylinderBetween(g, x, p.y, p.z, x, p.y + RAIL_H, p.z, 0.02, METAL)
+      posts.push(new THREE.Vector3(x, p.y + RAIL_H, p.z))
     }
     for (let i = 0; i < posts.length - 1; i++) {
       const a = posts[i]
@@ -469,4 +474,160 @@ export function buildSailboat(): THREE.Mesh {
   addRig(g)
   addRails(g)
   return toMesh(g)
+}
+
+export interface Spar {
+  x0: number
+  y0: number
+  z0: number
+  x1: number
+  y1: number
+  z1: number
+  r: number
+}
+
+export interface HullSlice {
+  y0: number
+  y1: number
+  /** CCW convex outline in local xz, packed x,z,x,z… */
+  xz: Float32Array
+}
+
+/**
+ * Solid outline of the hull, cabin and rails, plus the mast, boom and spreaders.
+ * Standing wire is left out: a filled triangle between the shrouds would stop the
+ * boat in empty air, and the wire itself is under 2 cm.
+ */
+export interface BoatShape {
+  slices: HullSlice[]
+  /** Above-water skin samples, local xyz. The keel stays below the surface. */
+  skin: Float32Array
+  skinMinY: number
+  /** Farthest solid point from the origin, in the xz plane. */
+  radius: number
+  spars: Spar[]
+}
+
+interface Pt { x: number; y: number; z: number }
+
+const SKIN_Y = -0.02
+const SLICE_H = 0.25
+
+function pushSkin(pts: Pt[], x: number, y: number, z: number) {
+  if (y < SKIN_Y) return
+  pts.push({ x, y, z })
+}
+
+/** Above-water samples of the solid boat. Mirrors the loft, cabin and rails. */
+function solidPoints(): Pt[] {
+  const pts: Pt[] = []
+  const U = 36
+  const V = 14
+  for (let i = 0; i <= U; i++) {
+    const u = i / U
+    for (let j = 0; j <= V; j++) {
+      const p = hullPoint(u, j / V)
+      pushSkin(pts, p.x, p.y, p.z)
+      if (p.x >= 0.015) pushSkin(pts, -p.x, p.y, p.z)
+    }
+    const sheer = hullPoint(u, 1)
+    // Toe rail and stanchion tops sit just outside and above the sheer.
+    for (const s of [1, -1]) {
+      const x = s * (sheer.x + 0.035)
+      pushSkin(pts, x, sheer.y + 0.07, sheer.z)
+      pushSkin(pts, s * (sheer.x - 0.02), sheer.y + RAIL_H, sheer.z)
+    }
+  }
+  const deckY = hullPoint(0.62, 1).y
+  const y0 = deckY + 0.02
+  const y1 = deckY + CABIN_H
+  const cabin: [number, number, number][] = [
+    [CABIN_X, y0, CABIN_Z_BACK], [CABIN_X, y0, CABIN_Z_FRONT],
+    [CABIN_X, y1, CABIN_Z_BACK], [CABIN_X, y1, CABIN_SLOPE_Z],
+    [CABIN_X * 0.72, y0 + 0.15, CABIN_Z_FRONT + 0.05],
+  ]
+  for (const [x, y, z] of cabin) {
+    pushSkin(pts, x, y, z)
+    pushSkin(pts, -x, y, z)
+  }
+  const bow = hullPoint(0.97, 1)
+  pushSkin(pts, 0, bow.y + 0.72, bow.z + 0.15)
+  pushSkin(pts, 0.28, bow.y + 0.7, bow.z - 0.15)
+  pushSkin(pts, -0.28, bow.y + 0.7, bow.z - 0.15)
+  const stern = hullPoint(0.03, 1)
+  pushSkin(pts, 0.7, stern.y + 0.65, stern.z)
+  pushSkin(pts, -0.7, stern.y + 0.65, stern.z)
+  return pts
+}
+
+function cross(ox: number, oz: number, ax: number, az: number, bx: number, bz: number) {
+  return (ax - ox) * (bz - oz) - (az - oz) * (bx - ox)
+}
+
+function convexXz(pts: Pt[]): Float32Array {
+  const uniq: Pt[] = []
+  const sorted = pts.slice().sort((a, b) => a.x - b.x || a.z - b.z)
+  for (const p of sorted) {
+    const last = uniq[uniq.length - 1]
+    if (last && Math.abs(last.x - p.x) < 1e-3 && Math.abs(last.z - p.z) < 1e-3) continue
+    uniq.push(p)
+  }
+  if (uniq.length < 3) return new Float32Array()
+  const lower: Pt[] = []
+  for (const p of uniq) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2].x, lower[lower.length - 2].z, lower[lower.length - 1].x, lower[lower.length - 1].z, p.x, p.z) <= 0) lower.pop()
+    lower.push(p)
+  }
+  const upper: Pt[] = []
+  for (let i = uniq.length - 1; i >= 0; i--) {
+    const p = uniq[i]
+    while (upper.length >= 2 && cross(upper[upper.length - 2].x, upper[upper.length - 2].z, upper[upper.length - 1].x, upper[upper.length - 1].z, p.x, p.z) <= 0) upper.pop()
+    upper.push(p)
+  }
+  lower.pop()
+  upper.pop()
+  const hull = lower.concat(upper)
+  const out = new Float32Array(hull.length * 2)
+  hull.forEach((p, i) => { out[i * 2] = p.x; out[i * 2 + 1] = p.z })
+  return out
+}
+
+let cachedShape: BoatShape | null = null
+
+/** Built once. The mesh never changes, so the outline can be reused for every quality level. */
+export function boatShape(): BoatShape {
+  if (cachedShape) return cachedShape
+  const pts = solidPoints()
+  let minY = Infinity
+  let maxY = -Infinity
+  let radius = 0
+  const skin = new Float32Array(pts.length * 3)
+  pts.forEach((p, i) => {
+    skin[i * 3] = p.x
+    skin[i * 3 + 1] = p.y
+    skin[i * 3 + 2] = p.z
+    if (p.y < minY) minY = p.y
+    if (p.y > maxY) maxY = p.y
+    radius = Math.max(radius, Math.hypot(p.x, p.z))
+  })
+  const slices: HullSlice[] = []
+  const yStart = SKIN_Y
+  for (let y = yStart; y < maxY + 1e-3; y += SLICE_H) {
+    const band = pts.filter((p) => p.y >= y && p.y < y + SLICE_H)
+    const xz = convexXz(band)
+    if (xz.length >= 6) slices.push({ y0: y, y1: y + SLICE_H, xz })
+  }
+  const deckY = hullPoint(0.7, 1).y
+  const boomY = deckY + BOOM_DROP
+  const spars: Spar[] = [
+    { x0: 0, y0: deckY, z0: MAST_Z, x1: 0, y1: deckY + MAST_H, z1: MAST_Z, r: MAST_R },
+    { x0: 0, y0: boomY, z0: MAST_Z, x1: 0, y1: boomY, z1: MAST_Z - BOOM_LEN, r: BOOM_R },
+  ]
+  for (const [t, reach] of SPREADERS) {
+    const y = deckY + MAST_H * t
+    spars.push({ x0: -reach, y0: y, z0: MAST_Z, x1: reach, y1: y, z1: MAST_Z, r: 0.03 })
+    radius = Math.max(radius, Math.hypot(reach, MAST_Z))
+  }
+  cachedShape = { slices, skin, skinMinY: minY, radius, spars }
+  return cachedShape
 }

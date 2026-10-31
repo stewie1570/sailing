@@ -2,6 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../map/mapData'
+import { BUOY_BODY } from './boat/collision'
 
 const RED = new THREE.Color(0.75, 0.05, 0.04)
 const GREEN = new THREE.Color(0.05, 0.5, 0.12)
@@ -13,8 +14,8 @@ const GREEN = new THREE.Color(0.05, 0.5, 0.12)
 export function Buoys({ map }: { map: MapData }) {
   const { bodies, topmarks } = useMemo(() => {
     const n = map.buoys.length
-    const bodyGeo = new THREE.CylinderGeometry(0.9, 1.1, 2.6, 10, 1)
-    bodyGeo.translate(0, 1.0, 0)
+    const bodyGeo = new THREE.CylinderGeometry(BUOY_BODY.radiusTop, BUOY_BODY.radiusBottom, BUOY_BODY.height, 10, 1)
+    bodyGeo.translate(0, BUOY_BODY.lift, 0)
     const bodies = new THREE.InstancedMesh(bodyGeo, new THREE.MeshLambertMaterial(), n)
     const topGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.4, 6, 1)
     topGeo.translate(0, 3.0, 0)
