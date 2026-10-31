@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useConnection } from '../net/gameConnection'
+import { clearHelmSource, setHelm, type HelmDir } from '../scene/boat/helm'
 import { perf, setQuality, useQuality, type QualityLevel } from '../scene/quality'
 
 const LEVELS: QualityLevel[] = ['low', 'medium', 'high']
@@ -39,10 +40,49 @@ export function Hud({ loading }: { loading: boolean }) {
       </div>
 
       <div className="hud hud-bottom">
-        {loading ? 'Loading chart…' : 'Drag to look around · pinch or scroll to zoom · two-finger drag to pan'}
+        {loading ? 'Loading chart…' : 'Arrows or the pad to sail · drag to look around · pinch or scroll to zoom'}
       </div>
+
+      <HelmPad />
     </>
   )
+}
+
+const PAD: { dir: HelmDir; className: string; label: string }[] = [
+  { dir: 'forward', className: 'dpad-forward', label: 'Ahead' },
+  { dir: 'port', className: 'dpad-port', label: 'Port' },
+  { dir: 'starboard', className: 'dpad-starboard', label: 'Starboard' },
+  { dir: 'back', className: 'dpad-back', label: 'Astern' },
+]
+
+function HelmPad() {
+  useEffect(() => () => clearHelmSource('pad'), [])
+  return (
+    <div className="dpad">
+      {PAD.map(({ dir, className, label }) => (
+        <button
+          key={dir}
+          type="button"
+          className={className}
+          aria-label={label}
+          tabIndex={-1}
+          onContextMenu={(e) => e.preventDefault()}
+          onPointerDown={(e) => holdPad(e, dir, true)}
+          onPointerUp={(e) => holdPad(e, dir, false)}
+          onPointerCancel={(e) => holdPad(e, dir, false)}
+        >
+          {label === 'Ahead' ? '▲' : label === 'Astern' ? '▼' : label === 'Port' ? '◀' : '▶'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function holdPad(e: ReactPointerEvent<HTMLButtonElement>, dir: HelmDir, down: boolean) {
+  e.preventDefault()
+  e.stopPropagation()
+  if (down) e.currentTarget.setPointerCapture(e.pointerId)
+  setHelm('pad', dir, down)
 }
 
 function statusLabel(c: ReturnType<typeof useConnection>): string {

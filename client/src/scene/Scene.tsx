@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Suspense, use, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { loadMapData, type MapData } from '../map/mapData'
+import { Boat } from './boat/Boat'
+import { chaseOffset, spawnPose } from './boat/physics'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
@@ -94,34 +96,36 @@ function Lighting() {
 function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
   const map = use(mapPromise)
 
-  // Just outside West Harbor's east-facing entrance, high enough to read the basin.
-  const { cameraPos, target } = useMemo(() => {
-    const m = map.metersPerPixel
-    const at = (px: number, py: number, y: number) =>
-      new THREE.Vector3((px - map.width / 2) * m, y, (py - map.height / 2) * m)
-    return { cameraPos: at(186, 298, 96), target: at(112, 240, 3) }
-  }, [map])
+  // Start just astern of the boat, close enough to read the hull. The boat keeps this offset afterwards.
+  const spawn = useMemo(() => spawnPose(map), [map])
+  const target = useMemo(() => new THREE.Vector3(spawn.x, 1.15, spawn.z), [spawn])
 
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls)
   useEffect(() => {
-    camera.position.copy(cameraPos)
-    camera.lookAt(target)
-  }, [camera, cameraPos, target])
+    const off = chaseOffset(spawn.yaw)
+    camera.position.set(spawn.x + off.x, off.y, spawn.z + off.z)
+    const c = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null
+    if (c?.target) {
+      c.target.copy(target)
+      c.update?.()
+    } else {
+      camera.lookAt(target)
+    }
+  }, [camera, controls, spawn, target])
 
   // Dev-only handle for inspecting the scene from the browser console / automation.
   useEffect(() => {
     if (!import.meta.env.DEV) return
-    const w = window as unknown as Record<string, unknown>
-    w.__sailing = {
-      map,
-      camera,
-      controls,
-      lookAt(cx: number, cy: number, cz: number, tx: number, ty: number, tz: number) {
-        camera.position.set(cx, cy, cz)
-        const c = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null
-        if (c?.target) { c.target.set(tx, ty, tz); c.update?.() } else camera.lookAt(tx, ty, tz)
-      },
+    const w = window as unknown as { __sailing?: Record<string, unknown> }
+    const sailing = (w.__sailing ??= {})
+    sailing.map = map
+    sailing.camera = camera
+    sailing.controls = controls
+    sailing.lookAt = (cx: number, cy: number, cz: number, tx: number, ty: number, tz: number) => {
+      camera.position.set(cx, cy, cz)
+      const c = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null
+      if (c?.target) { c.target.set(tx, ty, tz); c.update?.() } else camera.lookAt(tx, ty, tz)
     }
     return () => { delete w.__sailing }
   }, [map, camera, controls])
@@ -135,6 +139,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
       <Trees map={map} />
       <Buoys map={map} />
       <Harbors map={map} />
+      <Boat map={map} />
       <OrbitControls
         makeDefault
         target={target}
@@ -142,7 +147,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
         dampingFactor={0.08}
         rotateSpeed={0.6}
         zoomSpeed={0.8}
-        minDistance={6}
+        minDistance={4.5}
         maxDistance={9000}
         // keep the camera above the surface
         maxPolarAngle={Math.PI / 2 - 0.015}

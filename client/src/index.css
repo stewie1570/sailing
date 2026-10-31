@@ -110,3 +110,48 @@ html, body, #root {
   background: rgba(61, 220, 132, 0.25);
   border-color: rgba(61, 220, 132, 0.6);
 }
+
+.dpad {
+  position: absolute;
+  left: max(16px, env(safe-area-inset-left));
+  bottom: max(16px, env(safe-area-inset-bottom));
+  width: 168px;
+  height: 168px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+  gap: 6px;
+  z-index: 2;
+  touch-action: none;
+  user-select: none;
+}
+.dpad button {
+  font: inherit;
+  font-size: 18px;
+  color: #e8eef4;
+  background: rgba(8, 18, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  touch-action: none;
+}
+.dpad button:active {
+  background: rgba(61, 220, 132, 0.35);
+  border-color: rgba(61, 220, 132, 0.7);
+}
+.dpad-forward { grid-column: 2; grid-row: 1; }
+.dpad-port { grid-column: 1; grid-row: 2; }
+.dpad-starboard { grid-column: 3; grid-row: 2; }
+.dpad-back { grid-column: 2; grid-row: 3; }
+
+@media (max-width: 720px) {
+  .hud-bottom {
+    left: auto;
+    right: max(12px, env(safe-area-inset-right));
+    transform: none;
+    max-width: calc(100% - 210px);
+    white-space: normal;
+  }
+}
