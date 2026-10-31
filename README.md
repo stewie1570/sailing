@@ -22,8 +22,15 @@ cd server/Sailing.Server && dotnet run
 cd client && npm install && npm run dev
 ```
 
-Production: `cd client && npm run build` emits into `server/Sailing.Server/wwwroot`; `dotnet run` then serves
-everything from one origin.
+Production is one container. The image builds the client into `wwwroot` and runs the server, which
+listens on `$PORT` when the host sets it and on 8080 otherwise. SignalR needs WebSockets enabled on
+the platform; the health check is `GET /api/health`.
+
+```bash
+docker build -t sailing .
+docker run --rm -p 8080:8080 sailing
+# or: docker compose up --build
+```
 
 Regenerate map assets after editing `tools/mapgen/mapgen.mjs` or the source chart:
 

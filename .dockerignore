@@ -1,0 +1,10 @@
+.git
+**/.git
+**/bin
+**/obj
+**/node_modules
+server/Sailing.Server/wwwroot
+**/*.user
+**/.vs
+**/.idea
+**/.DS_Store
