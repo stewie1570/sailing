@@ -1,0 +1,17 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+# Built client (produced by `npm run build` in client/, served by the .NET server)
+server/Sailing.Server/wwwroot/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Editors / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store

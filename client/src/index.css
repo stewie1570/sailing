@@ -1,0 +1,112 @@
+:root {
+  font-family: 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  color: #e8eef4;
+  background: #0b1a2a;
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+}
+
+.app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.hud {
+  position: absolute;
+  pointer-events: none;
+  padding: 10px 14px;
+  background: rgba(8, 18, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.hud-top-left {
+  top: max(12px, env(safe-area-inset-top));
+  left: max(12px, env(safe-area-inset-left));
+}
+.hud-top-right {
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  text-align: right;
+}
+.hud-bottom {
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  color: rgba(232, 238, 244, 0.85);
+}
+
+.hud-title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.hud-sub {
+  font-size: 12px;
+  color: rgba(232, 238, 244, 0.7);
+}
+.hud-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.hud-dim { color: rgba(232, 238, 244, 0.65); font-variant-numeric: tabular-nums; }
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #888;
+}
+.dot-connected { background: #3ddc84; box-shadow: 0 0 6px #3ddc84; }
+.dot-connecting, .dot-reconnecting { background: #f5c242; animation: pulse 1s infinite alternate; }
+.dot-disconnected { background: #e5484d; }
+@keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+
+.quality {
+  pointer-events: auto;
+  margin-top: 6px;
+  gap: 4px;
+}
+.quality button {
+  font: inherit;
+  font-size: 12px;
+  text-transform: capitalize;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 6px 10px;
+  min-width: 44px; /* comfortable touch target */
+  cursor: pointer;
+}
+.quality button.active {
+  background: rgba(61, 220, 132, 0.25);
+  border-color: rgba(61, 220, 132, 0.6);
+}

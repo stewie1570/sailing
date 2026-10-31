@@ -1,0 +1,13 @@
+{
+  "name": "mapgen",
+  "version": "1.0.0",
+  "description": "Generates runtime map assets from the source chart image",
+  "scripts": {
+    "build": "node mapgen.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "sharp": "^0.35.5"
+  },
+  "private": true
+}

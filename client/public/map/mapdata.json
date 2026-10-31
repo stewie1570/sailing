@@ -1,0 +1,173 @@
+{
+  "name": "Lake Windermere",
+  "image": {
+    "width": 1024,
+    "height": 768
+  },
+  "metersPerPixel": 23.3,
+  "worldSize": [
+    23859.2,
+    17894.4
+  ],
+  "height": {
+    "min": -64,
+    "max": 400,
+    "waterLevel": 0
+  },
+  "waterDepth": {
+    "offset": 8,
+    "range": 48
+  },
+  "buoys": [
+    {
+      "type": "starboard",
+      "x": -3961,
+      "z": -3915.2
+    },
+    {
+      "type": "starboard",
+      "x": -8083.6,
+      "z": -3354.5
+    },
+    {
+      "type": "starboard",
+      "x": 355.1,
+      "z": -3329.5
+    },
+    {
+      "type": "starboard",
+      "x": -2109.2,
+      "z": -1718.1
+    },
+    {
+      "type": "starboard",
+      "x": -3507,
+      "z": -1000.5
+    },
+    {
+      "type": "starboard",
+      "x": 1130.5,
+      "z": -851.7
+    },
+    {
+      "type": "starboard",
+      "x": 3310,
+      "z": -135
+    },
+    {
+      "type": "starboard",
+      "x": -2909.7,
+      "z": 1414.2
+    },
+    {
+      "type": "starboard",
+      "x": -5655.3,
+      "z": 1453.3
+    },
+    {
+      "type": "starboard",
+      "x": 417.1,
+      "z": 2436
+    },
+    {
+      "type": "starboard",
+      "x": 2371.4,
+      "z": 3729.7
+    },
+    {
+      "type": "starboard",
+      "x": 7120.6,
+      "z": 3737.2
+    },
+    {
+      "type": "port",
+      "x": 3614.8,
+      "z": -3919.1
+    },
+    {
+      "type": "port",
+      "x": -3966.1,
+      "z": -3494.3
+    },
+    {
+      "type": "port",
+      "x": 381,
+      "z": -2932
+    },
+    {
+      "type": "port",
+      "x": -8070.2,
+      "z": -2929.3
+    },
+    {
+      "type": "port",
+      "x": -2399.3,
+      "z": -1950.5
+    },
+    {
+      "type": "port",
+      "x": -3357.5,
+      "z": -629.1
+    },
+    {
+      "type": "port",
+      "x": 1043.5,
+      "z": -450.3
+    },
+    {
+      "type": "port",
+      "x": 3222.8,
+      "z": 268.6
+    },
+    {
+      "type": "port",
+      "x": -7901.8,
+      "z": 325.4
+    },
+    {
+      "type": "port",
+      "x": -5655.6,
+      "z": 1878.5
+    },
+    {
+      "type": "port",
+      "x": 4744.5,
+      "z": 2240.9
+    },
+    {
+      "type": "port",
+      "x": 461,
+      "z": 2840.9
+    },
+    {
+      "type": "port",
+      "x": 2448.5,
+      "z": 4111.5
+    },
+    {
+      "type": "port",
+      "x": 7121.8,
+      "z": 4134.1
+    }
+  ],
+  "harbors": [
+    {
+      "name": "West Harbor",
+      "x": -9832.6,
+      "z": -3448.4,
+      "seaward": [
+        0.9,
+        0.5
+      ]
+    },
+    {
+      "name": "East Harbor",
+      "x": 8527.8,
+      "z": 3262,
+      "seaward": [
+        -0.2,
+        1
+      ]
+    }
+  ]
+}
