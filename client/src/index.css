@@ -265,15 +265,6 @@ html:-webkit-full-screen {
   text-transform: uppercase;
   color: rgba(232, 238, 244, 0.55);
 }
-.throttle-order {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  font-variant-numeric: tabular-nums;
-}
-.order-stop { color: #f5c242; }
-.order-ahead { color: #8ee4b4; }
-.order-astern { color: #f0a0a3; }
 
 .navmap {
   left: max(12px, env(safe-area-inset-left));

@@ -45,11 +45,6 @@ function engineOrder(value: number) {
   return `${step} ${value > 0 ? 'AHEAD' : 'ASTERN'}`
 }
 
-function orderKind(value: number) {
-  if (Math.abs(value) < 0.125) return 'stop'
-  return value > 0 ? 'ahead' : 'astern'
-}
-
 function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
   const slotRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
@@ -137,14 +132,8 @@ export function Throttles() {
         </div>
       </div>
       <div className="throttle-foot">
-        <div>
-          <div className="throttle-name">Port</div>
-          <div className={`throttle-order order-${orderKind(helm.port)}`}>{engineOrder(helm.port)}</div>
-        </div>
-        <div>
-          <div className="throttle-name">Stbd</div>
-          <div className={`throttle-order order-${orderKind(helm.starboard)}`}>{engineOrder(helm.starboard)}</div>
-        </div>
+        <div className="throttle-name">Port</div>
+        <div className="throttle-name">Stbd</div>
       </div>
     </div>
   )
