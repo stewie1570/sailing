@@ -96,7 +96,8 @@ function Lighting() {
 function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
   const map = use(mapPromise)
 
-  // Start just astern of the boat, close enough to read the hull. The boat keeps this offset afterwards.
+  // Start just astern of the boat, close enough to read the hull. The boat keeps this
+  // offset, and the view yaws with the helm about a second behind.
   const spawn = useMemo(() => spawnPose(map), [map])
   const target = useMemo(() => new THREE.Vector3(spawn.x, 1.15, spawn.z), [spawn])
 
