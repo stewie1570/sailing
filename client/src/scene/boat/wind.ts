@@ -8,11 +8,12 @@ import { useSyncExternalStore } from 'react'
  * dial shows. Speed stays inside a working inland range, about Beaufort 3 to 4
  * (roughly 7 to 17 knots): enough to sail a heavy cruiser, short of a gale.
  *
- * The breeze holds steady for about a minute, then eases onto a new
- * heading and speed over several seconds. It does not jump.
+ * The breeze holds steady for about two minutes, then eases onto a new
+ * heading and speed over several seconds. It does not jump. A veer is a
+ * modest one, about eighteen to seventy-two degrees.
  */
 
-export const WIND_STEADY_S = 60
+export const WIND_STEADY_S = 120
 export const WIND_SHIFT_S = 8
 /** Metres per second. About 7 to 17 knots. */
 export const WIND_SPEED_MIN = 3.4
@@ -111,7 +112,7 @@ function smoothstep(t: number) {
 }
 
 function nextBreeze(fromYaw: number, fromSpeed: number) {
-  const swing = ((35 + random() * 110) * Math.PI) / 180
+  const swing = ((17.5 + random() * 55) * Math.PI) / 180
   const sign = random() < 0.5 ? -1 : 1
   let speed = WIND_SPEED_MIN + random() * (WIND_SPEED_MAX - WIND_SPEED_MIN)
   if (Math.abs(speed - fromSpeed) < 0.8) {
@@ -181,7 +182,7 @@ export function stepWind(dt: number) {
       clock.fromSpeed = clock.toSpeed
       clock.phase = 'steady'
       clock.age = 0
-      clock.steadyFor = WIND_STEADY_S + (random() - 0.5) * 16
+      clock.steadyFor = WIND_STEADY_S + (random() - 0.5) * 32
     }
   }
   publish()
