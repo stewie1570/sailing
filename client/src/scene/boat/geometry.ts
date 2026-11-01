@@ -3,8 +3,9 @@ import * as THREE from 'three'
 /**
  * A 14 m cruising sloop, sized to the marina: beam about half a finger-pontoon
  * width, so it fits a slip with room to spare and still reads next to the dock.
- * Local space: +z bow, +x starboard, y = 0 at the waterline. No sails; the mast,
- * boom and standing rigging are there.
+ * Local space: +z bow, +x port (the starboard screw is the −x mirror), y = 0 at
+ * the waterline. The mast and standing rigging live on this mesh. The boom,
+ * mainsail and masthead vane are separate so the sheet and the halyard can move them.
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
  * and the triangle count stays in the low thousands. Collision uses the same
@@ -38,6 +39,9 @@ const METAL: RGB = [0.72, 0.74, 0.76]
 const METAL_DARK: RGB = [0.42, 0.44, 0.47]
 const KEEL: RGB = [0.14, 0.15, 0.17]
 const WOOD: RGB = [0.34, 0.22, 0.14]
+const SAIL: RGB = [0.97, 0.95, 0.9]
+const SAIL_BAND: RGB = [0.9, 0.88, 0.82]
+const VANE: RGB = [0.95, 0.42, 0.12]
 
 type RGB = readonly [number, number, number]
 
@@ -368,9 +372,8 @@ function addRig(g: Geo) {
     const y = deckY + mastH * t
     addBox(g, 0, y, mastZ, reach * 2, 0.04, 0.06, METAL_DARK)
   }
-  // Boom, parked on the centreline. No sail.
+  // Gooseneck only. The boom swings on its own mesh.
   const boomY = deckY + BOOM_DROP
-  addCylinderBetween(g, 0, boomY, mastZ, 0, boomY, mastZ - BOOM_LEN, BOOM_R, METAL)
   addBox(g, 0, boomY, mastZ, 0.12, 0.1, 0.18, METAL_DARK)
   // Standing rigging.
   const tipY = deckY + mastH
@@ -536,6 +539,101 @@ export function buildPropStrut(): THREE.Mesh {
   return toMesh(g, 'strut', true)
 }
 
+export interface RigFrame {
+  /** Gooseneck, and the pivot of the swinging boom. */
+  boomX: number
+  boomY: number
+  boomZ: number
+  boomLen: number
+  /** Masthead, a little above the cap, for the wind vane. */
+  vaneY: number
+  vaneZ: number
+}
+
+/** Boom pivot and masthead, in boat-local metres. */
+export function rigFrame(): RigFrame {
+  const deckY = hullPoint(0.7, 1).y
+  return {
+    boomX: 0,
+    boomY: deckY + BOOM_DROP,
+    boomZ: MAST_Z,
+    boomLen: BOOM_LEN,
+    vaneY: deckY + MAST_H + 0.22,
+    vaneZ: MAST_Z,
+  }
+}
+
+/** Boom along −z, pivot at the origin, so a positive yaw swings it to starboard. */
+export function buildBoom(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  addCylinderBetween(g, 0, 0, -0.14, 0, 0, -(BOOM_LEN - 0.06), BOOM_R, METAL)
+  addBox(g, 0, 0, -(BOOM_LEN - 0.1), 0.1, 0.08, 0.14, METAL_DARK)
+  return toMesh(g, 'boom', true)
+}
+
+/**
+ * Mainsail in boom-local space: foot along the boom, head up the mast.
+ * Two skins, a few centimetres apart, so the cloth has a real normal on both
+ * tacks. The belly is toward +x (port) when the boom is out to port; the boat
+ * mirrors the mesh on the other tack. Scale y to roll it into the boom.
+ */
+export function buildMainsail(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  const luff = MAST_H - BOOM_DROP - 0.55
+  const foot = BOOM_LEN - 0.4
+  const nu = 6
+  const nv = 8
+  const skin = (side: number) => {
+    const grid: number[][] = []
+    for (let j = 0; j <= nv; j++) {
+      const row: number[] = []
+      const v = j / nv
+      // Keep a short head so the top row is not a pile of identical points.
+      const taper = 0.04 + 0.96 * (1 - v)
+      for (let i = 0; i <= nu; i++) {
+        const u = i / nu
+        const z = -0.2 - foot * u * taper
+        const y = luff * v
+        const belly = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * (1 - v * 0.25)
+        const x = side * (0.02 + belly * 0.36)
+        const color = i === nu || (i + j) % 2 === 0 ? SAIL : SAIL_BAND
+        row.push(vert(g, x, y, z, color))
+      }
+      grid.push(row)
+    }
+    return grid
+  }
+  const port = skin(1)
+  const stbd = skin(-1)
+  for (let j = 0; j < nv; j++) {
+    for (let i = 0; i < nu; i++) {
+      quad(g, port[j][i], port[j][i + 1], port[j + 1][i + 1], port[j + 1][i])
+      quad(g, stbd[j][i], stbd[j + 1][i], stbd[j + 1][i + 1], stbd[j][i + 1])
+    }
+  }
+  const mesh = toMesh(g, 'mainsail', false)
+  // A vertical sail in the shade only sees the dim sky fill, which turns
+  // white cloth charcoal. A little emissive keeps the Dacron light.
+  const material = mesh.material as THREE.MeshLambertMaterial
+  material.emissive = new THREE.Color(0.55, 0.52, 0.46)
+  return mesh
+}
+
+/** Arrow along +z. Rotated by the apparent-wind angle, the head points into the wind. */
+export function buildVane(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  addCylinderBetween(g, 0, 0, -0.55, 0, 0, 0.62, 0.028, VANE)
+  const tip = vert(g, 0, 0, 0.92, VANE)
+  const a = vert(g, 0.1, 0.03, 0.52, VANE)
+  const b = vert(g, -0.1, 0.03, 0.52, VANE)
+  const c = vert(g, 0, -0.06, 0.52, VANE)
+  tri(g, tip, a, b)
+  tri(g, tip, b, c)
+  tri(g, tip, c, a)
+  tri(g, a, c, b)
+  return toMesh(g, 'vane', true)
+}
+
 export function buildSailboat(): THREE.Mesh {
   const g: Geo = { pos: [], col: [], idx: [] }
   addHull(g)
@@ -567,6 +665,7 @@ export interface HullSlice {
 
 /**
  * Solid outline of the hull, cabin and rails, plus the mast, boom and spreaders.
+ * The collision boom stays on the centreline; the drawn boom swings with the sheet.
  * Standing wire is left out: a filled triangle between the shrouds would stop the
  * boat in empty air, and the wire itself is under 2 cm.
  */

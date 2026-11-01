@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../map/mapData'
 import { environment, skyGlsl, skyUniforms } from './environment'
+import { WIND_SPEED_MAX, WIND_SPEED_MIN, getWind } from './boat/wind'
 import { QUALITY_PRESETS, useQuality } from './quality'
 
 const vertexShader = /* glsl */ `
@@ -43,6 +44,8 @@ const fragmentShader = /* glsl */ `
   uniform float uPixelAngle;  // radians subtended by one pixel
   uniform sampler2D uNormalMap;
   uniform float uRippleStrength;
+  uniform vec2 uWindDir;   // world xz, the way the air is moving
+  uniform float uWindGain; // chop scale, about 1 in a moderate breeze
   varying vec3 vWorldPos;
   varying float vSwell;
   #include <fog_pars_fragment>
@@ -54,14 +57,15 @@ const fragmentShader = /* glsl */ `
   float waveWeight(float wavelength, float foot) {
     return 1.0 - smoothstep(0.18 * wavelength, 0.5 * wavelength, foot);
   }
-  // Two long directional wind waves give the chop a prevailing direction; the organic small-scale
+  // Two long directional wind waves follow the breeze; the organic small-scale
   // detail comes from the scrolling normal map below.
   vec2 windWaveSlope(vec2 p, float t, float foot, float warp) {
     vec2 g = vec2(0.0);
     vec2 d; float k, a, w;
     vec2 q = p + warp * 9.0; // phase warp so crests are not perfectly straight
-    d = normalize(vec2(1.0, 0.35));  k = 6.2831 / 14.0; a = 0.04;  w = waveWeight(14.0, foot); g += w * d * k * a * cos(dot(d, q) * k + t * 1.6);
-    d = normalize(vec2(0.75, 0.65)); k = 6.2831 / 7.5;  a = 0.022; w = waveWeight(7.5, foot);  g += w * d * k * a * cos(dot(d, q) * k + t * 2.1);
+    d = uWindDir; k = 6.2831 / 14.0; a = 0.04 * uWindGain; w = waveWeight(14.0, foot); g += w * d * k * a * cos(dot(d, q) * k + t * 1.6);
+    d = vec2(uWindDir.x * 0.80 - uWindDir.y * 0.60, uWindDir.x * 0.60 + uWindDir.y * 0.80);
+    k = 6.2831 / 7.5; a = 0.022 * uWindGain; w = waveWeight(7.5, foot); g += w * d * k * a * cos(dot(d, q) * k + t * 2.1);
     return g;
   }
 
@@ -174,6 +178,8 @@ export function Water({ map }: { map: MapData }) {
           uPixelAngle: { value: 0.001 },
           uNormalMap: { value: null },
           uRippleStrength: { value: 0.35 },
+          uWindDir: { value: new THREE.Vector2(0, 1) },
+          uWindGain: { value: 1 },
         },
       ]),
     })
@@ -185,6 +191,11 @@ export function Water({ map }: { map: MapData }) {
 
   useFrame((state) => {
     material.uniforms.uTime.value = state.clock.elapsedTime
+    const wind = getWind()
+    const dir = material.uniforms.uWindDir.value as THREE.Vector2
+    dir.set(Math.sin(wind.blowYaw), Math.cos(wind.blowYaw))
+    const span = WIND_SPEED_MAX - WIND_SPEED_MIN
+    material.uniforms.uWindGain.value = 0.7 + 0.55 * ((wind.speed - WIND_SPEED_MIN) / span)
     const cam = state.camera as THREE.PerspectiveCamera
     const heightPx = state.size.height * state.viewport.dpr
     material.uniforms.uPixelAngle.value = (cam.fov * Math.PI) / 180 / heightPx

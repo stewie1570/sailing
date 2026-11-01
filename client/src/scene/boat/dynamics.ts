@@ -1,5 +1,5 @@
 /**
- * Twin-screw, single-rudder dynamics for the 14 m hull.
+ * Twin-screw, single-rudder dynamics for the 14 m hull, plus the mainsail.
  *
  * Body frame: +surge toward the bow, +sway toward local +x (port when the bow
  * is along +z), +yaw rate swings the bow to port. Starboard helm is a positive
@@ -8,8 +8,11 @@
  * The rudder only bites when water is moving over it — boat speed plus the
  * ahead prop wash — so it does nothing at rest with the screws stopped.
  * Unequal screws yaw the boat even then, which is how a twin-screw yacht
- * turns inside a slip.
+ * turns inside a slip. The main adds drive only while it is hoisted; furled,
+ * it is left out of the low-speed braking that settles the hull in a slip.
  */
+
+import { sailForce, type SailCommand, type Air } from './sail'
 
 export interface Drive {
   /** −1 full astern, 0 stop, +1 full ahead. */
@@ -64,14 +67,21 @@ function engineThrust(throttle: number) {
   return shaped * HULL.ahead * HULL.astern
 }
 
+export interface AirDrive {
+  wind: Air
+  sail: SailCommand
+}
+
 /**
  * One explicit step. `pose` is mutated. Collision is the caller's job —
  * this only integrates surge, sway, yaw and the world position.
+ * Pass `air` to let the mainsail push; without it the hull is screws and rudder only.
  */
 export function stepMotion(
   pose: { x: number; z: number; yaw: number; speed: number; sway: number; yawRate: number },
   drive: Drive,
   dt: number,
+  air?: AirDrive,
 ) {
   const port = clamp(drive.port, -1, 1)
   const stbd = clamp(drive.starboard, -1, 1)
@@ -83,6 +93,16 @@ export function stepMotion(
   let fy = 0
   // A forward push on the port side swings the bow to starboard.
   let n = -HULL.screwX * (fp - fs)
+
+  const rig = air ? sailForce(pose, air.wind, air.sail, dt) : null
+  if (rig) {
+    fx += rig.fx
+    fy += rig.fy
+    n += rig.n
+  }
+  // The extra low-speed drag and the stop-notch brake exist so a motorboat
+  // settles in a slip. A drawing main is propulsion, so they stay out of the way.
+  const sailing = (air?.sail.hoist ?? 0) > 0.18
 
   // Outward-turning screws walk the stern inward when they run astern.
   const walkFy = (port < 0 ? port * HULL.walk : 0) + (stbd < 0 ? -stbd * HULL.walk : 0)
@@ -104,8 +124,11 @@ export function stepMotion(
   const surgeAbs = Math.abs(u)
   const spd = Math.hypot(u, v)
 
-  fx -= HULL.dragQuad * u * surgeAbs + HULL.dragLin * u
-  fx -= u * (HULL.creep / (0.45 + surgeAbs))
+  // The linear term is what makes the hull feel reluctant to gather way.
+  // A drawing sail eases it, so the boat answers the breeze a little sooner.
+  const surgeLin = sailing ? HULL.dragLin * 0.78 : HULL.dragLin
+  fx -= HULL.dragQuad * u * surgeAbs + surgeLin * u
+  if (!sailing) fx -= u * (HULL.creep / (0.45 + surgeAbs))
   fx -= HULL.dragQuad * 0.35 * sinD * sinD * u * surgeAbs
   fy -= (HULL.swayLin + HULL.swaySpeed * surgeAbs) * v + HULL.swayQuad * v * Math.abs(v)
   n -= (HULL.yawLin + HULL.yawSpeed * surgeAbs) * r + HULL.yawQuad * Math.max(spd, 0.4) * r * Math.abs(r)
@@ -116,15 +139,15 @@ export function stepMotion(
   nu = clamp(nu, -6, 12)
   nv = clamp(nv, -4, 4)
   nr = clamp(nr, -1.2, 1.2)
-  // With both levers in the stop notch, kill the last of the way so the hull
-  // actually settles instead of creeping for a minute.
-  if (Math.abs(port) < 0.03 && Math.abs(stbd) < 0.03) {
+  // With both levers in the stop notch, and the main furled, kill the last of
+  // the way so the hull actually settles instead of creeping for a minute.
+  if (!sailing && Math.abs(port) < 0.03 && Math.abs(stbd) < 0.03) {
     const cut = 0.18 * dt
     nu = Math.abs(nu) <= cut ? 0 : nu - Math.sign(nu) * cut
     nv = Math.abs(nv) <= cut ? 0 : nv - Math.sign(nv) * cut
     if (Math.abs(nr) < 0.04 * dt) nr = 0
   }
-  if (Math.abs(nu) < 0.03 && Math.abs(nv) < 0.03 && Math.abs(nr) < 0.015 && Math.abs(fp) < 40 && Math.abs(fs) < 40) {
+  if (!sailing && Math.abs(nu) < 0.03 && Math.abs(nv) < 0.03 && Math.abs(nr) < 0.015 && Math.abs(fp) < 40 && Math.abs(fs) < 40) {
     nu = 0
     nv = 0
     nr = 0

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useConnection } from '../net/gameConnection'
+import { speedKnots, telemetry } from '../scene/boat/telemetry'
+import { HelmDock } from './HelmDock'
 import { NavMap } from './NavMap'
-import { Throttles } from './Throttles'
 import { WheelSlider } from './WheelSlider'
 import { perf, setQuality, useQuality, type QualityLevel } from '../scene/quality'
 
@@ -70,6 +71,33 @@ function FullscreenButton() {
   )
 }
 
+function BoatSpeed() {
+  const valueRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const node = valueRef.current
+      if (!node) return
+      const kn = speedKnots(telemetry.speed, telemetry.sway)
+      node.textContent = `${kn < -0.05 ? '−' : ''}${Math.abs(kn).toFixed(1)}`
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  return (
+    <div className="hud hud-speed">
+      <div className="hud-speed-label">Speed</div>
+      <div className="hud-speed-value">
+        <span ref={valueRef}>0.0</span>
+        <span className="hud-speed-unit">kn</span>
+      </div>
+    </div>
+  )
+}
+
 export function Hud({ loading }: { loading: boolean }) {
   const conn = useConnection()
   const quality = useQuality()
@@ -87,7 +115,7 @@ export function Hud({ loading }: { loading: boolean }) {
         <div className="hud-sub">
           {loading
             ? 'Loading chart…'
-            : 'Throttles snap to stop · center the wheel slider and the rudder lies straight'}
+            : 'Engine tab runs the screws · Sailing tab sets the main · center the wheel to straighten the rudder'}
         </div>
       </div>
 
@@ -109,12 +137,16 @@ export function Hud({ loading }: { loading: boolean }) {
         </div>
       </div>
 
+      <BoatSpeed />
+
       <div className="hud hud-bottom">
-        {loading ? 'Loading chart…' : 'Drag to look · pinch or scroll to zoom · arrows trim both engines'}
+        {loading
+          ? 'Loading chart…'
+          : 'Drag to look · pinch or scroll to zoom · arrows trim the engines, or the sheet while sailing'}
       </div>
 
       <NavMap />
-      <Throttles />
+      <HelmDock />
       <WheelSlider />
     </>
   )

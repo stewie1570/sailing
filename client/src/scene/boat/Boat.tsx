@@ -5,12 +5,16 @@ import type { MapData } from '../../map/mapData'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld } from './collision'
 import {
+  buildBoom,
+  buildMainsail,
   buildPropeller,
   buildPropStrut,
   buildRudder,
   buildSailboat,
+  buildVane,
   buildWheel,
   helmHardware,
+  rigFrame,
   WHEEL_RADIUS,
 } from './geometry'
 import { getHelm, updateHelm } from './helm'
@@ -18,12 +22,15 @@ import {
   chaseYaw,
   CHASE_YAW_LAG,
   integrate,
+  MOTION,
   rotateYaw,
   spawnPose,
   swell,
   type Pose,
 } from './physics'
 import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
+import { getBoom, getHoist, luffAmount, readSail, stepHoist } from './sail'
+import { getWind, getWindDebug, stepWind } from './wind'
 import { publishTelemetry, publishWheel } from './telemetry'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
@@ -36,15 +43,20 @@ function disposeMesh(mesh: THREE.Mesh) {
 }
 
 /**
- * The player's sloop, driven by twin screws and a rudder.
- * The wheel and the blade turn with the helm. The hull stops when it meets
- * the shore, a dock, or any other solid mesh. The camera rides along and
- * chases the heading about a second behind, finishing at the same angle
+ * The player's sloop. Twin screws and a rudder, and a main that draws when
+ * it is hoisted. The wheel and the blade turn with the helm. The boom swings
+ * as far as the sheet allows and the wind pushes it. The hull stops when it
+ * meets the shore, a dock, or any other solid mesh. The camera rides along
+ * and chases the heading about a second behind, finishing at the same angle
  * relative to the hull.
  */
 export function Boat({ map }: { map: MapData }) {
   const hull = useMemo(() => buildSailboat(), [])
   const wheel = useMemo(() => buildWheel(), [])
+  const boomMesh = useMemo(() => buildBoom(), [])
+  const sailMesh = useMemo(() => buildMainsail(), [])
+  const vaneMesh = useMemo(() => buildVane(), [])
+  const rig = useMemo(() => rigFrame(), [])
   const rudderMesh = useMemo(() => buildRudder(), [])
   const portProp = useMemo(() => buildPropeller(), [])
   const stbdProp = useMemo(() => buildPropeller(), [])
@@ -60,6 +72,10 @@ export function Boat({ map }: { map: MapData }) {
   const pose = useMemo<Pose>(() => spawnPose(map), [map])
   const group = useRef<THREE.Group>(null)
   const wheelRef = useRef<THREE.Group>(null)
+  const boomRef = useRef<THREE.Group>(null)
+  const sailRef = useRef<THREE.Group>(null)
+  const vaneRef = useRef<THREE.Group>(null)
+  const camberSide = useRef(1)
   const rudderRef = useRef<THREE.Group>(null)
   const portSpinRef = useRef<THREE.Group>(null)
   const stbdSpinRef = useRef<THREE.Group>(null)
@@ -74,9 +90,9 @@ export function Boat({ map }: { map: MapData }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, wheel, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
+      for (const mesh of [hull, wheel, boomMesh, sailMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
     }
-  }, [hull, wheel, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
+  }, [hull, wheel, boomMesh, sailMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -92,8 +108,15 @@ export function Boat({ map }: { map: MapData }) {
       get port() { return getHelm().port },
       get starboard() { return getHelm().starboard },
       get rudder() { return getHelm().rudder },
+      get halyard() { return getHelm().halyard },
+      get sheet() { return getHelm().sheet },
+      get hoist() { return getHoist() },
+      get boom() { return getBoom() },
       drive(port: number, starboard: number, rudder: number) {
         updateHelm({ port, starboard, rudder })
+      },
+      sail(halyard: number, sheet: number) {
+        updateHelm({ halyard, sheet })
       },
       place(x: number, z: number, yaw?: number) {
         const dx = x - pose.x
@@ -114,20 +137,54 @@ export function Boat({ map }: { map: MapData }) {
       },
     }
     sailing.boat = api
+    sailing.wind = {
+      get blowYaw() { return getWind().blowYaw },
+      get speed() { return getWind().speed },
+      get shifting() { return getWind().shifting },
+      get age() { return getWindDebug().age },
+      get phase() { return getWindDebug().phase },
+    }
     return () => {
-      if (w.__sailing) delete w.__sailing.boat
+      if (!w.__sailing) return
+      delete w.__sailing.boat
+      delete w.__sailing.wind
     }
   }, [pose, camera, controls])
 
   useFrame((state, delta) => {
     const drive = getHelm()
     const time = state.clock.elapsedTime
-    integrate(pose, drive, delta, (x, z, yaw) => blocked(world, x, z, yaw, swell(x, z, time)))
+    const frame = Math.min(Math.max(delta, 0), MOTION.maxFrame)
+    stepWind(frame)
+    stepHoist(drive.halyard, frame)
+    const wind = getWind()
+    integrate(pose, drive, delta, (x, z, yaw) => blocked(world, x, z, yaw, swell(x, z, time)), {
+      wind,
+      sail: { hoist: getHoist(), sheet: drive.sheet },
+    })
     publishTelemetry(pose)
 
     const spin = Math.min(Math.max(delta, 0), 0.1)
     if (wheelRef.current) wheelRef.current.rotation.z = drive.rudder * WHEEL_LOCK
     if (rudderRef.current) rudderRef.current.rotation.y = drive.rudder * RUDDER_LOCK
+    const boomAngle = getBoom()
+    const trim = readSail(pose, wind)
+    if (boomRef.current) boomRef.current.rotation.y = boomAngle
+    if (sailRef.current) {
+      const h = getHoist()
+      if (Math.abs(boomAngle) > 0.08) camberSide.current = boomAngle > 0 ? -1 : 1
+      const flap = luffAmount(trim.aoa, trim.awa, h)
+      const gust = Math.min(1, trim.aws / 3.5)
+      const amp = flap * (0.4 + 0.6 * gust)
+      // Two rates, so a luffing main slats instead of wagging on a clock.
+      const wag = Math.sin(time * (7.2 + 5 * gust)) * 0.62 + Math.sin(time * (15.5 + 4 * gust) + 0.8) * 0.38
+      sailRef.current.rotation.y = amp * wag * 0.22
+      sailRef.current.rotation.x = amp * Math.sin(time * (11.4 + 3 * gust) + 0.3) * 0.07
+      const belly = 1 - amp * 0.72
+      sailRef.current.scale.set(camberSide.current * belly, Math.max(h, 0.001), 1)
+      sailRef.current.visible = h > 0.02
+    }
+    if (vaneRef.current) vaneRef.current.rotation.y = trim.awa
     if (portSpinRef.current) portSpinRef.current.rotation.z += drive.port * 16 * spin
     if (stbdSpinRef.current) stbdSpinRef.current.rotation.z -= drive.starboard * 16 * spin
 
@@ -190,6 +247,15 @@ export function Boat({ map }: { map: MapData }) {
   return (
     <group ref={group} position={[pose.x, 0, pose.z]} rotation={[0, pose.yaw, 0]}>
       <primitive object={hull} />
+      <group ref={boomRef} position={[rig.boomX, rig.boomY, rig.boomZ]}>
+        <primitive object={boomMesh} />
+        <group ref={sailRef} visible={false}>
+          <primitive object={sailMesh} />
+        </group>
+      </group>
+      <group ref={vaneRef} position={[0, rig.vaneY, rig.vaneZ]}>
+        <primitive object={vaneMesh} />
+      </group>
       <group ref={wheelRef} position={[wheelPos.x, wheelPos.y, wheelPos.z]}>
         <primitive object={wheel} />
       </group>

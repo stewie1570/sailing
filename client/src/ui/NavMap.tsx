@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { telemetry } from '../scene/boat/telemetry'
+import { speedKnots, telemetry } from '../scene/boat/telemetry'
+import { compassPoint, getWind, MS_TO_KN, windFromDegrees } from '../scene/boat/wind'
 
 interface ChartMeta {
   name: string
@@ -151,7 +152,7 @@ export function NavMap() {
 
         const deg = (heading * 180) / Math.PI
         const hdg = `${(Math.round((deg + 360) % 360) % 360).toString().padStart(3, '0')}°`
-        const kn = telemetry.speed * 1.943844
+        const kn = speedKnots(telemetry.speed, telemetry.sway)
         const spd = `${kn < -0.05 ? '−' : ''}${Math.abs(kn).toFixed(1)} kn`
         if (readRef.current) readRef.current.textContent = `${hdg}  ${spd}`
 
@@ -171,6 +172,38 @@ export function NavMap() {
       ctx.font = '700 12px Segoe UI, sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText('N', cssW / 2, 14)
+
+      const wind = getWind()
+      const going = (windFromDegrees(wind.blowYaw) * Math.PI) / 180 + Math.PI
+      const roseX = cssW - 24
+      const roseY = 22
+      ctx.save()
+      ctx.translate(roseX, roseY)
+      ctx.beginPath()
+      ctx.arc(0, 0, 12, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(8, 16, 28, 0.55)'
+      ctx.fill()
+      ctx.rotate(going)
+      ctx.beginPath()
+      ctx.moveTo(0, -8)
+      ctx.lineTo(3.2, -1)
+      ctx.lineTo(1.3, -1)
+      ctx.lineTo(1.3, 7)
+      ctx.lineTo(-1.3, 7)
+      ctx.lineTo(-1.3, -1)
+      ctx.lineTo(-3.2, -1)
+      ctx.closePath()
+      ctx.fillStyle = '#9fd4ff'
+      ctx.fill()
+      ctx.restore()
+      const windLabel = `${compassPoint(windFromDegrees(wind.blowYaw))} ${(wind.speed * MS_TO_KN).toFixed(0)} kn`
+      ctx.font = '10px Segoe UI, sans-serif'
+      ctx.textAlign = 'center'
+      const windW = ctx.measureText(windLabel).width
+      ctx.fillStyle = 'rgba(8, 16, 28, 0.55)'
+      ctx.fillRect(roseX - windW / 2 - 4, roseY + 14, windW + 8, 13)
+      ctx.fillStyle = '#f4f7fb'
+      ctx.fillText(windLabel, roseX, roseY + 24)
 
       const metresPerPx = viewW / cssW
       const target = metresPerPx > 40 ? 5000 : metresPerPx > 12 ? 1000 : 500

@@ -6,9 +6,13 @@ export interface Helm {
   starboard: number
   /** −1 hard to port, 0 rudder parallel with the hull, +1 hard to starboard. */
   rudder: number
+  /** 0 rolls the main into the boom, 1 hoists it. */
+  halyard: number
+  /** 0 sheets the boom to the centreline, 1 eases it out to the shrouds. */
+  sheet: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -17,13 +21,17 @@ export const NEUTRAL_RELEASE = 0.13
 export const RUDDER_GRAB = 0.045
 export const RUDDER_RELEASE = 0.08
 
-const ZERO: Helm = { port: 0, starboard: 0, rudder: 0 }
+const ZERO: Helm = { port: 0, starboard: 0, rudder: 0, halyard: 0, sheet: 0.5 }
 let helm: Helm = ZERO
 const listeners = new Set<() => void>()
-const drag: Record<Control, boolean> = { port: false, starboard: false, rudder: false }
+const drag: Record<Control, boolean> = { port: false, starboard: false, rudder: false, sheet: false }
 
 function clamp(v: number) {
   return Math.min(1, Math.max(-1, v))
+}
+
+function clamp01(v: number) {
+  return Math.min(1, Math.max(0, v))
 }
 
 export function getHelm(): Helm {
@@ -35,8 +43,18 @@ export function updateHelm(patch: Partial<Helm>) {
     port: clamp(patch.port ?? helm.port),
     starboard: clamp(patch.starboard ?? helm.starboard),
     rudder: clamp(patch.rudder ?? helm.rudder),
+    halyard: patch.halyard == null ? helm.halyard : patch.halyard >= 0.5 ? 1 : 0,
+    sheet: clamp01(patch.sheet ?? helm.sheet),
   }
-  if (next.port === helm.port && next.starboard === helm.starboard && next.rudder === helm.rudder) return
+  if (
+    next.port === helm.port &&
+    next.starboard === helm.starboard &&
+    next.rudder === helm.rudder &&
+    next.halyard === helm.halyard &&
+    next.sheet === helm.sheet
+  ) {
+    return
+  }
   helm = next
   listeners.forEach((l) => l())
 }
@@ -68,7 +86,10 @@ export function useHelm(): Helm {
 
 const THROTTLE_RATE = 0.85
 const RUDDER_RATE = 1.05
+const SHEET_RATE = 0.5
 const KEY_HOLD_MS = 180
+
+export type HelmMode = 'engine' | 'sailing'
 
 function nudge(value: number, delta: number, heldUntil: number, now: number): { value: number; heldUntil: number } {
   if (delta === 0) return { value, heldUntil }
@@ -78,16 +99,21 @@ function nudge(value: number, delta: number, heldUntil: number, now: number): { 
   return { value: next, heldUntil }
 }
 
-/** Arrows trim both screws and the rudder. Q/A and E/D move one screw, so a keyboard can still split the engines. */
-export function useHelmKeyboard() {
+/**
+ * On the engine tab, up and down trim both screws. On the sailing tab those
+ * keys ease and harden the sheet instead. Left and right always steer.
+ * Q/A and E/D still move one screw, so a keyboard can split the engines.
+ */
+export function useHelmKeyboard(mode: HelmMode) {
   useEffect(() => {
     const held = new Set<string>()
     const pause = { port: 0, starboard: 0, rudder: 0 }
     let raf = 0
     let last = performance.now()
 
-    const drivesPort = () => held.has('ArrowUp') || held.has('ArrowDown') || held.has('KeyQ') || held.has('KeyA')
-    const drivesStbd = () => held.has('ArrowUp') || held.has('ArrowDown') || held.has('KeyE') || held.has('KeyD')
+    const arrowsDriveEngines = mode === 'engine'
+    const drivesPort = () => (arrowsDriveEngines && (held.has('ArrowUp') || held.has('ArrowDown'))) || held.has('KeyQ') || held.has('KeyA')
+    const drivesStbd = () => (arrowsDriveEngines && (held.has('ArrowUp') || held.has('ArrowDown'))) || held.has('KeyE') || held.has('KeyD')
     const drivesRudder = () => held.has('ArrowLeft') || held.has('ArrowRight')
 
     const release = () => {
@@ -120,10 +146,12 @@ export function useHelmKeyboard() {
       let port = h.port
       let starboard = h.starboard
       let rudder = h.rudder
-      const both = (held.has('ArrowUp') ? 1 : 0) - (held.has('ArrowDown') ? 1 : 0)
+      let sheet = h.sheet
+      const both = arrowsDriveEngines ? (held.has('ArrowUp') ? 1 : 0) - (held.has('ArrowDown') ? 1 : 0) : 0
       const portDelta = both + (held.has('KeyQ') ? 1 : 0) - (held.has('KeyA') ? 1 : 0)
       const stbdDelta = both + (held.has('KeyE') ? 1 : 0) - (held.has('KeyD') ? 1 : 0)
       const rudderDelta = (held.has('ArrowRight') ? 1 : 0) - (held.has('ArrowLeft') ? 1 : 0)
+      const sheetDelta = arrowsDriveEngines ? 0 : (held.has('ArrowUp') ? 1 : 0) - (held.has('ArrowDown') ? 1 : 0)
       if (!drag.port && portDelta !== 0) {
         const step = nudge(port, portDelta * THROTTLE_RATE * dt, pause.port, now)
         port = step.value
@@ -139,7 +167,8 @@ export function useHelmKeyboard() {
         rudder = step.value
         pause.rudder = step.heldUntil
       }
-      updateHelm({ port, starboard, rudder })
+      if (!drag.sheet && sheetDelta !== 0) sheet = clamp01(sheet + sheetDelta * SHEET_RATE * dt)
+      updateHelm({ port, starboard, rudder, sheet })
     }
 
     const blur = () => {
@@ -156,5 +185,5 @@ export function useHelmKeyboard() {
       window.removeEventListener('keyup', up, true)
       window.removeEventListener('blur', blur)
     }
-  }, [])
+  }, [mode])
 }
