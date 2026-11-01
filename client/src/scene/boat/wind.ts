@@ -8,11 +8,11 @@ import { useSyncExternalStore } from 'react'
  * dial shows. Speed stays inside a working inland range, about Beaufort 2 to 4
  * (roughly 5 to 16 knots): enough to sail a heavy cruiser, short of a gale.
  *
- * The breeze holds steady for about half a minute, then eases onto a new
+ * The breeze holds steady for about a minute, then eases onto a new
  * heading and speed over several seconds. It does not jump.
  */
 
-export const WIND_STEADY_S = 30
+export const WIND_STEADY_S = 60
 export const WIND_SHIFT_S = 8
 /** Metres per second. */
 export const WIND_SPEED_MIN = 2.4
@@ -181,7 +181,7 @@ export function stepWind(dt: number) {
       clock.fromSpeed = clock.toSpeed
       clock.phase = 'steady'
       clock.age = 0
-      clock.steadyFor = WIND_STEADY_S + (random() - 0.5) * 8
+      clock.steadyFor = WIND_STEADY_S + (random() - 0.5) * 16
     }
   }
   publish()

@@ -140,7 +140,9 @@ export function Hud({ loading }: { loading: boolean }) {
       <BoatSpeed />
 
       <div className="hud hud-bottom">
-        {loading ? 'Loading chart…' : 'Drag to look · pinch or scroll to zoom · arrows trim both engines'}
+        {loading
+          ? 'Loading chart…'
+          : 'Drag to look · pinch or scroll to zoom · arrows trim the engines, or the sheet while sailing'}
       </div>
 
       <NavMap />

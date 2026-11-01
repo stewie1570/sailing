@@ -6,8 +6,8 @@ import { Throttles } from './Throttles'
 type Tab = 'engine' | 'sailing'
 
 export function HelmDock() {
-  useHelmKeyboard()
   const [tab, setTab] = useState<Tab>('engine')
+  useHelmKeyboard(tab)
 
   return (
     <div className="hud throttles">

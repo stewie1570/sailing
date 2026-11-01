@@ -196,7 +196,7 @@ export function NavMap() {
       ctx.fillStyle = '#9fd4ff'
       ctx.fill()
       ctx.restore()
-      const windLabel = `${compassPoint(windFromDegrees(wind.blowYaw))} ${(wind.speed * MS_TO_KN).toFixed(0)}`
+      const windLabel = `${compassPoint(windFromDegrees(wind.blowYaw))} ${(wind.speed * MS_TO_KN).toFixed(0)} kn`
       ctx.font = '10px Segoe UI, sans-serif'
       ctx.textAlign = 'center'
       const windW = ctx.measureText(windLabel).width

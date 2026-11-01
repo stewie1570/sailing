@@ -11,7 +11,8 @@ function clamp01(v: number) {
 function sheetFromY(el: HTMLElement, clientY: number) {
   const r = el.getBoundingClientRect()
   const pad = 14
-  return clamp01((clientY - r.top - pad) / Math.max(1, r.height - pad * 2))
+  const t = (clientY - r.top - pad) / Math.max(1, r.height - pad * 2)
+  return 1 - clamp01(t)
 }
 
 function Sheet({ value }: { value: number }) {
@@ -46,8 +47,8 @@ function Sheet({ value }: { value: number }) {
       </div>
       <div className="sheet-body">
         <div className="sheet-scale" aria-hidden="true">
-          <span>Tight</span>
           <span>Ease</span>
+          <span>Tight</span>
         </div>
         <div
           className={`sheet-track${dragging ? ' dragging' : ''}`}
@@ -64,7 +65,7 @@ function Sheet({ value }: { value: number }) {
           onPointerCancel={onUp}
           onContextMenu={(e) => e.preventDefault()}
         >
-          <div className="sheet-knob" style={{ top: `calc(14px + ${value} * (100% - 28px))` }} />
+          <div className="sheet-knob" style={{ top: `calc(14px + ${1 - value} * (100% - 28px))` }} />
         </div>
       </div>
     </div>
