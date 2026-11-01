@@ -59,7 +59,8 @@ const HULL = {
   /** Extra surge damping that matters once the boat has slowed. */
   creep: 900,
   swayLin: 2200,
-  swaySpeed: 6500,
+  /** Fin side force, newtons per (m/s of sway) per (m/s of forward speed), at full bite. */
+  swaySpeed: 48000,
   swayQuad: 9000,
   yawLin: 5200,
   yawSpeed: 3600,
@@ -75,12 +76,24 @@ const HULL = {
 
 /**
  * Share of calm-water resistance kept while a sail is drawing.
- * Surge eases so the boat gathers way. Sway eases further so the breeze
- * can push her off the heading, which is most of what "the wind has hold
- * of the boat" feels like. Yaw damping stays put so she does not spin.
+ * Surge eases so the boat gathers way. The low-speed part of sway eases
+ * too, so with almost no way on the breeze can still push her a little
+ * sideways. The fin is separate and is not part of this give. Yaw damping
+ * stays put so she does not spin.
  */
 const SAILING_SURGE = 0.5
 const SAILING_SWAY = 0.3
+
+/**
+ * How much of the fin is in the flow. Almost none below half a knot, all of
+ * it by about two and a half knots. A stopped hull can still be blown
+ * sideways; once she is moving the keel holds the track.
+ */
+function keelBite(surgeMs: number) {
+  const kn = surgeMs * MS_TO_KN
+  const t = clamp((kn - 0.5) / 2, 0, 1)
+  return t * t * (3 - 2 * t)
+}
 
 function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v))
@@ -200,18 +213,23 @@ export function stepMotion(
   const spd = Math.hypot(u, v)
 
   // The linear term is what makes the hull feel reluctant to gather way.
-  // A drawing sail eases surge and sway, so the breeze can both gather way
-  // and push the hull sideways. Quad surge drag stays, which keeps a top speed.
+  // A drawing sail eases surge, and eases only the low-speed part of sway,
+  // so a nearly stopped boat can still be blown a little sideways. Quad
+  // surge drag stays, which keeps a top speed.
   const surgeLin = sailing ? HULL.dragLin * SAILING_SURGE : HULL.dragLin
-  const swayGive = sailing ? SAILING_SWAY : 1
+  const swaySoft = sailing ? SAILING_SWAY : 1
   fx -= HULL.dragQuad * u * surgeAbs + surgeLin * u
   if (!sailing) fx -= u * (HULL.creep / (0.45 + surgeAbs))
   fx -= HULL.dragQuad * 0.35 * sinD * sinD * u * surgeAbs
-  fy -= swayGive * ((HULL.swayLin + HULL.swaySpeed * surgeAbs) * v + HULL.swayQuad * v * Math.abs(v))
+  fy -= swaySoft * (HULL.swayLin * v + HULL.swayQuad * v * Math.abs(v))
   n -= (HULL.yawLin + HULL.yawSpeed * surgeAbs) * r + HULL.yawQuad * Math.max(spd, 0.4) * r * Math.abs(r)
 
   let nu = u + (fx / HULL.mass + v * r) * dt
   let nv = v + (fy / HULL.mass - u * r) * dt
+  // Implicit fin. The side force is stiff once there is way on, and a long
+  // frame must not fling the hull the other way.
+  const keel = keelBite(surgeAbs) * HULL.swaySpeed * surgeAbs
+  nv /= 1 + (keel / HULL.mass) * dt
   let nr = r + (n / HULL.inertia) * dt
   nu = clamp(nu, -6, 12)
   nv = clamp(nv, -4, 4)
