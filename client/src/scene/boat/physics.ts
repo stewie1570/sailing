@@ -99,8 +99,8 @@ export function integrate(
   }
 }
 
-/** Same swell as the water surface, so the hull rides the wave instead of slicing a flat plane. */
+/** Same standing swell as the water surface, so the hull heaves with the wave under it. */
 export function swell(x: number, z: number, t: number): number {
-  return 0.1 * Math.sin(x * 0.021 + z * 0.013 + t * 0.55)
-    + 0.07 * Math.sin(-x * 0.011 + z * 0.027 + t * 0.41)
+  return 0.1 * Math.sin(x * 0.021 + z * 0.013) * Math.sin(t * 0.55)
+    + 0.07 * Math.sin(-x * 0.011 + z * 0.027) * Math.sin(t * 0.41)
 }
