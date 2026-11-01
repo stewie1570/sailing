@@ -371,7 +371,9 @@ function evaluateJib(
     fx *= 0.35
     fy *= 0.35
   }
-  // Forward of the mast, so a drawing jib gives a little lee helm to balance the main.
+  // Geometric centre of the jib, forward of the mast. This is the sail-plan
+  // yaw. Flow over the keel and rudder decides how much of it the hull takes
+  // up; that limit is applied with the rest of the hull forces.
   const zCe = 3.5
   const xCe = -Math.sin(clewAngle) * 0.45
   const n = zCe * fy - xCe * fx
