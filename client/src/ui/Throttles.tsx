@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCancelSliderTouch } from './sliderTouch'
 import {
   NEUTRAL_GRAB,
   NEUTRAL_RELEASE,
@@ -65,8 +66,10 @@ function thrusterOrder(value: number) {
 }
 
 function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
+  const trackRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(trackRef)
 
   const apply = (raw: number, release: boolean) => {
     const d = detent(raw, notch.current, NEUTRAL_GRAB, NEUTRAL_RELEASE)
@@ -85,6 +88,7 @@ function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(valueFromX(e.currentTarget, e.clientX), false)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -105,6 +109,7 @@ function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
       <div className="thruster-line">
         <span className="furler-end">Port</span>
         <div
+          ref={trackRef}
           className={`thruster-track${dragging ? ' dragging' : ''}${value === 0 ? ' in-stop' : ''}`}
           role="slider"
           aria-label={name}
@@ -138,6 +143,7 @@ function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
   const slotRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(slotRef)
 
   const apply = (raw: number, release: boolean) => {
     const d = detent(raw, notch.current, NEUTRAL_GRAB, NEUTRAL_RELEASE)
@@ -156,6 +162,7 @@ function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(valueFromY(e.currentTarget, e.clientY), false)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
