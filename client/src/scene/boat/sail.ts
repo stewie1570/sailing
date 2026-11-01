@@ -33,6 +33,12 @@ export const SAIL_AREA = 86
 /** Working jib. Smaller than the main, and part of its value is the slot. */
 export const JIB_AREA = 46
 const AIR_RHO = 1.225
+/**
+ * How hard the apparent wind is allowed to push on the cloth. The areas above
+ * already stand in for a heavy hull; this extra share lets a fresh breeze
+ * drive and shove the boat instead of merely tugging at it.
+ */
+export const WIND_ON_SAIL = 1.75
 /** Seconds to hoist or to roll the main away. */
 export const HOIST_TIME = 2.4
 /** Boom follows the sheet and the wind with this time constant. */
@@ -188,9 +194,9 @@ function boomTarget(awa: number, sheet: number, sailHoist: number) {
  *
  * The hull's linear drag was tuned so the screws stop the boat smartly, and
  * it is heavier than a real 14 m yacht's resistance at sailing speeds. The
- * area above is a large cruising main chosen so a beam reach in twelve knots
- * gathers way against that drag. With the sail furled the area collapses
- * and the force falls to a few tens of newtons.
+ * area above, with WIND_ON_SAIL, is what lets a fresh breeze gather way
+ * against that drag. With the sail furled the area collapses and the force
+ * falls to a few tens of newtons.
  *
  * The centre of effort is almost over the keel, with a slight weather helm
  * so the bow eases toward the wind and a few degrees of rudder holds it.
@@ -332,7 +338,7 @@ function aeroLoads(
   const aoa = angleOfAttack(aw.airBow, aw.airPort, aw.aws, angle)
   const { cl, cd } = clcd(aoa, peakDeg, clMax)
   const q = 0.5 * AIR_RHO * aw.aws * aw.aws
-  const scale = q * area * exposed
+  const scale = q * area * exposed * WIND_ON_SAIL
   let fx = 0
   let fy = 0
   if (aw.aws > 1e-3 && scale > 0) {

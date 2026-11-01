@@ -179,7 +179,7 @@ export function Water({ map }: { map: MapData }) {
           uNormalMap: { value: null },
           uRippleStrength: { value: 0.35 },
           uWindDir: { value: new THREE.Vector2(0, 1) },
-          uWindGain: { value: 1 },
+          uWindGain: { value: 1.2 },
         },
       ]),
     })
@@ -195,7 +195,8 @@ export function Water({ map }: { map: MapData }) {
     const dir = material.uniforms.uWindDir.value as THREE.Vector2
     dir.set(Math.sin(wind.blowYaw), Math.cos(wind.blowYaw))
     const span = WIND_SPEED_MAX - WIND_SPEED_MIN
-    material.uniforms.uWindGain.value = 0.7 + 0.55 * ((wind.speed - WIND_SPEED_MIN) / span)
+    // The speed band itself is a fresh breeze, so even the quiet end chops the surface.
+    material.uniforms.uWindGain.value = 0.95 + 0.8 * ((wind.speed - WIND_SPEED_MIN) / span)
     const cam = state.camera as THREE.PerspectiveCamera
     const heightPx = state.size.height * state.viewport.dpr
     material.uniforms.uPixelAngle.value = (cam.fov * Math.PI) / 180 / heightPx

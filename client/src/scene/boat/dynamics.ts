@@ -63,6 +63,15 @@ const HULL = {
   walk: 250,
 }
 
+/**
+ * Share of calm-water resistance kept while a sail is drawing.
+ * Surge eases so the boat gathers way. Sway eases further so the breeze
+ * can push her off the heading, which is most of what "the wind has hold
+ * of the boat" feels like. Yaw damping stays put so she does not spin.
+ */
+const SAILING_SURGE = 0.5
+const SAILING_SWAY = 0.3
+
 function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v))
 }
@@ -162,12 +171,14 @@ export function stepMotion(
   const spd = Math.hypot(u, v)
 
   // The linear term is what makes the hull feel reluctant to gather way.
-  // A drawing sail eases it, so the boat answers the breeze a little sooner.
-  const surgeLin = sailing ? HULL.dragLin * 0.78 : HULL.dragLin
+  // A drawing sail eases surge and sway, so the breeze can both gather way
+  // and push the hull sideways. Quad surge drag stays, which keeps a top speed.
+  const surgeLin = sailing ? HULL.dragLin * SAILING_SURGE : HULL.dragLin
+  const swayGive = sailing ? SAILING_SWAY : 1
   fx -= HULL.dragQuad * u * surgeAbs + surgeLin * u
   if (!sailing) fx -= u * (HULL.creep / (0.45 + surgeAbs))
   fx -= HULL.dragQuad * 0.35 * sinD * sinD * u * surgeAbs
-  fy -= (HULL.swayLin + HULL.swaySpeed * surgeAbs) * v + HULL.swayQuad * v * Math.abs(v)
+  fy -= swayGive * ((HULL.swayLin + HULL.swaySpeed * surgeAbs) * v + HULL.swayQuad * v * Math.abs(v))
   n -= (HULL.yawLin + HULL.yawSpeed * surgeAbs) * r + HULL.yawQuad * Math.max(spd, 0.4) * r * Math.abs(r)
 
   let nu = u + (fx / HULL.mass + v * r) * dt

@@ -16,12 +16,17 @@ const OUT = resolve(import.meta.dirname, '../../client/public/map');
 mkdirSync(OUT, { recursive: true });
 
 // ---------------------------------------------------------------- configuration
-const METERS_PER_PIXEL = 23.3;        // from the chart's scale bar (5 km ~ 215 px)
-const HEIGHT_MIN = -64, HEIGHT_MAX = 400; // metres, encoded range
+// The painted chart's scale bar is 5 km ~ 215 px (23.3 m/px). Play uses a third
+// of that on X and Z so a crossing is a short sail. Falloffs below are in that
+// same scaled horizontal metre, which keeps each pixel's height unchanged.
+const CHART_METERS_PER_PIXEL = 23.3;
+const HORIZONTAL_SCALE = 1 / 3;
+const METERS_PER_PIXEL = CHART_METERS_PER_PIXEL * HORIZONTAL_SCALE;
+const HEIGHT_MIN = -64, HEIGHT_MAX = 400; // metres, encoded range (Y is not scaled)
 const HILL_HEIGHT = 280;              // asymptotic inland height (m)
-const HILL_FALLOFF = 2000;            // metres from shore to reach ~63% of hill height
-const DEEP_MAX = 38, DEEP_FALLOFF = 420;
-const SHOAL_MAX = 3.0, SHOAL_FALLOFF = 70;
+const HILL_FALLOFF = 2000 * HORIZONTAL_SCALE; // scaled metres from shore to ~63% of hill height
+const DEEP_MAX = 38, DEEP_FALLOFF = 420 * HORIZONTAL_SCALE;
+const SHOAL_MAX = 3.0, SHOAL_FALLOFF = 70 * HORIZONTAL_SCALE;
 const TREE_TARGET = 7000;
 
 // Rectangles covering chart UI (title, labels, compass, legend, scale bar). Filled from surroundings.
@@ -200,10 +205,10 @@ for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
   if (cls[i] === 2) {
     const d = distToWater[i] * METERS_PER_PIXEL;
     const base = HILL_HEIGHT * (1 - Math.exp(-d / HILL_FALLOFF));
-    const n = (fbm(x / 70, y / 70, 4) - 0.5) * 2;                 // -1..1, ~1.6 km features
+    const n = (fbm(x / 70, y / 70, 4) - 0.5) * 2;                 // -1..1, broad hills in pixel space
     const ridge = Math.pow(fbm(x / 30 + 7, y / 30 + 3, 3), 2);    // small bumps
-    const shoreFade = Math.min(1, d / 350);
-    height[i] = base + shoreFade * (n * 60 + ridge * 30) + Math.min(d, 60) * 0.02;
+    const shoreFade = Math.min(1, d / (350 * HORIZONTAL_SCALE));
+    height[i] = base + shoreFade * (n * 60 + ridge * 30) + Math.min(d, 60 * HORIZONTAL_SCALE) * 0.02;
   } else {
     const d = distToLand[i] * METERS_PER_PIXEL;
     const deep = -DEEP_MAX * (1 - Math.exp(-d / DEEP_FALLOFF));
@@ -357,7 +362,7 @@ const trees = [];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (cls[i] !== 2 || !isForest(px(x, y))) continue;
     const d = distToWater[i] * METERS_PER_PIXEL;
-    const weight = d < 250 ? 1.0 : d < 700 ? 0.45 : d < 1500 ? 0.18 : 0.06;
+    const weight = d < 250 * HORIZONTAL_SCALE ? 1.0 : d < 700 * HORIZONTAL_SCALE ? 0.45 : d < 1500 * HORIZONTAL_SCALE ? 0.18 : 0.06;
     candidates.push([x, y, weight]);
   }
   const totalW = candidates.reduce((s, c) => s + c[2], 0);
