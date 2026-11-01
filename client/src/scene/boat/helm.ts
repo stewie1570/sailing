@@ -18,7 +18,8 @@ export interface Helm {
   /**
    * Jib sheet tightness, 0 fully eased and 1 hauled hard.
    * The two sheets share one haul: their sum never exceeds 1, so 70% tight
-   * on port leaves at most 30% for starboard.
+   * on port leaves at most 30% for starboard. Hauling a sheet pulls the
+   * clew to that side, and a hard haul carries it all the way across.
    */
   jibPort: number
   jibStarboard: number

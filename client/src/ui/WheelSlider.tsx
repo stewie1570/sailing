@@ -9,6 +9,7 @@ import {
   useHelm,
 } from '../scene/boat/helm'
 import { wheelScreen } from '../scene/boat/telemetry'
+import { useCancelSliderTouch } from './sliderTouch'
 
 function clamp01(v: number) {
   return Math.min(1, Math.max(0, v))
@@ -35,6 +36,7 @@ export function WheelSlider() {
   const rootRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(rootRef)
 
   useEffect(() => {
     let raf = 0
@@ -82,6 +84,7 @@ export function WheelSlider() {
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(rudderFromX(e.currentTarget, e.clientX), false)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {

@@ -1,4 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCancelSliderTouch } from './sliderTouch'
 import {
   NEUTRAL_GRAB,
   NEUTRAL_RELEASE,
@@ -65,8 +66,10 @@ function thrusterOrder(value: number) {
 }
 
 function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
+  const trackRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(trackRef)
 
   const apply = (raw: number, release: boolean) => {
     const d = detent(raw, notch.current, NEUTRAL_GRAB, NEUTRAL_RELEASE)
@@ -85,6 +88,7 @@ function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(valueFromX(e.currentTarget, e.clientX), false)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -105,6 +109,7 @@ function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
       <div className="thruster-line">
         <span className="furler-end">Port</span>
         <div
+          ref={trackRef}
           className={`thruster-track${dragging ? ' dragging' : ''}${value === 0 ? ' in-stop' : ''}`}
           role="slider"
           aria-label={name}
@@ -138,6 +143,7 @@ function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
   const slotRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(slotRef)
 
   const apply = (raw: number, release: boolean) => {
     const d = detent(raw, notch.current, NEUTRAL_GRAB, NEUTRAL_RELEASE)
@@ -156,6 +162,7 @@ function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(valueFromY(e.currentTarget, e.clientY), false)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -201,24 +208,19 @@ export function Throttles() {
   return (
     <div id="panel-engine" role="tabpanel" aria-label="Engine" aria-labelledby="tab-engine">
       <Thruster end="bow" value={helm.bow} />
+      <div className="throttle-dir">Ahead</div>
       <div className="throttle-body">
+        <Slot side="port" value={helm.port} />
         <div className="throttle-scale" aria-hidden="true">
           {MARKS.map((m) => (
             <div key={`${m.kind}-${m.value}`} className={`tick tick-${m.kind}`} style={{ top: travelTop(m.value) }}>
               <span>{m.label}</span>
-              <i />
             </div>
           ))}
         </div>
-        <div className="throttle-levers">
-          <div className="throttle-dir">Ahead</div>
-          <div className="throttle-slots">
-            <Slot side="port" value={helm.port} />
-            <Slot side="starboard" value={helm.starboard} />
-          </div>
-          <div className="throttle-dir">Astern</div>
-        </div>
+        <Slot side="starboard" value={helm.starboard} />
       </div>
+      <div className="throttle-dir">Astern</div>
       <div className="throttle-foot">
         <div className="throttle-name">Port</div>
         <div className="throttle-name">Stbd</div>

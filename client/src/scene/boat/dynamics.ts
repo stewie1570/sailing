@@ -70,7 +70,7 @@ const HULL = {
   /** Inward stern walk, newtons, at full astern on one screw. */
   walk: 250,
   /** Sideways newtons from one thruster at full. Enough to walk and spin at rest. */
-  thruster: 1400,
+  thruster: 1100,
   /** Thruster stations, metres from midships. Equal arms so both to one side walks straight. */
   bowZ: 5.5,
   sternZ: -5.5,

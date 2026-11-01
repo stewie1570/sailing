@@ -157,7 +157,6 @@ html:-webkit-full-screen {
 .hud { z-index: 5; }
 
 .throttles {
-  --scale: 72px;
   --slot: 48px;
   --gap: 8px;
   right: max(12px, env(safe-area-inset-right));
@@ -427,45 +426,34 @@ html:-webkit-full-screen {
   margin-bottom: 4px;
 }
 .throttle-body {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--gap);
+  display: grid;
+  grid-template-columns: var(--slot) minmax(0, 1fr) var(--slot);
+  column-gap: var(--gap);
+  align-items: start;
+  width: 100%;
 }
 .throttle-scale {
   position: relative;
-  width: var(--scale);
   height: 252px;
-  margin-top: 18px;
 }
 .tick {
   position: absolute;
+  left: 0;
   right: 0;
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 5px;
   transform: translateY(-50%);
   font-size: 10px;
   letter-spacing: 0.04em;
   color: rgba(232, 238, 244, 0.78);
   white-space: nowrap;
 }
-.tick i {
-  display: block;
-  width: 10px;
-  height: 1px;
-  background: rgba(232, 238, 244, 0.55);
-}
 .tick-stop {
   color: #f5c242;
   font-weight: 700;
 }
-.tick-stop i {
-  width: 16px;
-  height: 2px;
-  background: #f5c242;
-}
 .tick-astern { color: rgba(229, 120, 124, 0.9); }
-.throttle-levers { display: flex; flex-direction: column; }
 .throttle-dir {
   height: 18px;
   line-height: 18px;
@@ -475,7 +463,6 @@ html:-webkit-full-screen {
   text-transform: uppercase;
   color: rgba(232, 238, 244, 0.55);
 }
-.throttle-slots { display: flex; gap: var(--gap); }
 .throttle-slot {
   position: relative;
   width: var(--slot);
@@ -536,12 +523,12 @@ html:-webkit-full-screen {
 }
 .throttle-foot {
   display: grid;
-  grid-template-columns: var(--slot) var(--slot);
-  gap: var(--gap);
-  margin-left: calc(var(--scale) + var(--gap));
+  grid-template-columns: var(--slot) minmax(0, 1fr) var(--slot);
+  column-gap: var(--gap);
   margin-top: 6px;
   text-align: center;
 }
+.throttle-foot .throttle-name:last-child { grid-column: 3; }
 .throttle-name {
   font-size: 10px;
   letter-spacing: 0.14em;

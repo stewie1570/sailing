@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCancelSliderTouch } from './sliderTouch'
 import { jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
 import { JIB_STALL, luffAmount, readRig } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
@@ -38,7 +39,9 @@ function ClothFurler({
   control: Control
   onValue: (value: number) => void
 }) {
+  const trackRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(trackRef)
   const at = `calc(14px + ${value} * (100% - 28px))`
 
   const apply = (el: HTMLElement, clientX: number) => onValue(furlerFromX(el, clientX))
@@ -52,6 +55,7 @@ function ClothFurler({
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(e.currentTarget, e.clientX)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -65,6 +69,7 @@ function ClothFurler({
     <div className="furler-line">
       <span className="furler-end">In</span>
       <div
+        ref={trackRef}
         className={`furler${dragging ? ' dragging' : ''}`}
         role="slider"
         aria-orientation="horizontal"
@@ -111,7 +116,9 @@ function SheetColumn({
   control: Control
   onTightness: (tightness: number) => void
 }) {
+  const trackRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
+  useCancelSliderTouch(trackRef)
   const limited = max < 0.995
   const place = tightness < 0.04 ? 'Eased' : tightness > 0.96 ? 'Tight' : `${Math.round(tightness * 100)}% tight`
   const text = limited ? `${place}, limited to ${Math.round(max * 100)}%` : place
@@ -127,6 +134,7 @@ function SheetColumn({
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    e.preventDefault()
     apply(e.currentTarget, e.clientY)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -143,6 +151,7 @@ function SheetColumn({
         <span>{tightReadout(tightness)}</span>
       </div>
       <div
+        ref={trackRef}
         className={`sheet-track${dragging ? ' dragging' : ''}`}
         role="slider"
         aria-orientation="vertical"
