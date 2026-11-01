@@ -3,8 +3,9 @@ import * as THREE from 'three'
 /**
  * A 14 m cruising sloop, sized to the marina: beam about half a finger-pontoon
  * width, so it fits a slip with room to spare and still reads next to the dock.
- * Local space: +z bow, +x starboard, y = 0 at the waterline. No sails; the mast,
- * boom and standing rigging are there.
+ * Local space: +z bow, +x starboard, y = 0 at the waterline. The hull mesh has the
+ * mast and standing rigging. The boom and mainsail are separate meshes so the
+ * sheet can swing them through the aft semicircle.
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
  * and the triangle count stays in the low thousands. Collision uses the same
@@ -38,6 +39,9 @@ const METAL: RGB = [0.72, 0.74, 0.76]
 const METAL_DARK: RGB = [0.42, 0.44, 0.47]
 const KEEL: RGB = [0.14, 0.15, 0.17]
 const WOOD: RGB = [0.34, 0.22, 0.14]
+const SAIL: RGB = [0.96, 0.95, 0.9]
+const SAIL_BAND: RGB = [0.83, 0.85, 0.88]
+const SAIL_EDGE: RGB = [0.7, 0.68, 0.62]
 
 type RGB = readonly [number, number, number]
 
@@ -401,11 +405,7 @@ function addRig(g: Geo) {
     const y = deckY + mastH * t
     addBox(g, 0, y, mastZ, reach * 2, 0.04, 0.06, METAL_DARK)
   }
-  // Boom, parked on the centreline. No sail.
-  const boomY = deckY + BOOM_DROP
-  addCylinderBetween(g, 0, boomY, mastZ, 0, boomY, mastZ - BOOM_LEN, BOOM_R, METAL)
-  addBox(g, 0, boomY, mastZ, 0.12, 0.1, 0.18, METAL_DARK)
-  // Standing rigging.
+  // Standing rigging. The boom and sail are their own meshes; see buildBoom.
   const tipY = deckY + mastH
   const bow = hullPoint(0.98, 1)
   const stern = hullPoint(0.04, 1)
@@ -452,16 +452,170 @@ function addRails(g: Geo) {
   addCylinderBetween(g, -0.7, stern.y + 0.65, stern.z, 0.7, stern.y + 0.65, stern.z, 0.016, METAL)
 }
 
-function toMesh(g: Geo) {
+function toMesh(g: Geo, name = 'sailboat', side: THREE.Side = THREE.FrontSide) {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.Float32BufferAttribute(g.pos, 3))
   geo.setAttribute('color', new THREE.Float32BufferAttribute(g.col, 3))
   geo.setIndex(g.idx)
   geo.computeVertexNormals()
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }))
+  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true, side }))
   mesh.frustumCulled = false
-  mesh.name = 'sailboat'
+  mesh.name = name
   return mesh
+}
+
+/**
+ * Sailcloth stays readable on the shaded side. A vertical sail otherwise falls
+ * almost to black under the sun, because Lambert only lights the face toward it.
+ * The fill is multiplied by the vertex colour so the panel stripes survive.
+ */
+function sailClothMaterial() {
+  const mat = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })
+  mat.emissive = new THREE.Color(0.42, 0.42, 0.42)
+  mat.customProgramCacheKey = () => 'sailcloth'
+  mat.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      'vec3 totalEmissiveRadiance = emissive;',
+      'vec3 totalEmissiveRadiance = emissive * diffuseColor.rgb;',
+    )
+  }
+  return mat
+}
+
+/** Gooseneck height and mast station. Boom-local space has its origin here, boom along −z. */
+export function mainBoomPivot(): { y: number; z: number } {
+  return { y: hullPoint(0.7, 1).y + BOOM_DROP, z: MAST_Z }
+}
+
+/** Boom and gooseneck, in boom-local space (origin at the mast, boom running aft). */
+export function buildBoom(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  addCylinderBetween(g, 0, 0, 0, 0, 0, -BOOM_LEN, BOOM_R, METAL)
+  addBox(g, 0, 0, 0, 0.14, 0.12, 0.2, METAL_DARK)
+  addBox(g, 0, 0, -BOOM_LEN + 0.04, 0.09, 0.08, 0.1, METAL_DARK)
+  return toMesh(g, 'boom')
+}
+
+/**
+ * Draft amplitude in metres. Peak near 35% aft, fading out at the head, foot,
+ * luff and leech. `chord` is the local foot-to-leech width.
+ */
+function sailDraft(u: number, v: number, chord: number): number {
+  const peak = 0.35
+  const profile = u <= peak
+    ? Math.sin((u / peak) * Math.PI * 0.5)
+    : Math.cos(((u - peak) / (1 - peak)) * Math.PI * 0.5)
+  return profile * Math.sin(Math.PI * v) * chord * 0.12
+}
+
+/**
+ * Mainsail in boom-local space: foot on the boom, luff up the mast, clew at the
+ * boom end. Positions are stored flat; {@link setMainsailCamber} pushes the draft
+ * out to leeward as the sheet is eased.
+ */
+export function buildMainsail(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  const luff = MAST_H - BOOM_DROP - 0.5
+  const foot = BOOM_LEN - 0.32
+  const nu = 8
+  const nv = 16
+  const camber: number[] = []
+  const grid: number[][] = []
+  for (let j = 0; j <= nv; j++) {
+    const v = j / nv
+    const luffZ = -0.16 + 0.07 * v
+    const roach = Math.pow(Math.sin(Math.PI * v), 0.85) * 0.48
+    const chord = Math.max(0.025, foot * (1 - v) + roach)
+    const row: number[] = []
+    for (let i = 0; i <= nu; i++) {
+      const u = i / nu
+      const y = 0.062 + v * luff
+      const z = luffZ - chord * u
+      const draft = sailDraft(u, v, chord)
+      camber.push(draft)
+      const seam = Math.floor(v * 7) % 2 === 0
+      const base = seam ? SAIL : SAIL_BAND
+      const depth = chord > 0.05 ? draft / (chord * 0.12) : 0
+      const shade = 1 - 0.2 * depth
+      let color: RGB = [base[0] * shade, base[1] * shade, base[2] * shade]
+      if (u > 0.94 || u < 0.035) color = SAIL_EDGE
+      row.push(vert(g, 0, y, z, color))
+    }
+    grid.push(row)
+  }
+  for (let j = 0; j < nv; j++) {
+    for (let i = 0; i < nu; i++) {
+      // Winding faces +x, the starboard side of the sail plane.
+      quad(g, grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i])
+    }
+  }
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(g.pos, 3))
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(g.col, 3))
+  geo.setIndex(g.idx)
+  geo.computeVertexNormals()
+  const mesh = new THREE.Mesh(geo, sailClothMaterial())
+  mesh.frustumCulled = false
+  mesh.name = 'mainsail'
+  mesh.userData.camber = new Float32Array(camber)
+  return mesh
+}
+
+/**
+ * Belly the mainsail to leeward. Centred on the boat (sheet 90°) the sail is flat;
+ * draft fills in over the first ~30° of ease and flips side as the boom crosses the centreline.
+ */
+export function setMainsailCamber(mesh: THREE.Mesh, sheetDeg: number) {
+  const camber = mesh.userData.camber as Float32Array | undefined
+  if (!camber) return
+  const pos = mesh.geometry.getAttribute('position') as THREE.BufferAttribute
+  const off = Math.min(1, Math.abs(sheetDeg - 90) / 28)
+  const ease = off * off * (3 - 2 * off)
+  const amp = (sheetDeg < 90 ? -1 : 1) * ease
+  for (let i = 0; i < camber.length; i++) pos.setX(i, camber[i] * amp)
+  pos.needsUpdate = true
+  mesh.geometry.computeVertexNormals()
+}
+
+/** Flaked mainsail lashed along the boom, shown while the sail is lowered. */
+export function buildFurledMain(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  const z0 = -0.22
+  const z1 = -(BOOM_LEN - 0.38)
+  const rings = 12
+  const sides = 8
+  const band: number[][] = []
+  for (let i = 0; i <= rings; i++) {
+    const t = i / rings
+    const z = z0 + (z1 - z0) * t
+    const belly = Math.sin(Math.PI * t)
+    const rx = 0.045 + 0.13 * belly
+    const ry = 0.028 + 0.075 * belly
+    const color = i % 3 === 0 ? SAIL_BAND : SAIL
+    const ring: number[] = []
+    for (let s = 0; s < sides; s++) {
+      const a = (s / sides) * Math.PI * 2
+      ring.push(vert(g, Math.cos(a) * rx, BOOM_R + Math.sin(a) * ry, z, color))
+    }
+    band.push(ring)
+  }
+  for (let i = 0; i < rings; i++) {
+    for (let s = 0; s < sides; s++) {
+      const s2 = (s + 1) % sides
+      quad(g, band[i][s], band[i][s2], band[i + 1][s2], band[i + 1][s])
+    }
+  }
+  const cap = (ring: number[], z: number, color: RGB, outward: number) => {
+    const c = vert(g, 0, BOOM_R, z, color)
+    for (let s = 0; s < ring.length; s++) {
+      const s2 = (s + 1) % ring.length
+      if (outward > 0) tri(g, c, ring[s], ring[s2])
+      else tri(g, c, ring[s2], ring[s])
+    }
+  }
+  cap(band[0], z0, SAIL, 1)
+  cap(band[rings], z1, SAIL, -1)
+  return toMesh(g, 'furled-main')
 }
 
 export function buildSailboat(): THREE.Mesh {
@@ -593,8 +747,12 @@ function convexXz(pts: Pt[]): Float32Array {
 }
 
 let cachedShape: BoatShape | null = null
+let boomSpar: Spar | null = null
 
-/** Built once. The mesh never changes, so the outline can be reused for every quality level. */
+/**
+ * Built once. The hull outline is fixed; {@link setMainBoomYaw} moves the boom spar
+ * so a sheeted-out boom still stops the boat against a dock or a tree.
+ */
 export function boatShape(): BoatShape {
   if (cachedShape) return cachedShape
   const pts = solidPoints()
@@ -619,9 +777,11 @@ export function boatShape(): BoatShape {
   }
   const deckY = hullPoint(0.7, 1).y
   const boomY = deckY + BOOM_DROP
+  const boom: Spar = { x0: 0, y0: boomY, z0: MAST_Z, x1: 0, y1: boomY, z1: MAST_Z - BOOM_LEN, r: BOOM_R }
+  boomSpar = boom
   const spars: Spar[] = [
     { x0: 0, y0: deckY, z0: MAST_Z, x1: 0, y1: deckY + MAST_H, z1: MAST_Z, r: MAST_R },
-    { x0: 0, y0: boomY, z0: MAST_Z, x1: 0, y1: boomY, z1: MAST_Z - BOOM_LEN, r: BOOM_R },
+    boom,
   ]
   for (const [t, reach] of SPREADERS) {
     const y = deckY + MAST_H * t
@@ -630,4 +790,19 @@ export function boatShape(): BoatShape {
   }
   cachedShape = { slices, skin, skinMinY: minY, radius, spars }
   return cachedShape
+}
+
+/**
+ * Swing the boom spar with the mainsheet. `yaw` is radians about the mast, positive to port;
+ * 0 leaves the boom on the centreline pointing aft. Matches the visual boom pivot.
+ */
+export function setMainBoomYaw(yaw: number) {
+  const shape = boatShape()
+  if (!boomSpar) return
+  const x = -BOOM_LEN * Math.sin(yaw)
+  const z = MAST_Z - BOOM_LEN * Math.cos(yaw)
+  boomSpar.x1 = x
+  boomSpar.z1 = z
+  const reach = Math.hypot(x, z) + BOOM_R
+  if (reach > shape.radius) shape.radius = reach
 }

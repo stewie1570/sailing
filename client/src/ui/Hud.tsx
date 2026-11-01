@@ -1,6 +1,7 @@
-import { useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useConnection } from '../net/gameConnection'
 import { clearHelmSource, setHelm, type HelmDir } from '../scene/boat/helm'
+import { MAIN_SHEET_MAX, setMainOut, setMainSheet, useSail } from '../scene/boat/sail'
 import { perf, setQuality, useQuality, type QualityLevel } from '../scene/quality'
 
 const LEVELS: QualityLevel[] = ['low', 'medium', 'high']
@@ -40,11 +41,92 @@ export function Hud({ loading }: { loading: boolean }) {
       </div>
 
       <div className="hud hud-bottom">
-        {loading ? 'Loading chart…' : 'Arrows or the pad to sail · drag to look around · pinch or scroll to zoom'}
+        {loading ? 'Loading chart…' : 'Arrows or Engine to motor · Sailing tab for the main · drag to look · scroll to zoom'}
       </div>
 
-      <HelmPad />
+      <HelmPanel />
     </>
+  )
+}
+
+type HelmTab = 'engine' | 'sailing'
+
+function HelmPanel() {
+  const [tab, setTab] = useState<HelmTab>('engine')
+  return (
+    <div className="helm-panel" onContextMenu={(e) => e.preventDefault()}>
+      <div className="helm-tabs" role="tablist" aria-label="Boat controls">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'engine'}
+          className={tab === 'engine' ? 'active' : ''}
+          onClick={() => setTab('engine')}
+        >
+          Engine
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'sailing'}
+          className={tab === 'sailing' ? 'active' : ''}
+          onClick={() => setTab('sailing')}
+        >
+          Sailing
+        </button>
+      </div>
+      <div className="helm-body" role="tabpanel">
+        {tab === 'engine' ? <HelmPad /> : <SailControls />}
+      </div>
+    </div>
+  )
+}
+
+function SailControls() {
+  const sail = useSail()
+  const sheetPct = `${(sail.mainSheet / MAIN_SHEET_MAX) * 100}%`
+  return (
+    <div className="sail-controls">
+      <div className="sail-row">
+        <span className="sail-label" id="main-sail-label">Main sail</span>
+        <div className="sail-toggle" role="group" aria-labelledby="main-sail-label">
+          <button
+            type="button"
+            className={sail.mainOut ? '' : 'active'}
+            aria-pressed={!sail.mainOut}
+            onClick={() => setMainOut(false)}
+          >
+            In
+          </button>
+          <button
+            type="button"
+            className={sail.mainOut ? 'active' : ''}
+            aria-pressed={sail.mainOut}
+            onClick={() => setMainOut(true)}
+          >
+            Out
+          </button>
+        </div>
+      </div>
+
+      <label className="sail-sheet">
+        <span className="sail-row">
+          <span className="sail-label">Main sheet</span>
+          <span className="sail-value">{Math.round(sail.mainSheet)}°</span>
+        </span>
+        <input
+          type="range"
+          min={0}
+          max={MAIN_SHEET_MAX}
+          step={1}
+          value={sail.mainSheet}
+          aria-label="Main sheet angle"
+          aria-valuetext={`${Math.round(sail.mainSheet)} degrees, 0 port to 180 starboard`}
+          style={{ '--sheet': sheetPct } as CSSProperties}
+          onChange={(e) => setMainSheet(Number(e.target.value))}
+        />
+      </label>
+    </div>
   )
 }
 

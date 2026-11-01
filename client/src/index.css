@@ -111,17 +111,62 @@ html, body, #root {
   border-color: rgba(61, 220, 132, 0.6);
 }
 
-.dpad {
+.helm-panel {
   position: absolute;
   left: max(16px, env(safe-area-inset-left));
   bottom: max(16px, env(safe-area-inset-bottom));
+  width: 248px;
+  z-index: 2;
+  padding: 8px;
+  background: rgba(8, 18, 30, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.helm-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+.helm-tabs button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8eef4;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  min-height: 40px;
+  cursor: pointer;
+}
+.helm-tabs button.active {
+  background: rgba(61, 220, 132, 0.25);
+  border-color: rgba(61, 220, 132, 0.65);
+}
+.helm-tabs button:focus-visible,
+.sail-toggle button:focus-visible,
+.sail-sheet input:focus-visible {
+  outline: 2px solid rgba(61, 220, 132, 0.85);
+  outline-offset: 2px;
+}
+.helm-body {
+  margin-top: 8px;
+  min-height: 168px;
+}
+
+.dpad {
+  position: relative;
   width: 168px;
   height: 168px;
+  margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   grid-template-rows: 1fr 1fr 1fr;
   gap: 6px;
-  z-index: 2;
   touch-action: none;
   user-select: none;
 }
@@ -146,12 +191,105 @@ html, body, #root {
 .dpad-starboard { grid-column: 3; grid-row: 2; }
 .dpad-back { grid-column: 2; grid-row: 3; }
 
+.sail-controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  min-height: 168px;
+  padding: 4px 4px 2px;
+}
+.sail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sail-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.sail-value {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: rgba(232, 238, 244, 0.9);
+}
+.sail-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sail-toggle button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e8eef4;
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  min-width: 52px;
+  min-height: 40px;
+  cursor: pointer;
+}
+.sail-toggle button + button {
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+}
+.sail-toggle button.active {
+  background: rgba(61, 220, 132, 0.28);
+}
+.sail-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sail-sheet input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 36px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: none;
+}
+.sail-sheet input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right, rgba(61, 220, 132, 0.9) var(--sheet, 50%), rgba(255, 255, 255, 0.22) var(--sheet, 50%));
+}
+.sail-sheet input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -11px;
+  border-radius: 50%;
+  background: #e8eef4;
+  border: 2px solid rgba(61, 220, 132, 0.95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+.sail-sheet input[type='range']::-moz-range-track {
+  height: 6px;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(to right, rgba(61, 220, 132, 0.9) var(--sheet, 50%), rgba(255, 255, 255, 0.22) var(--sheet, 50%));
+}
+.sail-sheet input[type='range']::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e8eef4;
+  border: 2px solid rgba(61, 220, 132, 0.95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
 @media (max-width: 720px) {
   .hud-bottom {
     left: auto;
     right: max(12px, env(safe-area-inset-right));
     transform: none;
-    max-width: calc(100% - 210px);
+    max-width: calc(100% - 280px);
     white-space: normal;
   }
 }
