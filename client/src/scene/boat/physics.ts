@@ -1,6 +1,6 @@
 import type { MapData } from '../../map/mapData'
 import { chartToWorld } from '../harborLayout'
-import { stepMotion, type Drive } from './dynamics'
+import { stepMotion, type AirDrive, type Drive } from './dynamics'
 
 /** Open water just outside West Harbor, bow pointing at the entrance. */
 export const SPAWN_CHART: readonly [number, number] = [178, 268]
@@ -68,6 +68,7 @@ export function integrate(
   drive: Drive,
   dt: number,
   hit: (x: number, z: number, yaw: number) => boolean,
+  air?: AirDrive,
 ) {
   let remaining = Math.min(Math.max(dt, 0), MOTION.maxFrame)
   while (remaining > 1e-5) {
@@ -76,7 +77,7 @@ export function integrate(
     const prevX = pose.x
     const prevZ = pose.z
     const prevYaw = pose.yaw
-    stepMotion(pose, drive, step)
+    stepMotion(pose, drive, step, air)
     if (!hit(pose.x, pose.z, pose.yaw)) continue
     const endX = pose.x
     const endZ = pose.z

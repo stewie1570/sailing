@@ -6,9 +6,13 @@ export interface Helm {
   starboard: number
   /** −1 hard to port, 0 rudder parallel with the hull, +1 hard to starboard. */
   rudder: number
+  /** 0 rolls the main into the boom, 1 hoists it. */
+  halyard: number
+  /** 0 sheets the boom to the centreline, 1 eases it out to the shrouds. */
+  sheet: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -17,13 +21,17 @@ export const NEUTRAL_RELEASE = 0.13
 export const RUDDER_GRAB = 0.045
 export const RUDDER_RELEASE = 0.08
 
-const ZERO: Helm = { port: 0, starboard: 0, rudder: 0 }
+const ZERO: Helm = { port: 0, starboard: 0, rudder: 0, halyard: 0, sheet: 0.5 }
 let helm: Helm = ZERO
 const listeners = new Set<() => void>()
-const drag: Record<Control, boolean> = { port: false, starboard: false, rudder: false }
+const drag: Record<Control, boolean> = { port: false, starboard: false, rudder: false, sheet: false }
 
 function clamp(v: number) {
   return Math.min(1, Math.max(-1, v))
+}
+
+function clamp01(v: number) {
+  return Math.min(1, Math.max(0, v))
 }
 
 export function getHelm(): Helm {
@@ -35,8 +43,18 @@ export function updateHelm(patch: Partial<Helm>) {
     port: clamp(patch.port ?? helm.port),
     starboard: clamp(patch.starboard ?? helm.starboard),
     rudder: clamp(patch.rudder ?? helm.rudder),
+    halyard: patch.halyard == null ? helm.halyard : patch.halyard >= 0.5 ? 1 : 0,
+    sheet: clamp01(patch.sheet ?? helm.sheet),
   }
-  if (next.port === helm.port && next.starboard === helm.starboard && next.rudder === helm.rudder) return
+  if (
+    next.port === helm.port &&
+    next.starboard === helm.starboard &&
+    next.rudder === helm.rudder &&
+    next.halyard === helm.halyard &&
+    next.sheet === helm.sheet
+  ) {
+    return
+  }
   helm = next
   listeners.forEach((l) => l())
 }

@@ -6,7 +6,6 @@ import {
   setControlDrag,
   updateHelm,
   useHelm,
-  useHelmKeyboard,
 } from '../scene/boat/helm'
 
 const MARKS: { value: number; label: string; kind: 'ahead' | 'stop' | 'astern' }[] = [
@@ -107,12 +106,10 @@ function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
 }
 
 export function Throttles() {
-  useHelmKeyboard()
   const helm = useHelm()
 
   return (
-    <div className="hud throttles">
-      <div className="throttle-title">Engines</div>
+    <div id="panel-engine" role="tabpanel" aria-label="Engine" aria-labelledby="tab-engine">
       <div className="throttle-body">
         <div className="throttle-scale" aria-hidden="true">
           {MARKS.map((m) => (
