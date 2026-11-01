@@ -15,6 +15,68 @@ function tightnessFromY(el: HTMLElement, clientY: number, max: number) {
   return Math.min(max, clamp01(t))
 }
 
+function furlerFromX(el: HTMLElement, clientX: number) {
+  const r = el.getBoundingClientRect()
+  const pad = 14
+  return clamp01((clientX - r.left - pad) / Math.max(1, r.width - pad * 2))
+}
+
+function furlerReadout(out: number) {
+  if (out < 0.04) return 'Furled'
+  if (out > 0.96) return 'Out'
+  return `${Math.round(out * 100)}% out`
+}
+
+function JibFurler({ value }: { value: number }) {
+  const [dragging, setDragging] = useState(false)
+  const at = `calc(14px + ${value} * (100% - 28px))`
+
+  const apply = (el: HTMLElement, clientX: number) => updateHelm({ jib: furlerFromX(el, clientX) })
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging(true)
+    setControlDrag('jib', true)
+    apply(e.currentTarget, e.clientX)
+  }
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    apply(e.currentTarget, e.clientX)
+  }
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
+    apply(e.currentTarget, e.clientX)
+    setDragging(false)
+    setControlDrag('jib', false)
+  }
+
+  return (
+    <div className="furler-line">
+      <span className="furler-end">In</span>
+      <div
+        className={`furler${dragging ? ' dragging' : ''}`}
+        role="slider"
+        aria-orientation="horizontal"
+        aria-label="Jib furler"
+        aria-valuemin={0}
+        aria-valuemax={1}
+        aria-valuenow={Number(value.toFixed(2))}
+        aria-valuetext={furlerReadout(value)}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div className="furler-fill" style={{ width: value < 0.02 ? 0 : at }} />
+        <div className="furler-knob" style={{ left: at }} />
+      </div>
+      <span className="furler-end out">Out</span>
+    </div>
+  )
+}
+
 function tightReadout(tightness: number) {
   if (tightness < 0.04) return 'Eased'
   if (tightness > 0.96) return 'Tight'
@@ -142,7 +204,6 @@ export function SailingControls() {
   }, [])
 
   const out = helm.halyard > 0.5
-  const jibOut = helm.jib > 0.5
 
   return (
     <div id="panel-sailing" className="sail-panel" role="tabpanel" aria-label="Sailing" aria-labelledby="tab-sailing">
@@ -163,21 +224,14 @@ export function SailingControls() {
         </div>
       </div>
 
-      <div className="sail-toggle">
-        <div className="sail-toggle-copy">
+      <div className="furler-block">
+        <div className="furler-head">
           <span className="sail-toggle-name">Jib</span>
           <span className="sail-toggle-state" ref={jibTrim}>
             Furled
           </span>
         </div>
-        <div className="halyard" role="group" aria-label="Jib furling">
-          <button type="button" className={jibOut ? '' : 'active'} aria-pressed={!jibOut} onClick={() => updateHelm({ jib: 0 })}>
-            In
-          </button>
-          <button type="button" className={jibOut ? 'active' : ''} aria-pressed={jibOut} onClick={() => updateHelm({ jib: 1 })}>
-            Out
-          </button>
-        </div>
+        <JibFurler value={helm.jib} />
       </div>
 
       <div className="sail-toggle">
@@ -229,20 +283,18 @@ export function SailingControls() {
 }
 
 function jibLine(rig: ReturnType<typeof readRig>) {
-  const helm = getHelm()
   const jib = rig.jib
-  if (helm.jib > 0.5 && jib.hoist < 0.98) return 'Jib unfurling'
-  if (helm.jib < 0.5 && jib.hoist > 0.02) return 'Jib furling'
-  if (jib.hoist < 0.08) return 'Jib furled'
+  if (jib.hoist < 0.04) return 'Furled'
+  const amount = jib.hoist > 0.96 ? '' : `${Math.round(jib.hoist * 100)}% out · `
   const deg = Math.abs(jib.clew) * (180 / Math.PI)
   const side = jib.clew > 0.04 ? 'stbd' : jib.clew < -0.04 ? 'port' : ''
   const where = deg < 2 ? 'Clew amidships' : `Clew ${deg.toFixed(0)}° ${side}`.trim()
   let state = 'Drawing'
   if (jib.luff > 0.35) state = 'Luffing'
   else if (jib.aoa > JIB_STALL) state = 'Stalled'
-  if (rig.main.hoist < 0.35 || rig.main.fx < 200) return `${where} · ${state}`
+  if (rig.main.hoist < 0.35 || rig.main.fx < 200) return `${amount}${where} · ${state}`
   const added = jibAddedDrive(rig.main.fx, jib.fx, rig.slot)
   const pct = Math.round((added / rig.main.fx) * 100)
   const share = Math.abs(pct) < 3 ? 'no extra drive' : pct > 0 ? `+${pct}% drive` : `${pct}% drive`
-  return `${where} · ${state} · ${share}`
+  return `${amount}${where} · ${state} · ${share}`
 }

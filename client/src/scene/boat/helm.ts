@@ -10,7 +10,7 @@ export interface Helm {
   halyard: number
   /** 0 sheets the boom to the centreline, 1 eases it out to the shrouds. */
   sheet: number
-  /** 0 rolls the jib onto the forestay, 1 sets it. */
+  /** Jib furler. 0 is rolled onto the forestay, 1 is fully out. */
   jib: number
   /**
    * Jib sheet tightness, 0 fully eased and 1 hauled hard.
@@ -21,7 +21,7 @@ export interface Helm {
   jibStarboard: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jibPort' | 'jibStarboard'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'jibPort' | 'jibStarboard'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -38,6 +38,7 @@ const drag: Record<Control, boolean> = {
   starboard: false,
   rudder: false,
   sheet: false,
+  jib: false,
   jibPort: false,
   jibStarboard: false,
 }
@@ -92,7 +93,7 @@ export function updateHelm(patch: Partial<Helm>) {
     rudder: clamp(patch.rudder ?? helm.rudder),
     halyard: patch.halyard == null ? helm.halyard : patch.halyard >= 0.5 ? 1 : 0,
     sheet: clamp01(patch.sheet ?? helm.sheet),
-    jib: patch.jib == null ? helm.jib : patch.jib >= 0.5 ? 1 : 0,
+    jib: clamp01(patch.jib ?? helm.jib),
     jibPort: sheets.jibPort,
     jibStarboard: sheets.jibStarboard,
   }

@@ -1,8 +1,9 @@
 /**
  * Sails for the 14 m sloop: a mainsail on the boom, and a jib on the forestay.
  *
- * The halyard and the jib furler are hoists. Out, the cloth is set; in, it is
- * rolled away and the wind has almost nothing to push on. A sheet does not
+ * The halyard is a hoist: out, the main is set; in, it is rolled away. The jib
+ * furler is a slider. However far it is out is how much cloth the wind has to
+ * push on. A sheet does not
  * place a sail. It only limits how far that sail may swing. The apparent wind
  * weathercocks the cloth out until the sheet is taut, which is why an eased
  * sheet on a close-hauled heading luffs instead of driving.
@@ -34,8 +35,6 @@ export const JIB_AREA = 46
 const AIR_RHO = 1.225
 /** Seconds to hoist or to roll the main away. */
 export const HOIST_TIME = 2.4
-/** Seconds to roll the jib out or back onto the forestay. */
-export const JIB_FURL_TIME = 2.2
 /** Boom follows the sheet and the wind with this time constant. */
 const BOOM_TAU = 0.45
 /** The jib clew is lighter than the boom, so it follows a little quicker. */
@@ -50,7 +49,7 @@ export interface SailCommand {
   hoist: number
   /** 0 pinned on the centreline, 1 free out to the shrouds. */
   sheet: number
-  /** 0 rolled onto the forestay, 1 fully set. Animated, like `hoist`. */
+  /** 0 rolled onto the forestay, 1 fully set. This is the furler slider. */
   jibHoist: number
   /** 0 eased, 1 tight. Port plus starboard is at most 1. */
   jibPort: number
@@ -130,8 +129,10 @@ export function stepHoist(command: number, dt: number) {
   hoist = approach(hoist, command, dt, HOIST_TIME)
 }
 
+/** The furler slider is the cloth. More out is more sail in the wind. */
 export function stepJibHoist(command: number, dt: number) {
-  jibHoist = approach(jibHoist, command, dt, JIB_FURL_TIME)
+  if (dt < 0) return
+  jibHoist = Math.min(1, Math.max(0, command))
 }
 
 /** Apparent wind in the hull frame. `awa` is where the wind comes from. */
@@ -394,12 +395,14 @@ export function slotFactor(
   main: { hoist: number; boom: number; aoa: number; awa: number },
   jib: { hoist: number; clew: number; aoa: number; luff: number },
 ) {
-  if (main.hoist < 0.5 || jib.hoist < 0.5) return 1
+  // A partly rolled jib only partly changes the air over the main.
+  const set = Math.min(1, Math.max(0, jib.hoist))
+  if (main.hoist < 0.5 || set < 0.12) return 1
   const same =
     Math.sign(main.boom) === Math.sign(jib.clew) || Math.abs(main.boom) < 0.14 || Math.abs(jib.clew) < 0.14
   if (!same) {
     if (Math.abs(main.awa) > RUN_AWA) return 1
-    return 0.8
+    return 1 - 0.2 * set
   }
   if (jib.luff > 0.5) return 1
   const deg = Math.PI / 180
@@ -407,12 +410,12 @@ export function slotFactor(
   const gapScore = band(gap, 0, 22 * deg, 12 * deg)
   const jibDraw = band(jib.aoa, 10 * deg, 42 * deg, 10 * deg) * (1 - jib.luff)
   const mainDraw = band(main.aoa, 8 * deg, 48 * deg, 10 * deg)
-  let factor = 1 + 0.28 * gapScore * jibDraw * mainDraw
+  let factor = 1 + 0.28 * gapScore * jibDraw * mainDraw * set
   // A jib sheeted in hard while the breeze is on the beam stalls and
   // dumps onto the main. Squared off on a run, a large angle is the trim.
   if (Math.abs(main.awa) < RUN_AWA && jib.aoa > 55 * deg && jib.luff < 0.25) {
     const dirt = Math.min(1, (jib.aoa - 55 * deg) / (25 * deg))
-    factor = Math.min(factor, 1 - 0.16 * dirt)
+    factor = Math.min(factor, 1 - 0.16 * dirt * set)
   }
   return factor
 }
