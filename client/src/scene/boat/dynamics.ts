@@ -5,8 +5,10 @@
  * is along +z), +yaw rate swings the bow to port. Starboard helm is a positive
  * rudder command and, with way on, a negative yaw rate.
  *
- * The rudder only bites when water is moving over it — boat speed plus the
- * ahead prop wash — so it does nothing at rest with the screws stopped.
+ * The rudder only bites when water is moving over it — boat speed plus prop
+ * wash. Ahead wash and astern wash are the same strength, so the helm answers
+ * about as readily in reverse as it does ahead, and it does nothing at rest
+ * with the screws stopped.
  * Unequal screws yaw the boat even then, which is how a twin-screw yacht
  * turns inside a slip. Bow and stern thrusters push sideways with no way on,
  * so she can walk and spin in a berth. A hoisted main or jib adds drive; with
@@ -169,9 +171,15 @@ export function stepMotion(
   // A forward push on the port side swings the bow to starboard.
   let n = -HULL.screwX * (fp - fs)
 
-  // Ahead wash only. Computed before the rig so the jib's yaw sees the same
-  // flow the rudder is about to use.
-  const wash = HULL.wash * 0.5 * (Math.max(port, 0) + Math.max(stbd, 0))
+  // Ahead wash is what the jib's steering share already uses. Astern wash is
+  // the same stream drawn back over the rudder, which sits aft of the screws,
+  // so backing does not leave the blade in dead water.
+  const aheadWash = HULL.wash * 0.5 * (Math.max(port, 0) + Math.max(stbd, 0))
+  // A backing screw draws water forward over the blade. A bit more than the
+  // ahead stream, because astern way itself is slower, so the helm still
+  // comes around about as fast as it does going forward.
+  const asternWash = 1.2 * HULL.wash * 0.5 * (Math.max(-port, 0) + Math.max(-stbd, 0))
+  const wash = aheadWash
 
   const rig = air ? rigForce(pose, air.wind, air.sail, dt) : null
   if (rig) {
@@ -198,7 +206,9 @@ export function stepMotion(
   n += HULL.bowZ * bowFy + HULL.sternZ * sternFy
   const thrusting = Math.abs(bow) > 0.02 || Math.abs(stern) > 0.02
 
-  const flow = pose.speed + wash
+  // Ahead flow is boat speed plus ahead wash, unchanged. Astern wash comes off
+  // so the helm while reversing has the same prop stream it has going ahead.
+  const flow = pose.speed + aheadWash - asternWash
   const delta = rudder * RUDDER_LOCK
   const sinD = Math.sin(delta)
   // Positive side force is to port. Starboard blade with ahead flow kicks the stern to port.
