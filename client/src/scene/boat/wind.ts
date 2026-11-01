@@ -5,8 +5,8 @@ import { useSyncExternalStore } from 'react'
  *
  * Direction uses the hull's yaw sense: 0 blows toward +z (south). Meteorologists
  * name the opposite heading — where the air comes from — and that is what the
- * dial shows. Speed stays inside a working inland range, about Beaufort 2 to 4
- * (roughly 5 to 16 knots): enough to sail a heavy cruiser, short of a gale.
+ * dial shows. Speed stays inside a working inland range, about Beaufort 3 to 4
+ * (roughly 7 to 17 knots): enough to sail a heavy cruiser, short of a gale.
  *
  * The breeze holds steady for about a minute, then eases onto a new
  * heading and speed over several seconds. It does not jump.
@@ -14,9 +14,9 @@ import { useSyncExternalStore } from 'react'
 
 export const WIND_STEADY_S = 60
 export const WIND_SHIFT_S = 8
-/** Metres per second. */
-export const WIND_SPEED_MIN = 2.4
-export const WIND_SPEED_MAX = 8
+/** Metres per second. About 7 to 17 knots. */
+export const WIND_SPEED_MIN = 3.4
+export const WIND_SPEED_MAX = 9
 export const MS_TO_KN = 1.943844
 
 const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] as const
@@ -51,7 +51,7 @@ interface Clock {
 }
 
 const START_YAW = 0
-const START_SPEED = 5.2
+const START_SPEED = (WIND_SPEED_MIN + WIND_SPEED_MAX) / 2
 
 let random = Math.random
 let clock: Clock = fresh(START_YAW, START_SPEED)

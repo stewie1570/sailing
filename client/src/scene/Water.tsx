@@ -3,7 +3,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../map/mapData'
 import { environment, skyGlsl, skyUniforms } from './environment'
-import { getWind } from './boat/wind'
+import { WIND_SPEED_MAX, WIND_SPEED_MIN, getWind } from './boat/wind'
 import { QUALITY_PRESETS, useQuality } from './quality'
 
 const vertexShader = /* glsl */ `
@@ -194,7 +194,8 @@ export function Water({ map }: { map: MapData }) {
     const wind = getWind()
     const dir = material.uniforms.uWindDir.value as THREE.Vector2
     dir.set(Math.sin(wind.blowYaw), Math.cos(wind.blowYaw))
-    material.uniforms.uWindGain.value = 0.7 + 0.55 * ((wind.speed - 2.4) / 5.6)
+    const span = WIND_SPEED_MAX - WIND_SPEED_MIN
+    material.uniforms.uWindGain.value = 0.7 + 0.55 * ((wind.speed - WIND_SPEED_MIN) / span)
     const cam = state.camera as THREE.PerspectiveCamera
     const heightPx = state.size.height * state.viewport.dpr
     material.uniforms.uPixelAngle.value = (cam.fov * Math.PI) / 180 / heightPx

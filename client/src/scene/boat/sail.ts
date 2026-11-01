@@ -16,7 +16,7 @@
 
 export const SHEET_MAX = (85 * Math.PI) / 180
 /** Square metres. Generous for a main alone — see the note in sailForce. */
-export const SAIL_AREA = 74
+export const SAIL_AREA = 86
 const AIR_RHO = 1.225
 /** Seconds to hoist or to roll the main away. */
 export const HOIST_TIME = 2.4
@@ -139,8 +139,8 @@ function boomTarget(awa: number, sheet: number, sailHoist: number) {
  *
  * The hull's linear drag was tuned so the screws stop the boat smartly, and
  * it is heavier than a real 14 m yacht's resistance at sailing speeds. The
- * area above is a large cruising main chosen so a beam reach in ten knots
- * still makes way against that drag. With the sail furled the area collapses
+ * area above is a large cruising main chosen so a beam reach in twelve knots
+ * gathers way against that drag. With the sail furled the area collapses
  * and the force falls to a few tens of newtons.
  *
  * The centre of effort is almost over the keel, with a slight weather helm

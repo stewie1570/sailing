@@ -124,7 +124,10 @@ export function stepMotion(
   const surgeAbs = Math.abs(u)
   const spd = Math.hypot(u, v)
 
-  fx -= HULL.dragQuad * u * surgeAbs + HULL.dragLin * u
+  // The linear term is what makes the hull feel reluctant to gather way.
+  // A drawing sail eases it, so the boat answers the breeze a little sooner.
+  const surgeLin = sailing ? HULL.dragLin * 0.78 : HULL.dragLin
+  fx -= HULL.dragQuad * u * surgeAbs + surgeLin * u
   if (!sailing) fx -= u * (HULL.creep / (0.45 + surgeAbs))
   fx -= HULL.dragQuad * 0.35 * sinD * sinD * u * surgeAbs
   fy -= (HULL.swayLin + HULL.swaySpeed * surgeAbs) * v + HULL.swayQuad * v * Math.abs(v)
