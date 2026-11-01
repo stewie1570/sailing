@@ -201,24 +201,19 @@ export function Throttles() {
   return (
     <div id="panel-engine" role="tabpanel" aria-label="Engine" aria-labelledby="tab-engine">
       <Thruster end="bow" value={helm.bow} />
+      <div className="throttle-dir">Ahead</div>
       <div className="throttle-body">
+        <Slot side="port" value={helm.port} />
         <div className="throttle-scale" aria-hidden="true">
           {MARKS.map((m) => (
             <div key={`${m.kind}-${m.value}`} className={`tick tick-${m.kind}`} style={{ top: travelTop(m.value) }}>
               <span>{m.label}</span>
-              <i />
             </div>
           ))}
         </div>
-        <div className="throttle-levers">
-          <div className="throttle-dir">Ahead</div>
-          <div className="throttle-slots">
-            <Slot side="port" value={helm.port} />
-            <Slot side="starboard" value={helm.starboard} />
-          </div>
-          <div className="throttle-dir">Astern</div>
-        </div>
+        <Slot side="starboard" value={helm.starboard} />
       </div>
+      <div className="throttle-dir">Astern</div>
       <div className="throttle-foot">
         <div className="throttle-name">Port</div>
         <div className="throttle-name">Stbd</div>

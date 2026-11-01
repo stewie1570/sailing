@@ -7,11 +7,14 @@
  * weathercocks the cloth out until the sheet is taut, which is why an eased
  * sheet on a close-hauled heading luffs instead of driving.
  *
- * The jib has two sheets, one each side, and they share a single haul. How
- * tight one is, is allowance the other does not get. The wind blows the clew
- * to the leeward limit of that window. If the window still reaches the wind,
- * the jib lines up with it and luffs. If the leeward sheet holds it inside
- * the wind, the cloth takes an angle and drives.
+ * The jib has two sheets, one each side, and they share a single haul.
+ * Hauling the starboard sheet pulls the clew to starboard, and hauling the
+ * port sheet pulls it to port. Run from eased to tight, a sheet sweeps the
+ * clew from full travel on the far side to full travel on its own side.
+ * Slack left in the haul is play the wind uses to blow the clew to the
+ * leeward edge of that window. If the window still reaches the wind, the
+ * jib lines up with it and luffs. If the sheet holds it inside the wind,
+ * the cloth takes an angle and drives.
  *
  * Force is the usual wind-axis split. Drag follows the apparent wind, lift
  * is perpendicular to it, and the angle of attack is the angle between that
@@ -25,7 +28,7 @@
  */
 
 export const SHEET_MAX = (85 * Math.PI) / 180
-/** How far a fully eased jib sheet lets the clew swing off the centreline. */
+/** Full clew travel off the centreline, to port or to starboard. */
 export const JIB_SHEET_MAX = (78 * Math.PI) / 180
 /** Square metres. Generous for a main alone — see the note in sailForce. */
 export const SAIL_AREA = 86
@@ -54,7 +57,7 @@ export interface SailCommand {
   sheet: number
   /** 0 rolled onto the forestay, 1 fully set. This is the furler slider. */
   jibHoist: number
-  /** 0 eased, 1 tight. Port plus starboard is at most 1. */
+  /** 0 eased, 1 tight. Port plus starboard is at most 1. Hauling one pulls the clew to that side. */
   jibPort: number
   jibStarboard: number
 }
@@ -291,7 +294,14 @@ export interface RigForce {
   jib: JibForce
 }
 
-/** How far the clew may swing each way. Tightness on one side is slack on that side. */
+/**
+ * Clew window in radians. Positive is starboard.
+ *
+ * Hauling the starboard sheet raises the portward limit, so a hard haul and
+ * a loose port sheet hold the clew at full starboard travel. The port sheet
+ * does the same toward port. With both sheets eased the window is the whole
+ * arc, and the wind sets the clew inside whatever play is left.
+ */
 export function jibAllowances(portTight: number, stbdTight: number) {
   let port = Math.min(1, Math.max(0, portTight))
   let stbd = Math.min(1, Math.max(0, stbdTight))
@@ -301,10 +311,10 @@ export function jibAllowances(portTight: number, stbdTight: number) {
     stbd /= sum
   }
   return {
-    /** Radians the clew may go to port (a negative angle). */
-    port: (1 - port) * JIB_SHEET_MAX,
-    /** Radians the clew may go to starboard. */
-    starboard: (1 - stbd) * JIB_SHEET_MAX,
+    /** Most portly angle. Rises to full starboard as that sheet is hauled. */
+    min: (2 * stbd - 1) * JIB_SHEET_MAX,
+    /** Most starboard angle. Falls to full port as the port sheet is hauled. */
+    max: (1 - 2 * port) * JIB_SHEET_MAX,
   }
 }
 
@@ -316,7 +326,7 @@ function jibTarget(awa: number, portTight: number, stbdTight: number, sailHoist:
   let angle = awa
   if (astern < 0.35) angle = jibSide * Math.abs(awa)
   else if (Math.abs(awa) > 0.15) jibSide = Math.sign(awa) || jibSide
-  return Math.min(allow.starboard, Math.max(-allow.port, angle))
+  return Math.min(allow.max, Math.max(allow.min, angle))
 }
 
 function aeroLoads(
