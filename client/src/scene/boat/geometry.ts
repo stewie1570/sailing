@@ -5,7 +5,7 @@ import * as THREE from 'three'
  * width, so it fits a slip with room to spare and still reads next to the dock.
  * Local space: +z bow, +x port (the starboard screw is the −x mirror), y = 0 at
  * the waterline. The mast and standing rigging live on this mesh. The boom,
- * mainsail and masthead vane are separate so the sheet and the halyard can move them.
+ * mainsail, jib and masthead vane are separate so the sheets and furlers can move them.
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
  * and the triangle count stays in the low thousands. Collision uses the same
@@ -617,6 +617,126 @@ export function buildMainsail(): THREE.Mesh {
   const material = mesh.material as THREE.MeshLambertMaterial
   material.emissive = new THREE.Color(0.55, 0.52, 0.46)
   return mesh
+}
+
+export interface JibFrame {
+  tack: THREE.Vector3
+  head: THREE.Vector3
+  /** Clew with both sheets eased and the sail on the centreline. */
+  clew: THREE.Vector3
+}
+
+/** Forestay triangle. The clew is swung around the stay by poseJib. */
+export function jibFrame(): JibFrame {
+  const deckY = hullPoint(0.7, 1).y
+  const bow = hullPoint(0.985, 1)
+  return {
+    tack: new THREE.Vector3(0, bow.y + 0.38, bow.z - 0.28),
+    head: new THREE.Vector3(0, deckY + MAST_H - 0.45, MAST_Z + 0.04),
+    clew: new THREE.Vector3(0, deckY + 1.45, MAST_Z + 0.95),
+  }
+}
+
+interface ClothVert {
+  u: number
+  v: number
+  skin: number
+}
+
+const JIB_NU = 5
+const JIB_NV = 7
+
+/** Jib cloth in boat space. poseJib moves the clew and rolls the sail onto the stay. */
+export function buildJib(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  const cloth: ClothVert[] = []
+  const skins = [1, -1]
+  for (const skin of skins) {
+    for (let j = 0; j <= JIB_NV; j++) {
+      for (let i = 0; i <= JIB_NU; i++) {
+        const color = (i + j) % 2 === 0 ? SAIL : SAIL_BAND
+        vert(g, 0, 0, 0, color)
+        cloth.push({ u: i / JIB_NU, v: j / JIB_NV, skin })
+      }
+    }
+  }
+  const stride = (JIB_NU + 1) * (JIB_NV + 1)
+  for (let s = 0; s < skins.length; s++) {
+    const base = s * stride
+    for (let j = 0; j < JIB_NV; j++) {
+      for (let i = 0; i < JIB_NU; i++) {
+        const a = base + j * (JIB_NU + 1) + i
+        const b = a + 1
+        const c = a + (JIB_NU + 1) + 1
+        const d = a + (JIB_NU + 1)
+        if (s === 0) quad(g, a, b, c, d)
+        else quad(g, a, d, c, b)
+      }
+    }
+  }
+  const mesh = toMesh(g, 'jib', false)
+  const material = mesh.material as THREE.MeshLambertMaterial
+  material.emissive = new THREE.Color(0.55, 0.52, 0.46)
+  mesh.userData.cloth = cloth
+  return mesh
+}
+
+const jibTack = new THREE.Vector3()
+const jibHead = new THREE.Vector3()
+const jibClew = new THREE.Vector3()
+const jibAxis = new THREE.Vector3()
+const jibSpin = new THREE.Quaternion()
+const jibPoint = new THREE.Vector3()
+const jibBelly = new THREE.Vector3()
+const jibLuff = new THREE.Vector3()
+const jibLeech = new THREE.Vector3()
+const jibRel = new THREE.Vector3()
+
+/**
+ * Lay the jib on the forestay. `angle` is radians, positive to starboard.
+ * `hoist` rolls the cloth out from the stay. `flap` slats the leech when the sail is luffing.
+ */
+export function poseJib(
+  mesh: THREE.Mesh,
+  frame: JibFrame,
+  angle: number,
+  hoist: number,
+  flap: number,
+  time: number,
+) {
+  const h = Math.min(1, Math.max(0, hoist))
+  mesh.visible = h > 0.02
+  if (h <= 0.02) return
+  const cloth = mesh.userData.cloth as ClothVert[]
+  jibTack.copy(frame.tack)
+  jibHead.copy(frame.head)
+  jibAxis.subVectors(jibHead, jibTack)
+  const stay = Math.max(jibAxis.length(), 1e-4)
+  jibAxis.multiplyScalar(1 / stay)
+  jibSpin.setFromAxisAngle(jibAxis, angle)
+  jibClew.copy(frame.clew).sub(jibTack).applyQuaternion(jibSpin).add(jibTack)
+
+  jibRel.subVectors(jibClew, jibTack)
+  const along = jibRel.dot(jibAxis)
+  jibBelly.copy(jibRel).addScaledVector(jibAxis, -along)
+  if (jibBelly.lengthSq() < 1e-4) jibBelly.set(angle >= 0 ? -1 : 1, 0, 0)
+  else jibBelly.normalize()
+
+  const pos = mesh.geometry.attributes.position as THREE.BufferAttribute
+  for (let k = 0; k < cloth.length; k++) {
+    const { u, v, skin } = cloth[k]
+    // Stop short of the head so the top row keeps a little width.
+    const vv = v * 0.96
+    jibLuff.lerpVectors(jibTack, jibHead, vv)
+    jibLeech.lerpVectors(jibClew, jibHead, vv)
+    jibPoint.lerpVectors(jibLuff, jibLeech, u * h)
+    const draft = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * 0.32 * h
+    const wag = flap * u * h * (Math.sin(time * 9.2 + v * 4.1) * 0.16 + Math.sin(time * 17.4 + v * 2) * 0.07)
+    jibPoint.addScaledVector(jibBelly, draft + skin * 0.012 + wag)
+    pos.setXYZ(k, jibPoint.x, jibPoint.y, jibPoint.z)
+  }
+  pos.needsUpdate = true
+  mesh.geometry.computeVertexNormals()
 }
 
 /** Arrow along +z. Rotated by the apparent-wind angle, the head points into the wind. */

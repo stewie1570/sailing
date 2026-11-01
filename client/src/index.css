@@ -192,7 +192,12 @@ html:-webkit-full-screen {
   background: rgba(61, 220, 132, 0.22);
   border-color: rgba(61, 220, 132, 0.65);
 }
-.sail-panel { min-height: 248px; }
+.sail-panel {
+  min-height: 248px;
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .wind-row {
   display: flex;
   align-items: center;
@@ -292,7 +297,7 @@ html:-webkit-full-screen {
   align-items: stretch;
   justify-content: flex-end;
   gap: 8px;
-  height: 168px;
+  height: 136px;
 }
 .sheet-scale {
   display: flex;
@@ -340,6 +345,39 @@ html:-webkit-full-screen {
   background: rgba(20, 24, 28, 0.45);
 }
 .sheet-track.dragging .sheet-knob { transition: none; }
+.sheet-knob.port { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 3px 0 #e5484d, inset 0 1px 0 rgba(255, 255, 255, 0.65); }
+.sheet-knob.starboard { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 3px 0 #3ddc84, inset 0 1px 0 rgba(255, 255, 255, 0.65); }
+.sheet-stop {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 8px;
+  border-radius: 5px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.04) 4px,
+    rgba(0, 0, 0, 0.28) 4px,
+    rgba(0, 0, 0, 0.28) 8px
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+.jib-block { margin-top: 14px; }
+.jib-sheets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 10px;
+}
+.jib-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+.jib-col .sheet-label { width: 100%; }
+.jib-track { height: 124px; width: 48px; }
 .sail-note {
   margin: 6px 0 0;
   font-size: 11px;
