@@ -167,7 +167,7 @@ html:-webkit-full-screen {
   text-align: left;
   user-select: none;
   touch-action: none;
-  min-width: 212px;
+  min-width: 260px;
 }
 .helm-tabs {
   display: flex;
@@ -192,7 +192,11 @@ html:-webkit-full-screen {
   background: rgba(61, 220, 132, 0.22);
   border-color: rgba(61, 220, 132, 0.65);
 }
-.sail-panel { min-height: 248px; }
+.sail-panel {
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .wind-row {
   display: flex;
   align-items: center;
@@ -254,7 +258,85 @@ html:-webkit-full-screen {
   min-height: 1.2em;
 }
 .wind-shift { color: #f5c242; letter-spacing: 0.08em; text-transform: uppercase; font-size: 10px; }
-.halyard-block { margin-top: 12px; }
+.furler-block { margin-top: 10px; }
+.furler-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.furler-head .sail-toggle-state { margin-top: 0; text-align: right; }
+.furler-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.furler-end {
+  flex: none;
+  width: 36px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 244, 0.45);
+}
+.furler-end.out { text-align: right; }
+.furler {
+  position: relative;
+  flex: 1;
+  height: 36px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, #121a24, #243140);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 8px 12px rgba(0, 0, 0, 0.35);
+  touch-action: none;
+  cursor: grab;
+}
+.furler.dragging { cursor: grabbing; }
+.furler-fill {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 6px;
+  background: rgba(61, 220, 132, 0.38);
+  pointer-events: none;
+}
+.furler-knob {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 26px;
+  margin-left: -9px;
+  border-radius: 5px;
+  transform: translateY(-50%);
+  background: linear-gradient(#e4e8ec, #9aa1a8 42%, #5e656c);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+  transition: left 80ms ease-out;
+}
+.furler.dragging .furler-knob,
+.furler.dragging .furler-fill { transition: none; }
+.sail-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.sail-toggle-name {
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.sail-toggle-state {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+  letter-spacing: 0;
+  text-transform: none;
+  color: rgba(232, 238, 244, 0.78);
+}
 .halyard {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -269,46 +351,44 @@ html:-webkit-full-screen {
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 6px;
-  min-height: 40px;
+  min-height: 36px;
   cursor: pointer;
 }
 .halyard button.active {
   background: rgba(61, 220, 132, 0.22);
   border-color: rgba(61, 220, 132, 0.65);
 }
-.sheet { margin-top: 12px; }
-.sheet-label {
-  display: flex;
-  justify-content: space-between;
+.sheet-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  margin-bottom: 6px;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(232, 238, 244, 0.55);
+  margin-top: 12px;
 }
-.sheet-body {
-  display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
-  gap: 8px;
-  height: 168px;
-}
-.sheet-scale {
+.sheet-col {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  margin: 0;
-  padding: 2px 0;
-  font-size: 9px;
-  letter-spacing: 0.12em;
+  align-items: center;
+  min-width: 0;
+}
+.sheet-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 28px;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(232, 238, 244, 0.45);
+  text-align: center;
+  white-space: nowrap;
+  color: rgba(232, 238, 244, 0.55);
 }
 .sheet-track {
   position: relative;
-  width: 48px;
-  height: 100%;
+  width: 44px;
+  height: 156px;
   border-radius: 9px;
   background: linear-gradient(#243140, #121a24 40%, #0c1218);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 10px 16px rgba(0, 0, 0, 0.35);
@@ -340,18 +420,23 @@ html:-webkit-full-screen {
   background: rgba(20, 24, 28, 0.45);
 }
 .sheet-track.dragging .sheet-knob { transition: none; }
-.sail-note {
-  margin: 6px 0 0;
-  font-size: 11px;
-  line-height: 1.35;
-  color: rgba(232, 238, 244, 0.62);
-}
-.sail-trim {
-  margin-top: 8px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.04em;
-  color: rgba(232, 238, 244, 0.9);
+.sheet-knob.port { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 3px 0 #e5484d, inset 0 1px 0 rgba(255, 255, 255, 0.65); }
+.sheet-knob.starboard { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 3px 0 #3ddc84, inset 0 1px 0 rgba(255, 255, 255, 0.65); }
+.sheet-stop {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  bottom: 8px;
+  border-radius: 5px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.04),
+    rgba(255, 255, 255, 0.04) 4px,
+    rgba(0, 0, 0, 0.28) 4px,
+    rgba(0, 0, 0, 0.28) 8px
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  pointer-events: none;
 }
 .throttle-title {
   font-size: 11px;

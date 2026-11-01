@@ -115,7 +115,7 @@ export function Hud({ loading }: { loading: boolean }) {
         <div className="hud-sub">
           {loading
             ? 'Loading chart…'
-            : 'Engine tab runs the screws · Sailing tab sets the main · center the wheel to straighten the rudder'}
+            : 'Engine tab runs the screws · Sailing tab sets the main and the jib · center the wheel to straighten the rudder'}
         </div>
       </div>
 

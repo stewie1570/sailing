@@ -1,5 +1,5 @@
 /**
- * Twin-screw, single-rudder dynamics for the 14 m hull, plus the mainsail.
+ * Twin-screw, single-rudder dynamics for the 14 m hull, plus the main and the jib.
  *
  * Body frame: +surge toward the bow, +sway toward local +x (port when the bow
  * is along +z), +yaw rate swings the bow to port. Starboard helm is a positive
@@ -8,11 +8,19 @@
  * The rudder only bites when water is moving over it — boat speed plus the
  * ahead prop wash — so it does nothing at rest with the screws stopped.
  * Unequal screws yaw the boat even then, which is how a twin-screw yacht
- * turns inside a slip. The main adds drive only while it is hoisted; furled,
- * it is left out of the low-speed braking that settles the hull in a slip.
+ * turns inside a slip. A hoisted main or jib adds drive; with both furled,
+ * that drive is left out of the low-speed braking that settles the hull in a slip.
+ *
+ * The jib sits forward, so its lateral force is a yaw on the sail plan. The
+ * hull only takes up a little of that yaw. Flow over the keel and rudder is
+ * what steers, and the same flow keeps the bow from being hauled around by
+ * the jib: about four fifths rudder when the boat is barely moving, and
+ * nearly all rudder once she is doing five knots. The sail's drive is not
+ * part of that limit.
  */
 
-import { sailForce, type SailCommand, type Air } from './sail'
+import { rigForce, type SailCommand, type Air } from './sail'
+import { MS_TO_KN } from './wind'
 
 export interface Drive {
   /** −1 full astern, 0 stop, +1 full ahead. */
@@ -59,6 +67,30 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v))
 }
 
+/**
+ * Jib's share of the steering when there is no way on. The rest is the rudder.
+ * It fades with through-water speed: at five knots the share is about two
+ * percent, so the rudder is doing nearly all of the steering.
+ */
+const JIB_YAW_SHARE_STOPPED = 0.2
+const JIB_YAW_FADE_KN = 2.2
+
+/**
+ * Yaw from the jib that the hull will actually accept.
+ * `wash` is the ahead prop stream over the rudder, same one the blade uses.
+ * With neither way nor wash there is nothing for a rudder to push, and the
+ * jib does not yaw the boat either.
+ */
+function jibHelmMoment(jibN: number, speed: number, sway: number, wash: number) {
+  const kn = Math.hypot(speed, sway) * MS_TO_KN
+  const rudderShare = 1 - JIB_YAW_SHARE_STOPPED * Math.exp(-kn / JIB_YAW_FADE_KN)
+  const flow = speed + wash
+  const authority = Math.abs(HULL.rudderZ) * Math.sin(RUDDER_LOCK) * HULL.lift * flow * flow
+  const cap = (authority * (1 - rudderShare)) / rudderShare
+  if (!(cap > 0) || !Number.isFinite(jibN)) return 0
+  return Math.min(cap, Math.max(-cap, jibN))
+}
+
 function engineThrust(throttle: number) {
   // Rpm follows the lever and thrust follows rpm squared, so the lower
   // orders (dead slow, slow) are gentle and full ahead is still full power.
@@ -75,7 +107,7 @@ export interface AirDrive {
 /**
  * One explicit step. `pose` is mutated. Collision is the caller's job —
  * this only integrates surge, sway, yaw and the world position.
- * Pass `air` to let the mainsail push; without it the hull is screws and rudder only.
+ * Pass `air` to let the sails push; without it the hull is screws and rudder only.
  */
 export function stepMotion(
   pose: { x: number; z: number; yaw: number; speed: number; sway: number; yawRate: number },
@@ -94,22 +126,27 @@ export function stepMotion(
   // A forward push on the port side swings the bow to starboard.
   let n = -HULL.screwX * (fp - fs)
 
-  const rig = air ? sailForce(pose, air.wind, air.sail, dt) : null
+  // Ahead wash only. Computed before the rig so the jib's yaw sees the same
+  // flow the rudder is about to use.
+  const wash = HULL.wash * 0.5 * (Math.max(port, 0) + Math.max(stbd, 0))
+
+  const rig = air ? rigForce(pose, air.wind, air.sail, dt) : null
   if (rig) {
     fx += rig.fx
     fy += rig.fy
-    n += rig.n
+    // Keep the main's weather helm. Swap the jib's geometric yaw for the
+    // share the hull will take up at this flow.
+    n += rig.n - rig.jib.n + jibHelmMoment(rig.jib.n, pose.speed, pose.sway, wash)
   }
   // The extra low-speed drag and the stop-notch brake exist so a motorboat
-  // settles in a slip. A drawing main is propulsion, so they stay out of the way.
-  const sailing = (air?.sail.hoist ?? 0) > 0.18
+  // settles in a slip. A set sail is propulsion, so they stay out of the way.
+  const sailing = (air?.sail.hoist ?? 0) > 0.18 || (air?.sail.jibHoist ?? 0) > 0.18
 
   // Outward-turning screws walk the stern inward when they run astern.
   const walkFy = (port < 0 ? port * HULL.walk : 0) + (stbd < 0 ? -stbd * HULL.walk : 0)
   fy += walkFy
   n += HULL.screwZ * walkFy
 
-  const wash = HULL.wash * 0.5 * (Math.max(port, 0) + Math.max(stbd, 0))
   const flow = pose.speed + wash
   const delta = rudder * RUDDER_LOCK
   const sinD = Math.sin(delta)
@@ -139,7 +176,7 @@ export function stepMotion(
   nu = clamp(nu, -6, 12)
   nv = clamp(nv, -4, 4)
   nr = clamp(nr, -1.2, 1.2)
-  // With both levers in the stop notch, and the main furled, kill the last of
+  // With both levers in the stop notch, and the sails furled, kill the last of
   // the way so the hull actually settles instead of creeping for a minute.
   if (!sailing && Math.abs(port) < 0.03 && Math.abs(stbd) < 0.03) {
     const cut = 0.18 * dt

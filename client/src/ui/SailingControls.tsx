@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { getHelm, setControlDrag, updateHelm, useHelm } from '../scene/boat/helm'
-import { luffAmount, readSail } from '../scene/boat/sail'
+import { getHelm, jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
+import { JIB_STALL, jibAddedDrive, luffAmount, readRig } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
 import { compassPoint, getWind, useWindDisplay } from '../scene/boat/wind'
 
@@ -8,65 +8,147 @@ function clamp01(v: number) {
   return Math.min(1, Math.max(0, v))
 }
 
-function sheetFromY(el: HTMLElement, clientY: number) {
+function tightnessFromY(el: HTMLElement, clientY: number, max: number) {
   const r = el.getBoundingClientRect()
   const pad = 14
   const t = (clientY - r.top - pad) / Math.max(1, r.height - pad * 2)
-  return 1 - clamp01(t)
+  return Math.min(max, clamp01(t))
 }
 
-function Sheet({ value }: { value: number }) {
-  const [dragging, setDragging] = useState(false)
+function furlerFromX(el: HTMLElement, clientX: number) {
+  const r = el.getBoundingClientRect()
+  const pad = 14
+  return clamp01((clientX - r.left - pad) / Math.max(1, r.width - pad * 2))
+}
 
+function furlerReadout(out: number) {
+  if (out < 0.04) return 'Furled'
+  if (out > 0.96) return 'Out'
+  return `${Math.round(out * 100)}% out`
+}
+
+function JibFurler({ value }: { value: number }) {
+  const [dragging, setDragging] = useState(false)
+  const at = `calc(14px + ${value} * (100% - 28px))`
+
+  const apply = (el: HTMLElement, clientX: number) => updateHelm({ jib: furlerFromX(el, clientX) })
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
     setDragging(true)
-    setControlDrag('sheet', true)
-    updateHelm({ sheet: sheetFromY(e.currentTarget, e.clientY) })
+    setControlDrag('jib', true)
+    apply(e.currentTarget, e.clientX)
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-    updateHelm({ sheet: sheetFromY(e.currentTarget, e.clientY) })
+    apply(e.currentTarget, e.clientX)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
-    updateHelm({ sheet: sheetFromY(e.currentTarget, e.clientY) })
+    apply(e.currentTarget, e.clientX)
     setDragging(false)
-    setControlDrag('sheet', false)
+    setControlDrag('jib', false)
   }
 
-  const eased = value < 0.08 ? 'Tight' : value > 0.92 ? 'Fully eased' : `${Math.round(value * 100)}% eased`
+  return (
+    <div className="furler-line">
+      <span className="furler-end">In</span>
+      <div
+        className={`furler${dragging ? ' dragging' : ''}`}
+        role="slider"
+        aria-orientation="horizontal"
+        aria-label="Jib furler"
+        aria-valuemin={0}
+        aria-valuemax={1}
+        aria-valuenow={Number(value.toFixed(2))}
+        aria-valuetext={furlerReadout(value)}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <div className="furler-fill" style={{ width: value < 0.02 ? 0 : at }} />
+        <div className="furler-knob" style={{ left: at }} />
+      </div>
+      <span className="furler-end out">Out</span>
+    </div>
+  )
+}
+
+function tightReadout(tightness: number) {
+  if (tightness < 0.04) return 'Eased'
+  if (tightness > 0.96) return 'Tight'
+  return `${Math.round(tightness * 100)}%`
+}
+
+/** One vertical sheet. Ease is at the top, tight is at the bottom. `max` caps a jib sheet. */
+function SheetColumn({
+  title,
+  aria,
+  tightness,
+  max = 1,
+  knob,
+  control,
+  onTightness,
+}: {
+  title: string
+  aria: string
+  tightness: number
+  max?: number
+  knob?: string
+  control: Control
+  onTightness: (tightness: number) => void
+}) {
+  const [dragging, setDragging] = useState(false)
+  const limited = max < 0.995
+  const place = tightness < 0.04 ? 'Eased' : tightness > 0.96 ? 'Tight' : `${Math.round(tightness * 100)}% tight`
+  const text = limited ? `${place}, limited to ${Math.round(max * 100)}%` : place
+
+  const apply = (el: HTMLElement, clientY: number) => onTightness(tightnessFromY(el, clientY, max))
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging(true)
+    setControlDrag(control, true)
+    apply(e.currentTarget, e.clientY)
+  }
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    apply(e.currentTarget, e.clientY)
+  }
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
+    apply(e.currentTarget, e.clientY)
+    setDragging(false)
+    setControlDrag(control, false)
+  }
 
   return (
-    <div className="sheet">
+    <div className="sheet-col">
       <div className="sheet-label">
-        <span>Main sheet</span>
-        <span>{eased}</span>
+        <span>{title}</span>
+        <span>{tightReadout(tightness)}</span>
       </div>
-      <div className="sheet-body">
-        <div className="sheet-scale" aria-hidden="true">
-          <span>Ease</span>
-          <span>Tight</span>
-        </div>
-        <div
-          className={`sheet-track${dragging ? ' dragging' : ''}`}
-          role="slider"
-          aria-orientation="vertical"
-          aria-label="Main sheet"
-          aria-valuemin={0}
-          aria-valuemax={1}
-          aria-valuenow={Number(value.toFixed(2))}
-          aria-valuetext={eased}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="sheet-knob" style={{ top: `calc(14px + ${1 - value} * (100% - 28px))` }} />
-        </div>
+      <div
+        className={`sheet-track${dragging ? ' dragging' : ''}`}
+        role="slider"
+        aria-orientation="vertical"
+        aria-label={aria}
+        aria-valuemin={0}
+        aria-valuemax={Number(max.toFixed(2))}
+        aria-valuenow={Number(Math.min(tightness, max).toFixed(2))}
+        aria-valuetext={text}
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={onUp}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        {limited && <div className="sheet-stop" style={{ top: `calc(14px + ${max} * (100% - 28px))` }} />}
+        <div className={`sheet-knob${knob ? ` ${knob}` : ''}`} style={{ top: `calc(14px + ${tightness} * (100% - 28px))` }} />
       </div>
     </div>
   )
@@ -99,13 +181,15 @@ export function SailingControls() {
   const arrow = useRef<HTMLDivElement>(null)
   const detail = useRef<HTMLDivElement>(null)
   const trim = useRef<HTMLDivElement>(null)
+  const jibTrim = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let raf = 0
     const tick = () => {
       raf = requestAnimationFrame(tick)
       const w = getWind()
-      const sail = readSail({ yaw: telemetry.yaw, speed: telemetry.speed, sway: telemetry.sway }, w)
+      const rig = readRig({ yaw: telemetry.yaw, speed: telemetry.speed, sway: telemetry.sway }, w)
+      const sail = rig.main
       if (arrow.current) arrow.current.style.transform = `rotate(${-sail.awa}rad)`
       if (detail.current) detail.current.textContent = windSide(sail.awa)
       if (trim.current) {
@@ -113,6 +197,7 @@ export function SailingControls() {
         const boom = boomDeg < 2 ? 'Boom amidships' : `Boom ${boomDeg.toFixed(0)}° off`
         trim.current.textContent = `${boom} · ${trimWords(sail.hoist, getHelm().halyard, sail.aoa, sail.awa)}`
       }
+      if (jibTrim.current) jibTrim.current.textContent = jibLine(rig)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -139,11 +224,24 @@ export function SailingControls() {
         </div>
       </div>
 
-      <div className="halyard-block">
-        <div className="sheet-label">
-          <span>Halyard</span>
+      <div className="furler-block">
+        <div className="furler-head">
+          <span className="sail-toggle-name">Jib</span>
+          <span className="sail-toggle-state" ref={jibTrim}>
+            Furled
+          </span>
         </div>
-        <div className="halyard" role="group" aria-label="Halyard">
+        <JibFurler value={helm.jib} />
+      </div>
+
+      <div className="sail-toggle">
+        <div className="sail-toggle-copy">
+          <span className="sail-toggle-name">Main</span>
+          <span className="sail-toggle-state" ref={trim}>
+            In the boom
+          </span>
+        </div>
+        <div className="halyard" role="group" aria-label="Mainsail">
           <button type="button" className={out ? '' : 'active'} aria-pressed={!out} onClick={() => updateHelm({ halyard: 0 })}>
             In
           </button>
@@ -151,14 +249,52 @@ export function SailingControls() {
             Out
           </button>
         </div>
-        <p className="sail-note">Out sets the main. In rolls it back into the boom.</p>
       </div>
 
-      <Sheet value={helm.sheet} />
-      <p className="sail-note">The wind swings the boom out until the sheet is taut.</p>
-      <div className="sail-trim" ref={trim}>
-        Boom amidships
+      <div className="sheet-row">
+        <SheetColumn
+          title="Port jib"
+          aria="Port jib sheet"
+          tightness={helm.jibPort}
+          max={jibSheetRoom(helm.jibStarboard)}
+          knob="port"
+          control="jibPort"
+          onTightness={(jibPort) => updateHelm({ jibPort })}
+        />
+        <SheetColumn
+          title="Main"
+          aria="Main sheet"
+          tightness={1 - helm.sheet}
+          control="sheet"
+          onTightness={(tight) => updateHelm({ sheet: 1 - tight })}
+        />
+        <SheetColumn
+          title="Stbd jib"
+          aria="Starboard jib sheet"
+          tightness={helm.jibStarboard}
+          max={jibSheetRoom(helm.jibPort)}
+          knob="starboard"
+          control="jibStarboard"
+          onTightness={(jibStarboard) => updateHelm({ jibStarboard })}
+        />
       </div>
     </div>
   )
+}
+
+function jibLine(rig: ReturnType<typeof readRig>) {
+  const jib = rig.jib
+  if (jib.hoist < 0.04) return 'Furled'
+  const amount = jib.hoist > 0.96 ? '' : `${Math.round(jib.hoist * 100)}% out · `
+  const deg = Math.abs(jib.clew) * (180 / Math.PI)
+  const side = jib.clew > 0.04 ? 'stbd' : jib.clew < -0.04 ? 'port' : ''
+  const where = deg < 2 ? 'Clew amidships' : `Clew ${deg.toFixed(0)}° ${side}`.trim()
+  let state = 'Drawing'
+  if (jib.luff > 0.35) state = 'Luffing'
+  else if (jib.aoa > JIB_STALL) state = 'Stalled'
+  if (rig.main.hoist < 0.35 || rig.main.fx < 200) return `${amount}${where} · ${state}`
+  const added = jibAddedDrive(rig.main.fx, jib.fx, rig.slot)
+  const pct = Math.round((added / rig.main.fx) * 100)
+  const share = Math.abs(pct) < 3 ? 'no extra drive' : pct > 0 ? `+${pct}% drive` : `${pct}% drive`
+  return `${amount}${where} · ${state} · ${share}`
 }

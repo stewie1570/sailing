@@ -10,9 +10,18 @@ export interface Helm {
   halyard: number
   /** 0 sheets the boom to the centreline, 1 eases it out to the shrouds. */
   sheet: number
+  /** Jib furler. 0 is rolled onto the forestay, 1 is fully out. */
+  jib: number
+  /**
+   * Jib sheet tightness, 0 fully eased and 1 hauled hard.
+   * The two sheets share one haul: their sum never exceeds 1, so 70% tight
+   * on port leaves at most 30% for starboard.
+   */
+  jibPort: number
+  jibStarboard: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder' | 'sheet'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'jibPort' | 'jibStarboard'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -21,10 +30,18 @@ export const NEUTRAL_RELEASE = 0.13
 export const RUDDER_GRAB = 0.045
 export const RUDDER_RELEASE = 0.08
 
-const ZERO: Helm = { port: 0, starboard: 0, rudder: 0, halyard: 0, sheet: 0.5 }
+const ZERO: Helm = { port: 0, starboard: 0, rudder: 0, halyard: 0, sheet: 0.5, jib: 0, jibPort: 0, jibStarboard: 0 }
 let helm: Helm = ZERO
 const listeners = new Set<() => void>()
-const drag: Record<Control, boolean> = { port: false, starboard: false, rudder: false, sheet: false }
+const drag: Record<Control, boolean> = {
+  port: false,
+  starboard: false,
+  rudder: false,
+  sheet: false,
+  jib: false,
+  jibPort: false,
+  jibStarboard: false,
+}
 
 function clamp(v: number) {
   return Math.min(1, Math.max(-1, v))
@@ -38,20 +55,57 @@ export function getHelm(): Helm {
   return helm
 }
 
+/**
+ * Keep the jib sheets inside a shared haul. The sheet the sailor is moving
+ * stops at whatever the other one has not already taken. If both move in the
+ * same update, they are scaled down together.
+ */
+export function limitJibSheets(
+  port: number,
+  starboard: number,
+  portSet: boolean,
+  stbdSet: boolean,
+): { jibPort: number; jibStarboard: number } {
+  port = clamp01(port)
+  starboard = clamp01(starboard)
+  if (port + starboard <= 1) return { jibPort: port, jibStarboard: starboard }
+  if (portSet && !stbdSet) return { jibPort: Math.min(port, 1 - starboard), jibStarboard: starboard }
+  if (stbdSet && !portSet) return { jibPort: port, jibStarboard: Math.min(starboard, 1 - port) }
+  const scale = 1 / (port + starboard)
+  return { jibPort: port * scale, jibStarboard: starboard * scale }
+}
+
+/** How tight this jib sheet may go, given the other sheet. */
+export function jibSheetRoom(other: number) {
+  return Math.min(1, Math.max(0, 1 - other))
+}
+
 export function updateHelm(patch: Partial<Helm>) {
+  const sheets = limitJibSheets(
+    patch.jibPort ?? helm.jibPort,
+    patch.jibStarboard ?? helm.jibStarboard,
+    patch.jibPort != null,
+    patch.jibStarboard != null,
+  )
   const next: Helm = {
     port: clamp(patch.port ?? helm.port),
     starboard: clamp(patch.starboard ?? helm.starboard),
     rudder: clamp(patch.rudder ?? helm.rudder),
     halyard: patch.halyard == null ? helm.halyard : patch.halyard >= 0.5 ? 1 : 0,
     sheet: clamp01(patch.sheet ?? helm.sheet),
+    jib: clamp01(patch.jib ?? helm.jib),
+    jibPort: sheets.jibPort,
+    jibStarboard: sheets.jibStarboard,
   }
   if (
     next.port === helm.port &&
     next.starboard === helm.starboard &&
     next.rudder === helm.rudder &&
     next.halyard === helm.halyard &&
-    next.sheet === helm.sheet
+    next.sheet === helm.sheet &&
+    next.jib === helm.jib &&
+    next.jibPort === helm.jibPort &&
+    next.jibStarboard === helm.jibStarboard
   ) {
     return
   }
