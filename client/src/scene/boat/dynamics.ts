@@ -93,9 +93,12 @@ function clamp(v: number, lo: number, hi: number) {
  */
 const JIB_YAW_SHARE_STOPPED = 0.2
 const JIB_YAW_FADE_KN = 2.2
+/** The capped jib yaw, scaled so the jib is felt a little more in the helm. */
+const JIB_HELM = 1.15
 
 /**
- * Yaw from the jib that the hull will actually accept.
+ * Yaw from the jib that the hull will actually accept. `JIB_HELM` lets a
+ * little more of that yaw through, so the jib steers more than the cap alone.
  * `wash` is the ahead prop stream over the rudder, same one the blade uses.
  * With neither way nor wash there is nothing for a rudder to push, and the
  * jib does not yaw the boat either.
@@ -107,7 +110,7 @@ function jibHelmMoment(jibN: number, speed: number, sway: number, wash: number) 
   const authority = Math.abs(HULL.rudderZ) * Math.sin(RUDDER_LOCK) * HULL.lift * flow * flow
   const cap = (authority * (1 - rudderShare)) / rudderShare
   if (!(cap > 0) || !Number.isFinite(jibN)) return 0
-  return Math.min(cap, Math.max(-cap, jibN))
+  return JIB_HELM * Math.min(cap, Math.max(-cap, jibN))
 }
 
 function engineThrust(throttle: number) {

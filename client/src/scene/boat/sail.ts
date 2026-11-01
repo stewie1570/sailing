@@ -37,7 +37,7 @@ const AIR_RHO = 1.225
  * already stand in for a heavy hull; this extra share lets a fresh breeze
  * drive and shove the boat instead of merely tugging at it.
  */
-export const WIND_ON_SAIL = 1.75
+export const WIND_ON_SAIL = 1.4
 /** Boom follows the sheet and the wind with this time constant. */
 const BOOM_TAU = 0.45
 /** The jib clew is lighter than the boom, so it follows a little quicker. */
