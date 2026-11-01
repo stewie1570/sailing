@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
-import { JIB_STALL, jibAddedDrive, luffAmount, readRig } from '../scene/boat/sail'
+import { JIB_STALL, luffAmount, readRig } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
 import { compassPoint, getWind, useWindDisplay } from '../scene/boat/wind'
 
@@ -285,16 +285,11 @@ export function SailingControls() {
 function jibLine(rig: ReturnType<typeof readRig>) {
   const jib = rig.jib
   if (jib.hoist < 0.04) return 'Furled'
-  const amount = jib.hoist > 0.96 ? '' : `${Math.round(jib.hoist * 100)}% out · `
   const deg = Math.abs(jib.clew) * (180 / Math.PI)
   const side = jib.clew > 0.04 ? 'stbd' : jib.clew < -0.04 ? 'port' : ''
-  const where = deg < 2 ? 'Clew amidships' : `Clew ${deg.toFixed(0)}° ${side}`.trim()
+  const where = deg < 2 ? 'Amidships' : `${deg.toFixed(0)}° ${side}`.trim()
   let state = 'Drawing'
   if (jib.luff > 0.35) state = 'Luffing'
   else if (jib.aoa > JIB_STALL) state = 'Stalled'
-  if (rig.main.hoist < 0.35 || rig.main.fx < 200) return `${amount}${where} · ${state}`
-  const added = jibAddedDrive(rig.main.fx, jib.fx, rig.slot)
-  const pct = Math.round((added / rig.main.fx) * 100)
-  const share = Math.abs(pct) < 3 ? 'no extra drive' : pct > 0 ? `+${pct}% drive` : `${pct}% drive`
-  return `${amount}${where} · ${state} · ${share}`
+  return `${where} · ${state}`
 }
