@@ -14,7 +14,15 @@ import {
   WHEEL_RADIUS,
 } from './geometry'
 import { getHelm, updateHelm } from './helm'
-import { integrate, spawnPose, swell, type Pose } from './physics'
+import {
+  chaseYaw,
+  CHASE_YAW_LAG,
+  integrate,
+  rotateYaw,
+  spawnPose,
+  swell,
+  type Pose,
+} from './physics'
 import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
 import { publishTelemetry, publishWheel } from './telemetry'
 
@@ -30,7 +38,9 @@ function disposeMesh(mesh: THREE.Mesh) {
 /**
  * The player's sloop, driven by twin screws and a rudder.
  * The wheel and the blade turn with the helm. The hull stops when it meets
- * the shore, a dock, or any other solid mesh. The camera keeps its angle.
+ * the shore, a dock, or any other solid mesh. The camera rides along and
+ * chases the heading about a second behind, finishing at the same angle
+ * relative to the hull.
  */
 export function Boat({ map }: { map: MapData }) {
   const hull = useMemo(() => buildSailboat(), [])
@@ -53,7 +63,7 @@ export function Boat({ map }: { map: MapData }) {
   const rudderRef = useRef<THREE.Group>(null)
   const portSpinRef = useRef<THREE.Group>(null)
   const stbdSpinRef = useRef<THREE.Group>(null)
-  const follow = useRef({ x: pose.x, y: 0, z: pose.z })
+  const follow = useRef({ x: pose.x, y: 0, z: pose.z, yaw: pose.yaw })
   const scratch = useMemo(
     () => ({ hub: new THREE.Vector3(), rim: new THREE.Vector3(), toHub: new THREE.Vector3(), cam: new THREE.Vector3() }),
     [],
@@ -98,6 +108,7 @@ export function Boat({ map }: { map: MapData }) {
         camera.position.z += dz
         follow.current.x = pose.x
         follow.current.z = pose.z
+        follow.current.yaw = pose.yaw
         const orbit = controls as OrbitLike | null
         orbit?.target.set(pose.x, follow.current.y + 1.15, pose.z)
       },
@@ -131,10 +142,20 @@ export function Boat({ map }: { map: MapData }) {
     const orbit = controls as OrbitLike | null
     if (orbit?.target) {
       const prev = follow.current
+      // Trail the heading by about a second, then sit at the same angle relative to the boat.
+      const lagged = chaseYaw(prev.yaw, pose.yaw, delta, CHASE_YAW_LAG)
+      const dYaw = lagged - prev.yaw
+      prev.yaw = lagged
       camera.position.x += pose.x - prev.x
       camera.position.y += y - prev.y
       camera.position.z += pose.z - prev.z
+      if (dYaw !== 0) {
+        const off = rotateYaw(camera.position.x - pose.x, camera.position.z - pose.z, dYaw)
+        camera.position.x = pose.x + off.x
+        camera.position.z = pose.z + off.z
+      }
       orbit.target.set(pose.x, y + 1.15, pose.z)
+      camera.lookAt(orbit.target)
       prev.x = pose.x
       prev.y = y
       prev.z = pose.z

@@ -39,6 +39,27 @@ export function chaseOffset(yaw: number, back = 12, height = 5.2): { x: number; 
 }
 
 /**
+ * How far the chase camera trails the heading, in seconds.
+ * A steady turn sits this far behind; once the helm is released the view
+ * settles on the same angle relative to the boat.
+ */
+export const CHASE_YAW_LAG = 1
+
+/** First-order lag of a heading toward `target`. `tau` is the time constant in seconds. */
+export function chaseYaw(current: number, target: number, dt: number, tau = CHASE_YAW_LAG): number {
+  if (!(dt > 0)) return current
+  if (!(tau > 0)) return target
+  return current + (target - current) * (1 - Math.exp(-dt / tau))
+}
+
+/** Rotate a world XZ offset by the same yaw sense as {@link chaseOffset}. */
+export function rotateYaw(x: number, z: number, yaw: number): { x: number; z: number } {
+  const c = Math.cos(yaw)
+  const s = Math.sin(yaw)
+  return { x: x * c + z * s, z: -x * s + z * c }
+}
+
+/**
  * Screws, rudder and hull resistance. On contact the hull is walked back to
  * the last clear pose along that step and the way comes off — no slide, no bounce.
  */

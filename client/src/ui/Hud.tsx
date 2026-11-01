@@ -7,6 +7,69 @@ import { perf, setQuality, useQuality, type QualityLevel } from '../scene/qualit
 
 const LEVELS: QualityLevel[] = ['low', 'medium', 'high']
 
+type FullscreenDoc = Document & {
+  webkitFullscreenElement?: Element | null
+  webkitExitFullscreen?: () => Promise<void> | void
+}
+
+type FullscreenEl = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void
+}
+
+function fullscreenElement() {
+  const doc = document as FullscreenDoc
+  return document.fullscreenElement ?? doc.webkitFullscreenElement ?? null
+}
+
+function canFullscreen() {
+  const el = document.documentElement as FullscreenEl
+  return typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function'
+}
+
+async function enterFullscreen() {
+  const el = document.documentElement as FullscreenEl
+  if (el.requestFullscreen) await el.requestFullscreen()
+  else el.webkitRequestFullscreen?.()
+}
+
+async function exitFullscreen() {
+  const doc = document as FullscreenDoc
+  if (document.exitFullscreen) await document.exitFullscreen()
+  else doc.webkitExitFullscreen?.()
+}
+
+function FullscreenButton() {
+  const [active, setActive] = useState(() => !!fullscreenElement())
+  const [supported] = useState(canFullscreen)
+
+  useEffect(() => {
+    const sync = () => setActive(!!fullscreenElement())
+    document.addEventListener('fullscreenchange', sync)
+    document.addEventListener('webkitfullscreenchange', sync)
+    return () => {
+      document.removeEventListener('fullscreenchange', sync)
+      document.removeEventListener('webkitfullscreenchange', sync)
+    }
+  }, [])
+
+  if (!supported) return null
+
+  return (
+    <button
+      type="button"
+      className={active ? 'active' : ''}
+      aria-pressed={active}
+      aria-label={active ? 'Exit full screen' : 'Enter full screen'}
+      title={active ? 'Exit full screen' : 'Full screen'}
+      onClick={() => {
+        void (active ? exitFullscreen() : enterFullscreen())
+      }}
+    >
+      {active ? 'Exit' : 'Full'}
+    </button>
+  )
+}
+
 export function Hud({ loading }: { loading: boolean }) {
   const conn = useConnection()
   const quality = useQuality()
@@ -42,6 +105,7 @@ export function Hud({ loading }: { loading: boolean }) {
               {l}
             </button>
           ))}
+          <FullscreenButton />
         </div>
       </div>
 
