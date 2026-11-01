@@ -8,70 +8,6 @@ function clamp01(v: number) {
   return Math.min(1, Math.max(0, v))
 }
 
-function sheetFromY(el: HTMLElement, clientY: number) {
-  const r = el.getBoundingClientRect()
-  const pad = 14
-  const t = (clientY - r.top - pad) / Math.max(1, r.height - pad * 2)
-  return 1 - clamp01(t)
-}
-
-function Sheet({ value }: { value: number }) {
-  const [dragging, setDragging] = useState(false)
-
-  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    setDragging(true)
-    setControlDrag('sheet', true)
-    updateHelm({ sheet: sheetFromY(e.currentTarget, e.clientY) })
-  }
-  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
-    updateHelm({ sheet: sheetFromY(e.currentTarget, e.clientY) })
-  }
-  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
-    updateHelm({ sheet: sheetFromY(e.currentTarget, e.clientY) })
-    setDragging(false)
-    setControlDrag('sheet', false)
-  }
-
-  const eased = value < 0.08 ? 'Tight' : value > 0.92 ? 'Fully eased' : `${Math.round(value * 100)}% eased`
-
-  return (
-    <div className="sheet">
-      <div className="sheet-label">
-        <span>Main sheet</span>
-        <span>{eased}</span>
-      </div>
-      <div className="sheet-body">
-        <div className="sheet-scale" aria-hidden="true">
-          <span>Ease</span>
-          <span>Tight</span>
-        </div>
-        <div
-          className={`sheet-track${dragging ? ' dragging' : ''}`}
-          role="slider"
-          aria-orientation="vertical"
-          aria-label="Main sheet"
-          aria-valuemin={0}
-          aria-valuemax={1}
-          aria-valuenow={Number(value.toFixed(2))}
-          aria-valuetext={eased}
-          onPointerDown={onDown}
-          onPointerMove={onMove}
-          onPointerUp={onUp}
-          onPointerCancel={onUp}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <div className="sheet-knob" style={{ top: `calc(14px + ${1 - value} * (100% - 28px))` }} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function tightnessFromY(el: HTMLElement, clientY: number, max: number) {
   const r = el.getBoundingClientRect()
   const pad = 14
@@ -79,29 +15,36 @@ function tightnessFromY(el: HTMLElement, clientY: number, max: number) {
   return Math.min(max, clamp01(t))
 }
 
-function tightLabel(value: number) {
-  if (value < 0.04) return 'Eased'
-  if (value > 0.96) return 'Hard'
-  return `${Math.round(value * 100)}% tight`
+function tightReadout(tightness: number) {
+  if (tightness < 0.04) return 'Eased'
+  if (tightness > 0.96) return 'Tight'
+  return `${Math.round(tightness * 100)}%`
 }
 
-function JibSheet({
-  side,
-  value,
-  max,
+/** One vertical sheet. Ease is at the top, tight is at the bottom. `max` caps a jib sheet. */
+function SheetColumn({
+  title,
+  aria,
+  tightness,
+  max = 1,
+  knob,
+  control,
+  onTightness,
 }: {
-  side: 'port' | 'starboard'
-  value: number
-  max: number
+  title: string
+  aria: string
+  tightness: number
+  max?: number
+  knob?: string
+  control: Control
+  onTightness: (tightness: number) => void
 }) {
   const [dragging, setDragging] = useState(false)
-  const control: Control = side === 'port' ? 'jibPort' : 'jibStarboard'
-  const name = side === 'port' ? 'Port jib sheet' : 'Starboard jib sheet'
+  const limited = max < 0.995
+  const place = tightness < 0.04 ? 'Eased' : tightness > 0.96 ? 'Tight' : `${Math.round(tightness * 100)}% tight`
+  const text = limited ? `${place}, limited to ${Math.round(max * 100)}%` : place
 
-  const apply = (el: HTMLElement, clientY: number) => {
-    const next = tightnessFromY(el, clientY, max)
-    updateHelm(side === 'port' ? { jibPort: next } : { jibStarboard: next })
-  }
+  const apply = (el: HTMLElement, clientY: number) => onTightness(tightnessFromY(el, clientY, max))
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
@@ -121,23 +64,20 @@ function JibSheet({
     setControlDrag(control, false)
   }
 
-  const limited = max < 0.995
-  const text = limited ? `${tightLabel(value)}, limited to ${Math.round(max * 100)}%` : tightLabel(value)
-
   return (
-    <div className="jib-col">
+    <div className="sheet-col">
       <div className="sheet-label">
-        <span>{side === 'port' ? 'Port' : 'Stbd'}</span>
-        <span>{value < 0.04 ? 'Eased' : value > 0.96 ? 'Hard' : `${Math.round(value * 100)}%`}</span>
+        <span>{title}</span>
+        <span>{tightReadout(tightness)}</span>
       </div>
       <div
-        className={`sheet-track jib-track${dragging ? ' dragging' : ''}`}
+        className={`sheet-track${dragging ? ' dragging' : ''}`}
         role="slider"
         aria-orientation="vertical"
-        aria-label={name}
+        aria-label={aria}
         aria-valuemin={0}
         aria-valuemax={Number(max.toFixed(2))}
-        aria-valuenow={Number(value.toFixed(2))}
+        aria-valuenow={Number(Math.min(tightness, max).toFixed(2))}
         aria-valuetext={text}
         onPointerDown={onDown}
         onPointerMove={onMove}
@@ -146,7 +86,7 @@ function JibSheet({
         onContextMenu={(e) => e.preventDefault()}
       >
         {limited && <div className="sheet-stop" style={{ top: `calc(14px + ${max} * (100% - 28px))` }} />}
-        <div className={`sheet-knob ${side}`} style={{ top: `calc(14px + ${value} * (100% - 28px))` }} />
+        <div className={`sheet-knob${knob ? ` ${knob}` : ''}`} style={{ top: `calc(14px + ${tightness} * (100% - 28px))` }} />
       </div>
     </div>
   )
@@ -223,11 +163,31 @@ export function SailingControls() {
         </div>
       </div>
 
-      <div className="halyard-block">
-        <div className="sheet-label">
-          <span>Halyard</span>
+      <div className="sail-toggle">
+        <div className="sail-toggle-copy">
+          <span className="sail-toggle-name">Jib</span>
+          <span className="sail-toggle-state" ref={jibTrim}>
+            Furled
+          </span>
         </div>
-        <div className="halyard" role="group" aria-label="Halyard">
+        <div className="halyard" role="group" aria-label="Jib furling">
+          <button type="button" className={jibOut ? '' : 'active'} aria-pressed={!jibOut} onClick={() => updateHelm({ jib: 0 })}>
+            In
+          </button>
+          <button type="button" className={jibOut ? 'active' : ''} aria-pressed={jibOut} onClick={() => updateHelm({ jib: 1 })}>
+            Out
+          </button>
+        </div>
+      </div>
+
+      <div className="sail-toggle">
+        <div className="sail-toggle-copy">
+          <span className="sail-toggle-name">Main</span>
+          <span className="sail-toggle-state" ref={trim}>
+            In the boom
+          </span>
+        </div>
+        <div className="halyard" role="group" aria-label="Mainsail">
           <button type="button" className={out ? '' : 'active'} aria-pressed={!out} onClick={() => updateHelm({ halyard: 0 })}>
             In
           </button>
@@ -235,47 +195,34 @@ export function SailingControls() {
             Out
           </button>
         </div>
-        <p className="sail-note">Out sets the main. In rolls it back into the boom.</p>
       </div>
 
-      <Sheet value={helm.sheet} />
-      <p className="sail-note">The wind swings the boom out until the sheet is taut.</p>
-      <div className="sail-trim" ref={trim}>
-        Boom amidships
-      </div>
-
-      <div className="jib-block">
-        <div className="sheet-label">
-          <span>Jib</span>
-          <span>{Math.round((helm.jibPort + helm.jibStarboard) * 100)}% of the haul</span>
-        </div>
-        <div className="halyard" role="group" aria-label="Jib furling">
-          <button
-            type="button"
-            className={jibOut ? '' : 'active'}
-            aria-pressed={!jibOut}
-            onClick={() => updateHelm({ jib: 0 })}
-          >
-            In
-          </button>
-          <button
-            type="button"
-            className={jibOut ? 'active' : ''}
-            aria-pressed={jibOut}
-            onClick={() => updateHelm({ jib: 1 })}
-          >
-            Out
-          </button>
-        </div>
-        <p className="sail-note">Out sets the jib. In rolls it onto the forestay.</p>
-        <div className="jib-sheets">
-          <JibSheet side="port" value={helm.jibPort} max={jibSheetRoom(helm.jibStarboard)} />
-          <JibSheet side="starboard" value={helm.jibStarboard} max={jibSheetRoom(helm.jibPort)} />
-        </div>
-        <p className="sail-note">Ease is up and tight is down. The two sheets share the haul, so 70% tight on one leaves 30% for the other. The hatch is the part the other sheet is holding.</p>
-        <div className="sail-trim" ref={jibTrim}>
-          Jib furled
-        </div>
+      <div className="sheet-row">
+        <SheetColumn
+          title="Port jib"
+          aria="Port jib sheet"
+          tightness={helm.jibPort}
+          max={jibSheetRoom(helm.jibStarboard)}
+          knob="port"
+          control="jibPort"
+          onTightness={(jibPort) => updateHelm({ jibPort })}
+        />
+        <SheetColumn
+          title="Main"
+          aria="Main sheet"
+          tightness={1 - helm.sheet}
+          control="sheet"
+          onTightness={(tight) => updateHelm({ sheet: 1 - tight })}
+        />
+        <SheetColumn
+          title="Stbd jib"
+          aria="Starboard jib sheet"
+          tightness={helm.jibStarboard}
+          max={jibSheetRoom(helm.jibPort)}
+          knob="starboard"
+          control="jibStarboard"
+          onTightness={(jibStarboard) => updateHelm({ jibStarboard })}
+        />
       </div>
     </div>
   )
