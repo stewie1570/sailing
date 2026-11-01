@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { getHelm, jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
+import { jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
 import { JIB_STALL, jibAddedDrive, luffAmount, readRig } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
 import { compassPoint, getWind, useWindDisplay } from '../scene/boat/wind'
@@ -27,17 +27,27 @@ function furlerReadout(out: number) {
   return `${Math.round(out * 100)}% out`
 }
 
-function JibFurler({ value }: { value: number }) {
+function ClothFurler({
+  label,
+  value,
+  control,
+  onValue,
+}: {
+  label: string
+  value: number
+  control: Control
+  onValue: (value: number) => void
+}) {
   const [dragging, setDragging] = useState(false)
   const at = `calc(14px + ${value} * (100% - 28px))`
 
-  const apply = (el: HTMLElement, clientX: number) => updateHelm({ jib: furlerFromX(el, clientX) })
+  const apply = (el: HTMLElement, clientX: number) => onValue(furlerFromX(el, clientX))
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
     setDragging(true)
-    setControlDrag('jib', true)
+    setControlDrag(control, true)
     apply(e.currentTarget, e.clientX)
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -48,7 +58,7 @@ function JibFurler({ value }: { value: number }) {
     if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
     apply(e.currentTarget, e.clientX)
     setDragging(false)
-    setControlDrag('jib', false)
+    setControlDrag(control, false)
   }
 
   return (
@@ -58,7 +68,7 @@ function JibFurler({ value }: { value: number }) {
         className={`furler${dragging ? ' dragging' : ''}`}
         role="slider"
         aria-orientation="horizontal"
-        aria-label="Jib furler"
+        aria-label={label}
         aria-valuemin={0}
         aria-valuemax={1}
         aria-valuenow={Number(value.toFixed(2))}
@@ -165,14 +175,13 @@ function windSide(awa: number) {
   return `${rounded}° ${side} quarter`
 }
 
-function trimWords(hoist: number, command: number, aoa: number, awa: number) {
-  if (command > 0.5 && hoist < 0.98) return 'Hoisting'
-  if (command < 0.5 && hoist > 0.02) return 'Furling'
-  if (hoist < 0.08) return 'In the boom'
-  if (luffAmount(aoa, awa, hoist) > 0.35) return 'Luffing'
+function trimWords(hoist: number, aoa: number, awa: number) {
+  if (hoist < 0.04) return 'In the boom'
+  const amount = hoist > 0.96 ? '' : `${Math.round(hoist * 100)}% out · `
+  if (luffAmount(aoa, awa, hoist) > 0.35) return `${amount}Luffing`
   const deg = aoa * (180 / Math.PI)
-  if (deg > 50) return 'Stalled'
-  return 'Drawing'
+  if (deg > 50) return `${amount}Stalled`
+  return `${amount}Drawing`
 }
 
 export function SailingControls() {
@@ -195,15 +204,13 @@ export function SailingControls() {
       if (trim.current) {
         const boomDeg = Math.abs(sail.boom) * (180 / Math.PI)
         const boom = boomDeg < 2 ? 'Boom amidships' : `Boom ${boomDeg.toFixed(0)}° off`
-        trim.current.textContent = `${boom} · ${trimWords(sail.hoist, getHelm().halyard, sail.aoa, sail.awa)}`
+        trim.current.textContent = `${boom} · ${trimWords(sail.hoist, sail.aoa, sail.awa)}`
       }
       if (jibTrim.current) jibTrim.current.textContent = jibLine(rig)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [])
-
-  const out = helm.halyard > 0.5
 
   return (
     <div id="panel-sailing" className="sail-panel" role="tabpanel" aria-label="Sailing" aria-labelledby="tab-sailing">
@@ -231,24 +238,17 @@ export function SailingControls() {
             Furled
           </span>
         </div>
-        <JibFurler value={helm.jib} />
+        <ClothFurler label="Jib furler" value={helm.jib} control="jib" onValue={(jib) => updateHelm({ jib })} />
       </div>
 
-      <div className="sail-toggle">
-        <div className="sail-toggle-copy">
+      <div className="furler-block">
+        <div className="furler-head">
           <span className="sail-toggle-name">Main</span>
           <span className="sail-toggle-state" ref={trim}>
             In the boom
           </span>
         </div>
-        <div className="halyard" role="group" aria-label="Mainsail">
-          <button type="button" className={out ? '' : 'active'} aria-pressed={!out} onClick={() => updateHelm({ halyard: 0 })}>
-            In
-          </button>
-          <button type="button" className={out ? 'active' : ''} aria-pressed={out} onClick={() => updateHelm({ halyard: 1 })}>
-            Out
-          </button>
-        </div>
+        <ClothFurler label="Main halyard" value={helm.halyard} control="halyard" onValue={(halyard) => updateHelm({ halyard })} />
       </div>
 
       <div className="sheet-row">

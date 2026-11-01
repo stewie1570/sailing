@@ -8,8 +8,10 @@
  * The rudder only bites when water is moving over it — boat speed plus the
  * ahead prop wash — so it does nothing at rest with the screws stopped.
  * Unequal screws yaw the boat even then, which is how a twin-screw yacht
- * turns inside a slip. A hoisted main or jib adds drive; with both furled,
- * that drive is left out of the low-speed braking that settles the hull in a slip.
+ * turns inside a slip. Bow and stern thrusters push sideways with no way on,
+ * so she can walk and spin in a berth. A hoisted main or jib adds drive; with
+ * both furled, that drive is left out of the low-speed braking that settles
+ * the hull in a slip.
  *
  * The jib sits forward, so its lateral force is a yaw on the sail plan. The
  * hull only takes up a little of that yaw. Flow over the keel and rudder is
@@ -28,6 +30,9 @@ export interface Drive {
   starboard: number
   /** −1 hard to port, 0 parallel with the hull, +1 hard to starboard. */
   rudder: number
+  /** −1 shoves that end to port, 0 off, +1 shoves it to starboard. */
+  bow: number
+  stern: number
 }
 
 export const RUDDER_LOCK = (35 * Math.PI) / 180
@@ -61,6 +66,11 @@ const HULL = {
   yawQuad: 18000,
   /** Inward stern walk, newtons, at full astern on one screw. */
   walk: 250,
+  /** Sideways newtons from one thruster at full. Enough to walk and spin at rest. */
+  thruster: 1400,
+  /** Thruster stations, metres from midships. Equal arms so both to one side walks straight. */
+  bowZ: 5.5,
+  sternZ: -5.5,
 }
 
 /**
@@ -108,6 +118,12 @@ function engineThrust(throttle: number) {
   return shaped * HULL.ahead * HULL.astern
 }
 
+/** Sideways newtons. Positive command is to starboard, positive force is to port. */
+function thrusterForce(command: number) {
+  const shaped = Math.sign(command) * Math.abs(command) ** 1.35
+  return -shaped * HULL.thruster
+}
+
 export interface AirDrive {
   wind: Air
   sail: SailCommand
@@ -127,6 +143,8 @@ export function stepMotion(
   const port = clamp(drive.port, -1, 1)
   const stbd = clamp(drive.starboard, -1, 1)
   const rudder = clamp(drive.rudder, -1, 1)
+  const bow = clamp(drive.bow, -1, 1)
+  const stern = clamp(drive.stern, -1, 1)
 
   const fp = engineThrust(port)
   const fs = engineThrust(stbd)
@@ -155,6 +173,14 @@ export function stepMotion(
   const walkFy = (port < 0 ? port * HULL.walk : 0) + (stbd < 0 ? -stbd * HULL.walk : 0)
   fy += walkFy
   n += HULL.screwZ * walkFy
+
+  // Thrusters shove sideways at rest. A push to port on the bow swings the
+  // bow to port; the same push on the stern swings the bow to starboard.
+  const bowFy = thrusterForce(bow)
+  const sternFy = thrusterForce(stern)
+  fy += bowFy + sternFy
+  n += HULL.bowZ * bowFy + HULL.sternZ * sternFy
+  const thrusting = Math.abs(bow) > 0.02 || Math.abs(stern) > 0.02
 
   const flow = pose.speed + wash
   const delta = rudder * RUDDER_LOCK
@@ -187,15 +213,17 @@ export function stepMotion(
   nu = clamp(nu, -6, 12)
   nv = clamp(nv, -4, 4)
   nr = clamp(nr, -1.2, 1.2)
-  // With both levers in the stop notch, and the sails furled, kill the last of
-  // the way so the hull actually settles instead of creeping for a minute.
+  // With both levers in the stop notch, the sails furled, and the thrusters
+  // off, kill the last of the way so the hull settles instead of creeping.
   if (!sailing && Math.abs(port) < 0.03 && Math.abs(stbd) < 0.03) {
     const cut = 0.18 * dt
     nu = Math.abs(nu) <= cut ? 0 : nu - Math.sign(nu) * cut
-    nv = Math.abs(nv) <= cut ? 0 : nv - Math.sign(nv) * cut
-    if (Math.abs(nr) < 0.04 * dt) nr = 0
+    if (!thrusting) {
+      nv = Math.abs(nv) <= cut ? 0 : nv - Math.sign(nv) * cut
+      if (Math.abs(nr) < 0.04 * dt) nr = 0
+    }
   }
-  if (!sailing && Math.abs(nu) < 0.03 && Math.abs(nv) < 0.03 && Math.abs(nr) < 0.015 && Math.abs(fp) < 40 && Math.abs(fs) < 40) {
+  if (!sailing && !thrusting && Math.abs(nu) < 0.03 && Math.abs(nv) < 0.03 && Math.abs(nr) < 0.015 && Math.abs(fp) < 40 && Math.abs(fs) < 40) {
     nu = 0
     nv = 0
     nr = 0

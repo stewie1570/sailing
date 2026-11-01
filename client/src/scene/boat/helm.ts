@@ -6,8 +6,11 @@ export interface Helm {
   starboard: number
   /** −1 hard to port, 0 rudder parallel with the hull, +1 hard to starboard. */
   rudder: number
-  /** 0 rolls the main into the boom, 1 hoists it. */
+  /** 0 rolls the main into the boom, 1 hoists it. The slider sets this directly. */
   halyard: number
+  /** −1 shoves that end to port, 0 off, +1 shoves it to starboard. */
+  bow: number
+  stern: number
   /** 0 sheets the boom to the centreline, 1 eases it out to the shrouds. */
   sheet: number
   /** Jib furler. 0 is rolled onto the forestay, 1 is fully out. */
@@ -21,7 +24,7 @@ export interface Helm {
   jibStarboard: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'jibPort' | 'jibStarboard'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'jibPort' | 'jibStarboard' | 'halyard' | 'bow' | 'stern'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -30,7 +33,18 @@ export const NEUTRAL_RELEASE = 0.13
 export const RUDDER_GRAB = 0.045
 export const RUDDER_RELEASE = 0.08
 
-const ZERO: Helm = { port: 0, starboard: 0, rudder: 0, halyard: 0, sheet: 0.5, jib: 0, jibPort: 0, jibStarboard: 0 }
+const ZERO: Helm = {
+  port: 0,
+  starboard: 0,
+  rudder: 0,
+  halyard: 0,
+  bow: 0,
+  stern: 0,
+  sheet: 0.5,
+  jib: 0,
+  jibPort: 0,
+  jibStarboard: 0,
+}
 let helm: Helm = ZERO
 const listeners = new Set<() => void>()
 const drag: Record<Control, boolean> = {
@@ -41,6 +55,9 @@ const drag: Record<Control, boolean> = {
   jib: false,
   jibPort: false,
   jibStarboard: false,
+  halyard: false,
+  bow: false,
+  stern: false,
 }
 
 function clamp(v: number) {
@@ -91,7 +108,9 @@ export function updateHelm(patch: Partial<Helm>) {
     port: clamp(patch.port ?? helm.port),
     starboard: clamp(patch.starboard ?? helm.starboard),
     rudder: clamp(patch.rudder ?? helm.rudder),
-    halyard: patch.halyard == null ? helm.halyard : patch.halyard >= 0.5 ? 1 : 0,
+    halyard: clamp01(patch.halyard ?? helm.halyard),
+    bow: clamp(patch.bow ?? helm.bow),
+    stern: clamp(patch.stern ?? helm.stern),
     sheet: clamp01(patch.sheet ?? helm.sheet),
     jib: clamp01(patch.jib ?? helm.jib),
     jibPort: sheets.jibPort,
@@ -102,6 +121,8 @@ export function updateHelm(patch: Partial<Helm>) {
     next.starboard === helm.starboard &&
     next.rudder === helm.rudder &&
     next.halyard === helm.halyard &&
+    next.bow === helm.bow &&
+    next.stern === helm.stern &&
     next.sheet === helm.sheet &&
     next.jib === helm.jib &&
     next.jibPort === helm.jibPort &&

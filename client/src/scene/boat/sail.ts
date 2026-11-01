@@ -1,9 +1,8 @@
 /**
  * Sails for the 14 m sloop: a mainsail on the boom, and a jib on the forestay.
  *
- * The halyard is a hoist: out, the main is set; in, it is rolled away. The jib
- * furler is a slider. However far it is out is how much cloth the wind has to
- * push on. A sheet does not
+ * The halyard and the jib furler are sliders. However far each is out is how
+ * much cloth the wind has to push on. A sheet does not
  * place a sail. It only limits how far that sail may swing. The apparent wind
  * weathercocks the cloth out until the sheet is taut, which is why an eased
  * sheet on a close-hauled heading luffs instead of driving.
@@ -39,8 +38,6 @@ const AIR_RHO = 1.225
  * drive and shove the boat instead of merely tugging at it.
  */
 export const WIND_ON_SAIL = 1.75
-/** Seconds to hoist or to roll the main away. */
-export const HOIST_TIME = 2.4
 /** Boom follows the sheet and the wind with this time constant. */
 const BOOM_TAU = 0.45
 /** The jib clew is lighter than the boom, so it follows a little quicker. */
@@ -51,7 +48,7 @@ export const FURL_FRACTION = 0.012
 const JIB_FURL_FRACTION = 0.008
 
 export interface SailCommand {
-  /** 0 furled into the boom, 1 fully hoisted. This is the animated hoist. */
+  /** 0 furled into the boom, 1 fully hoisted. The halyard slider sets this. */
   hoist: number
   /** 0 pinned on the centreline, 1 free out to the shrouds. */
   sheet: number
@@ -124,15 +121,10 @@ export function resetSail(nextHoist = 0, nextBoom = 0, nextJib = 0, nextClew = 0
   jibSide = nextClew === 0 ? 1 : Math.sign(nextClew)
 }
 
-function approach(current: number, command: number, dt: number, seconds: number) {
-  const target = command >= 0.5 ? 1 : 0
-  const step = (1 / seconds) * Math.min(Math.max(dt, 0), 0.5)
-  if (step === 0 || current === target) return current
-  return current < target ? Math.min(target, current + step) : Math.max(target, current - step)
-}
-
+/** The halyard slider is the cloth. More out is more of the main in the wind. */
 export function stepHoist(command: number, dt: number) {
-  hoist = approach(hoist, command, dt, HOIST_TIME)
+  if (dt < 0) return
+  hoist = Math.min(1, Math.max(0, command))
 }
 
 /** The furler slider is the cloth. More out is more sail in the wind. */
