@@ -1,5 +1,6 @@
 import type { MapData } from '../../map/mapData'
 import { chartToWorld } from '../harborLayout'
+import { stepMotion, type Drive } from './dynamics'
 
 /** Open water just outside West Harbor, bow pointing at the entrance. */
 export const SPAWN_CHART: readonly [number, number] = [178, 268]
@@ -9,18 +10,15 @@ export interface Pose {
   x: number
   z: number
   yaw: number
+  /** Surge, metres per second, positive ahead. */
   speed: number
+  /** Sway, metres per second, positive to port (local +x). */
+  sway: number
+  /** Yaw rate, radians per second, positive bow to port. */
+  yawRate: number
 }
 
 export const MOTION = {
-  /** Metres per second squared while an arrow is held. */
-  accel: 6,
-  /** Per-second speed bleed, so the hull carries way and then settles. */
-  drag: 0.4,
-  maxForward: 9,
-  maxReverse: 3.5,
-  /** Radians per second. Applied even at rest, so the boat can be lined up in a slip. */
-  turnRate: 0.85,
   /** Short steps so a slow frame cannot skip through an 8 m finger. */
   maxStep: 0.05,
   maxFrame: 0.1,
@@ -28,7 +26,7 @@ export const MOTION = {
 
 export function spawnPose(map: MapData): Pose {
   const p = chartToWorld(map, SPAWN_CHART[0], SPAWN_CHART[1])
-  return { x: p.x, z: p.z, yaw: SPAWN_YAW, speed: 0 }
+  return { x: p.x, z: p.z, yaw: SPAWN_YAW, speed: 0, sway: 0, yawRate: 0 }
 }
 
 /** Camera offset behind the bow, in world metres, for a given yaw. */
@@ -41,14 +39,12 @@ export function chaseOffset(yaw: number, back = 12, height = 5.2): { x: number; 
 }
 
 /**
- * Accelerate, coast, and yaw. On contact the hull is walked back to the last
- * clear pose along that step and the speed goes to zero — no slide, no bounce.
- * The walk keeps the stop on the mesh instead of a full step short of it.
+ * Screws, rudder and hull resistance. On contact the hull is walked back to
+ * the last clear pose along that step and the way comes off — no slide, no bounce.
  */
 export function integrate(
   pose: Pose,
-  throttle: number,
-  turn: number,
+  drive: Drive,
   dt: number,
   hit: (x: number, z: number, yaw: number) => boolean,
 ) {
@@ -59,13 +55,7 @@ export function integrate(
     const prevX = pose.x
     const prevZ = pose.z
     const prevYaw = pose.yaw
-    pose.speed += throttle * MOTION.accel * step
-    pose.speed -= pose.speed * MOTION.drag * step
-    if (pose.speed > MOTION.maxForward) pose.speed = MOTION.maxForward
-    if (pose.speed < -MOTION.maxReverse) pose.speed = -MOTION.maxReverse
-    pose.yaw += turn * MOTION.turnRate * step
-    pose.x += Math.sin(pose.yaw) * pose.speed * step
-    pose.z += Math.cos(pose.yaw) * pose.speed * step
+    stepMotion(pose, drive, step)
     if (!hit(pose.x, pose.z, pose.yaw)) continue
     const endX = pose.x
     const endZ = pose.z
@@ -81,6 +71,8 @@ export function integrate(
     pose.z = prevZ + (endZ - prevZ) * lo
     pose.yaw = prevYaw + (endYaw - prevYaw) * lo
     pose.speed = 0
+    pose.sway = 0
+    pose.yawRate = 0
     return
   }
 }

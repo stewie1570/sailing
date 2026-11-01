@@ -337,32 +337,11 @@ function addCockpit(g: Geo) {
   // Benches
   addBox(g, 0.62, y0 + 0.28, (z0 + z1) / 2, 0.55, 0.22, z1 - z0 - 0.5, TEAK)
   addBox(g, -0.62, y0 + 0.28, (z0 + z1) / 2, 0.55, 0.22, z1 - z0 - 0.5, TEAK)
-  // Wheel pedestal and a simple wheel
+  // Pedestal only. The wheel is its own mesh so the helm can turn it.
   addBox(g, 0, y0 + 0.55, z0 + 0.85, 0.16, 0.7, 0.16, METAL_DARK)
-  const wheelZ = z0 + 0.85
-  const wheelY = y0 + 0.95
-  const hub = vert(g, 0, wheelY, wheelZ + 0.12, METAL)
-  const n = 10
-  const prev: number[] = []
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2
-    prev.push(vert(g, Math.cos(a) * 0.32, wheelY + Math.sin(a) * 0.32, wheelZ + 0.12, METAL))
-  }
-  // Face aft, toward the helm. A second disk just behind it so the rim reads from the bow too.
-  const hubAft = vert(g, 0, wheelY, wheelZ + 0.08, METAL)
-  const aft: number[] = []
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2
-    aft.push(vert(g, Math.cos(a) * 0.32, wheelY + Math.sin(a) * 0.32, wheelZ + 0.08, METAL))
-  }
-  for (let i = 0; i < n; i++) {
-    const j = (i + 1) % n
-    tri(g, hub, prev[j], prev[i])
-    tri(g, hubAft, aft[i], aft[j])
-  }
 }
 
-function addKeelAndRudder(g: Geo) {
+function addKeel(g: Geo) {
   // Fin keel with a small bulb, under the midship section.
   const top = -0.62
   const fin = [
@@ -377,18 +356,6 @@ function addKeelAndRudder(g: Geo) {
   quad(g, fin[3], fin[0], fin[4], fin[7])
   quad(g, fin[4], fin[5], fin[6], fin[7])
   addBox(g, 0, -2.02, -0.15, 0.42, 0.28, 1.7, KEEL)
-  // Rudder, hung under the stern.
-  const r = [
-    vert(g, -0.035, -0.15, -5.15, KEEL), vert(g, 0.035, -0.15, -5.15, KEEL),
-    vert(g, 0.035, -0.15, -6.15, KEEL), vert(g, -0.035, -0.15, -6.15, KEEL),
-    vert(g, -0.025, -1.35, -5.35, KEEL), vert(g, 0.025, -1.35, -5.35, KEEL),
-    vert(g, 0.025, -1.35, -6.25, KEEL), vert(g, -0.025, -1.35, -6.25, KEEL),
-  ]
-  quad(g, r[0], r[1], r[5], r[4])
-  quad(g, r[3], r[7], r[6], r[2])
-  quad(g, r[1], r[2], r[6], r[5])
-  quad(g, r[3], r[0], r[4], r[7])
-  quad(g, r[4], r[5], r[6], r[7])
 }
 
 function addRig(g: Geo) {
@@ -452,16 +419,121 @@ function addRails(g: Geo) {
   addCylinderBetween(g, -0.7, stern.y + 0.65, stern.z, 0.7, stern.y + 0.65, stern.z, 0.016, METAL)
 }
 
-function toMesh(g: Geo) {
+function toMesh(g: Geo, name = 'sailboat', doubleSide = false) {
   const geo = new THREE.BufferGeometry()
   geo.setAttribute('position', new THREE.Float32BufferAttribute(g.pos, 3))
   geo.setAttribute('color', new THREE.Float32BufferAttribute(g.col, 3))
   geo.setIndex(g.idx)
   geo.computeVertexNormals()
-  const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }))
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshLambertMaterial({ vertexColors: true, side: doubleSide ? THREE.DoubleSide : THREE.FrontSide }),
+  )
   mesh.frustumCulled = false
-  mesh.name = 'sailboat'
+  mesh.name = name
   return mesh
+}
+
+/** Outer rim radius. The on-screen rudder slider is sized from this. */
+export const WHEEL_RADIUS = 0.33
+
+export interface HelmHardware {
+  wheel: THREE.Vector3
+  rudder: THREE.Vector3
+  portScrew: THREE.Vector3
+  starboardScrew: THREE.Vector3
+}
+
+let hardware: HelmHardware | null = null
+
+/** Wheel hub, rudder stock and the two screws, in boat-local metres. */
+export function helmHardware(): HelmHardware {
+  if (hardware) return hardware
+  const deckY = hullPoint(0.38, 1).y
+  const y0 = deckY - 0.42
+  const z0 = -3.15
+  hardware = {
+    wheel: new THREE.Vector3(0, y0 + 0.95, z0 + 0.97),
+    rudder: new THREE.Vector3(0, -0.7, -5.15),
+    portScrew: new THREE.Vector3(0.72, -0.72, -4.55),
+    starboardScrew: new THREE.Vector3(-0.72, -0.72, -4.55),
+  }
+  return hardware
+}
+
+/** Wheel in the XY plane, hub at the origin, king spoke toward +y when amidships. */
+export function buildWheel(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  const n = 20
+  const inner = 0.28
+  const outer = WHEEL_RADIUS
+  const z0 = -0.016
+  const z1 = 0.016
+  const ring = (r: number, z: number) => {
+    const ids: number[] = []
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2
+      ids.push(vert(g, Math.cos(a) * r, Math.sin(a) * r, z, METAL))
+    }
+    return ids
+  }
+  const outerFront = ring(outer, z1)
+  const outerBack = ring(outer, z0)
+  const innerFront = ring(inner, z1)
+  const innerBack = ring(inner, z0)
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n
+    quad(g, outerFront[i], outerFront[j], outerBack[j], outerBack[i])
+    quad(g, innerFront[j], innerFront[i], innerBack[i], innerBack[j])
+    quad(g, innerFront[i], innerFront[j], outerFront[j], outerFront[i])
+    quad(g, outerBack[i], outerBack[j], innerBack[j], innerBack[i])
+  }
+  addCylinderBetween(g, 0, 0, z0 - 0.01, 0, 0, z1 + 0.02, 0.04, METAL_DARK)
+  // King spoke up the page. The other two complete a three-spoke yacht wheel.
+  const spokes: readonly (readonly [number, RGB])[] = [
+    [Math.PI / 2, WOOD],
+    [Math.PI / 2 + (2 * Math.PI) / 3, METAL],
+    [Math.PI / 2 + (4 * Math.PI) / 3, METAL],
+  ]
+  for (const [a, color] of spokes) {
+    addCylinderBetween(g, 0, 0, 0, Math.cos(a) * (inner - 0.01), Math.sin(a) * (inner - 0.01), 0, 0.015, color)
+  }
+  return toMesh(g, 'wheel', true)
+}
+
+/** Blade along −z, stock at the origin, so a zero rotation is parallel with the hull. */
+export function buildRudder(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  const r = [
+    vert(g, -0.035, 0.55, 0.02, KEEL), vert(g, 0.035, 0.55, 0.02, KEEL),
+    vert(g, 0.035, 0.5, -0.98, KEEL), vert(g, -0.035, 0.5, -0.98, KEEL),
+    vert(g, -0.025, -0.65, -0.12, KEEL), vert(g, 0.025, -0.65, -0.12, KEEL),
+    vert(g, 0.025, -0.65, -1.08, KEEL), vert(g, -0.025, -0.65, -1.08, KEEL),
+  ]
+  quad(g, r[0], r[1], r[5], r[4])
+  quad(g, r[3], r[7], r[6], r[2])
+  quad(g, r[1], r[2], r[6], r[5])
+  quad(g, r[3], r[0], r[4], r[7])
+  quad(g, r[4], r[5], r[6], r[7])
+  return toMesh(g, 'rudder', true)
+}
+
+/** Three-blade screw in the XY plane. Positive rotation is the port engine ahead. */
+export function buildPropeller(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  addCylinderBetween(g, 0, 0, -0.05, 0, 0, 0.07, 0.032, METAL_DARK)
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2
+    addCylinderBetween(g, 0, 0, 0.01, Math.cos(a) * 0.16, Math.sin(a) * 0.16, 0.03, 0.018, METAL)
+  }
+  return toMesh(g, 'propeller', true)
+}
+
+/** Short leg from the screw up toward the hull. Not spun with the blades. */
+export function buildPropStrut(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  addCylinderBetween(g, 0, 0, 0, 0, 0.4, 0.06, 0.022, METAL_DARK)
+  return toMesh(g, 'strut', true)
 }
 
 export function buildSailboat(): THREE.Mesh {
@@ -470,7 +542,7 @@ export function buildSailboat(): THREE.Mesh {
   addDeck(g)
   addCabin(g)
   addCockpit(g)
-  addKeelAndRudder(g)
+  addKeel(g)
   addRig(g)
   addRails(g)
   return toMesh(g)
