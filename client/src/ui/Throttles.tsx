@@ -44,6 +44,96 @@ function engineOrder(value: number) {
   return `${step} ${value > 0 ? 'AHEAD' : 'ASTERN'}`
 }
 
+function travelLeft(value: number) {
+  const t = (value + 1) / 2
+  return `calc(14px + ${t} * (100% - 28px))`
+}
+
+function valueFromX(el: HTMLElement, clientX: number) {
+  const r = el.getBoundingClientRect()
+  const pad = 14
+  const t = (clientX - r.left - pad) / Math.max(1, r.width - pad * 2)
+  return 2 * clamp01(t) - 1
+}
+
+function thrusterOrder(value: number) {
+  const mag = Math.abs(value)
+  if (mag < 0.04) return 'Off'
+  const side = value < 0 ? 'port' : 'stbd'
+  if (mag > 0.96) return `Full ${side}`
+  return `${Math.round(mag * 100)}% ${side}`
+}
+
+function Thruster({ end, value }: { end: 'bow' | 'stern'; value: number }) {
+  const notch = useRef(false)
+  const [dragging, setDragging] = useState(false)
+
+  const apply = (raw: number, release: boolean) => {
+    const d = detent(raw, notch.current, NEUTRAL_GRAB, NEUTRAL_RELEASE)
+    notch.current = release ? false : d.held
+    const next = release && Math.abs(d.value) <= NEUTRAL_RELEASE ? 0 : d.value
+    updateHelm({ [end]: next })
+  }
+
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDragging(true)
+    setControlDrag(end, true)
+    apply(valueFromX(e.currentTarget, e.clientX), false)
+  }
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    apply(valueFromX(e.currentTarget, e.clientX), false)
+  }
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
+    apply(valueFromX(e.currentTarget, e.clientX), true)
+    setDragging(false)
+    setControlDrag(end, false)
+  }
+
+  const name = end === 'bow' ? 'Bow thruster' : 'Stern thruster'
+
+  return (
+    <div className={`thruster thruster-${end}`}>
+      <div className="thruster-head">
+        <span>{end === 'bow' ? 'Bow' : 'Stern'}</span>
+        <span>{thrusterOrder(value)}</span>
+      </div>
+      <div className="thruster-line">
+        <span className="furler-end">Port</span>
+        <div
+          className={`thruster-track${dragging ? ' dragging' : ''}${value === 0 ? ' in-stop' : ''}`}
+          role="slider"
+          aria-label={name}
+          aria-orientation="horizontal"
+          aria-valuemin={-1}
+          aria-valuemax={1}
+          aria-valuenow={Number(value.toFixed(2))}
+          aria-valuetext={thrusterOrder(value)}
+          tabIndex={-1}
+          onContextMenu={(e) => e.preventDefault()}
+          onPointerDown={onDown}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+          onDoubleClick={(e) => {
+            e.preventDefault()
+            notch.current = false
+            updateHelm({ [end]: 0 })
+          }}
+        >
+          <div className="thruster-zero" />
+          <div className="thruster-knob" style={{ left: travelLeft(value) }} />
+        </div>
+        <span className="furler-end out">Stbd</span>
+      </div>
+    </div>
+  )
+}
+
 function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
   const slotRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
@@ -110,6 +200,7 @@ export function Throttles() {
 
   return (
     <div id="panel-engine" role="tabpanel" aria-label="Engine" aria-labelledby="tab-engine">
+      <Thruster end="bow" value={helm.bow} />
       <div className="throttle-body">
         <div className="throttle-scale" aria-hidden="true">
           {MARKS.map((m) => (
@@ -132,6 +223,7 @@ export function Throttles() {
         <div className="throttle-name">Port</div>
         <div className="throttle-name">Stbd</div>
       </div>
+      <Thruster end="stern" value={helm.stern} />
     </div>
   )
 }

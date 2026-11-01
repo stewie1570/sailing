@@ -12,10 +12,16 @@ const vertexShader = /* glsl */ `
   varying float vSwell;
   #include <fog_pars_vertex>
 
-  // Long-period swell: two broad sine waves give the surface a slow heave without many vertices.
+  // Standing swell. Crests stay put. The clock varies slowly across the lake so
+  // the whole surface does not rise on one beat. Same constants as swell() in
+  // physics.ts. The wavelength stays long enough for the coarse water mesh.
   float swell(vec2 p, float t) {
-    return 0.10 * sin(dot(p, vec2(0.021, 0.013)) + t * 0.55)
-         + 0.07 * sin(dot(p, vec2(-0.011, 0.027)) + t * 0.41);
+    float a = sin(dot(p, vec2(0.0031, 0.0022)));
+    float b = sin(dot(p, vec2(-0.0017, 0.0026)));
+    float phase = a * 1.15 + b * 0.8;
+    float rate = 0.55 + 0.45 * (a * 0.5 + 0.5);
+    return 0.07 * sin(dot(p, vec2(0.021, 0.013))) * sin(t * 0.26 * rate + phase)
+         + 0.05 * sin(dot(p, vec2(-0.011, 0.027))) * sin(t * 0.18 * rate + phase * 0.67 + 1.7);
   }
 
   void main() {
@@ -57,25 +63,42 @@ const fragmentShader = /* glsl */ `
   float waveWeight(float wavelength, float foot) {
     return 1.0 - smoothstep(0.18 * wavelength, 0.5 * wavelength, foot);
   }
-  // Two long directional wind waves follow the breeze; the organic small-scale
-  // detail comes from the scrolling normal map below.
-  vec2 windWaveSlope(vec2 p, float t, float foot, float warp) {
+  // Where this patch of water is in its cycle, and how fast that cycle runs.
+  // Broad lazy regions, with a shorter phase so water near the boat is not one
+  // shimmer. Three sines, reused for every wave. No extra texture read.
+  vec2 patchClock(vec2 p, float gust) {
+    float slow = sin(dot(p, vec2(0.011, 0.008)));
+    float a = sin(dot(p, vec2(0.052, 0.034)));
+    float b = sin(dot(p, vec2(-0.081, 0.063)));
+    float phase = a * 2.4 + b * 1.8;
+    float rate = (0.32 + 0.68 * (slow * 0.5 + 0.5)) * mix(0.6, 1.0, gust);
+    return vec2(phase, rate);
+  }
+  // Wind-aligned chop that heaves in place. The crest lines do not travel.
+  vec2 windWaveSlope(vec2 p, float t, float foot, float gust, vec2 clk) {
     vec2 g = vec2(0.0);
     vec2 d; float k, a, w;
-    vec2 q = p + warp * 9.0; // phase warp so crests are not perfectly straight
-    d = uWindDir; k = 6.2831 / 14.0; a = 0.04 * uWindGain; w = waveWeight(14.0, foot); g += w * d * k * a * cos(dot(d, q) * k + t * 1.6);
+    vec2 q = p + (gust - 0.5) * 9.0; // fixed bend so crests are not perfectly straight
+    d = uWindDir; k = 6.2831 / 14.0; a = 0.026 * uWindGain; w = waveWeight(14.0, foot); g += w * d * k * a * cos(dot(d, q) * k) * sin(t * 0.62 * clk.y + clk.x);
     d = vec2(uWindDir.x * 0.80 - uWindDir.y * 0.60, uWindDir.x * 0.60 + uWindDir.y * 0.80);
-    k = 6.2831 / 7.5; a = 0.022 * uWindGain; w = waveWeight(7.5, foot); g += w * d * k * a * cos(dot(d, q) * k + t * 2.1);
+    k = 6.2831 / 7.5; a = 0.014 * uWindGain; w = waveWeight(7.5, foot); g += w * d * k * a * cos(dot(d, q) * k) * sin(t * 0.93 * clk.y + clk.x * 0.61 + 2.2);
     return g;
   }
 
-  // Scrolling normal-map ripples at two scales. Mipmapping averages the normals toward flat at
-  // distance, so this is naturally alias-free on the horizon.
-  vec2 rippleSlope(vec2 p, float t) {
-    vec2 n1 = texture2D(uNormalMap, p / 19.0 + t * vec2(0.021, 0.012)).xy * 2.0 - 1.0;
-    vec2 n2 = texture2D(uNormalMap, p / 6.5 + t * vec2(-0.028, 0.019)).xy * 2.0 - 1.0;
-    vec2 n3 = texture2D(uNormalMap, p / 1.7 + t * vec2(0.05, -0.04)).xy * 2.0 - 1.0;
-    return n1 * 0.55 + n2 * 0.35 + n3 * 0.18;
+  // Normal-map ripples rock up and down where they sit. The sample point never
+  // slides, so the pattern cannot drift across the water. Mipmapping averages
+  // the normals toward flat at distance.
+  vec2 rippleSlope(vec2 p, float t, vec2 clk) {
+    vec2 uv1 = p / 19.0;
+    vec2 uv2 = p / 6.5;
+    vec2 uv3 = p / 1.7;
+    vec3 m1 = texture2D(uNormalMap, uv1).xyz * 2.0 - 1.0;
+    vec3 m2 = texture2D(uNormalMap, uv2).xyz * 2.0 - 1.0;
+    vec3 m3 = texture2D(uNormalMap, uv3).xyz * 2.0 - 1.0;
+    vec2 n1 = m1.xy * sin(t * 0.50 * clk.y + clk.x + m1.z * 6.2831);
+    vec2 n2 = m2.xy * sin(t * 0.85 * clk.y + clk.x * 1.3 + m2.z * 6.2831);
+    vec2 n3 = m3.xy * sin(t * 1.25 * clk.y + clk.x * 0.7 + 1.1 + m3.z * 6.2831);
+    return n1 * 0.42 + n2 * 0.27 + n3 * 0.14;
   }
 
   void main() {
@@ -94,8 +117,9 @@ const fragmentShader = /* glsl */ `
     float foot = dist * uPixelAngle / max(V.y, 0.04);
     float rippleFade = 1.0 - smoothstep(3000.0, 9000.0, dist);
     // Low-frequency variation: breaks up the regular wave pattern and gives calm/ruffled patches (cat's paws).
-    float gust = texture2D(uDetailMap, vWorldPos.xz / 420.0 + vec2(uTime * 0.004, uTime * 0.0025)).r;
-    vec2 slope = windWaveSlope(vWorldPos.xz, uTime, foot, gust - 0.5) + rippleSlope(vWorldPos.xz, uTime) * uRippleStrength;
+    float gust = texture2D(uDetailMap, vWorldPos.xz / 420.0).r;
+    vec2 clk = patchClock(vWorldPos.xz, gust);
+    vec2 slope = windWaveSlope(vWorldPos.xz, uTime, foot, gust, clk) + rippleSlope(vWorldPos.xz, uTime, clk) * uRippleStrength;
     slope *= rippleFade * mix(0.55, 1.25, gust);
     // calm water in the lee near shore, choppier out in the lake
     slope *= mix(0.35, 1.0, clamp(depth / 6.0, 0.0, 1.0));
@@ -126,7 +150,7 @@ const fragmentShader = /* glsl */ `
 
     // Transparency toward the shore so the sandy lakebed reads through, with a foam line at the edge.
     float shoreAlpha = smoothstep(-0.15, 2.5, depth);
-    float foamNoise = texture2D(uDetailMap, vWorldPos.xz / 18.0 + vec2(uTime * 0.03, -uTime * 0.02)).r;
+    float foamNoise = texture2D(uDetailMap, vWorldPos.xz / 18.0).r;
     float foamBand = (1.0 - smoothstep(0.0, 0.9, depth)) * smoothstep(-0.25, 0.05, depth);
     float foam = foamBand * smoothstep(0.35, 0.75, foamNoise + 0.25 * vSwell * 3.0) * rippleFade;
 
@@ -177,9 +201,9 @@ export function Water({ map }: { map: MapData }) {
           uSunIntensity: { value: environment.sunIntensity },
           uPixelAngle: { value: 0.001 },
           uNormalMap: { value: null },
-          uRippleStrength: { value: 0.35 },
+          uRippleStrength: { value: 0.28 },
           uWindDir: { value: new THREE.Vector2(0, 1) },
-          uWindGain: { value: 1 },
+          uWindGain: { value: 1.2 },
         },
       ]),
     })
@@ -195,7 +219,8 @@ export function Water({ map }: { map: MapData }) {
     const dir = material.uniforms.uWindDir.value as THREE.Vector2
     dir.set(Math.sin(wind.blowYaw), Math.cos(wind.blowYaw))
     const span = WIND_SPEED_MAX - WIND_SPEED_MIN
-    material.uniforms.uWindGain.value = 0.7 + 0.55 * ((wind.speed - WIND_SPEED_MIN) / span)
+    // The speed band itself is a fresh breeze, so even the quiet end chops the surface.
+    material.uniforms.uWindGain.value = 0.95 + 0.8 * ((wind.speed - WIND_SPEED_MIN) / span)
     const cam = state.camera as THREE.PerspectiveCamera
     const heightPx = state.size.height * state.viewport.dpr
     material.uniforms.uPixelAngle.value = (cam.fov * Math.PI) / 180 / heightPx

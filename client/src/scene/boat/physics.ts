@@ -99,8 +99,17 @@ export function integrate(
   }
 }
 
-/** Same swell as the water surface, so the hull rides the wave instead of slicing a flat plane. */
+/**
+ * Same standing swell as the water vertex shader, so the hull heaves with the
+ * wave under it. Crests stay put. A slow spatial clock keeps one part of the
+ * lake from rising with the rest. Keep the constants identical to `swell` in
+ * Water.tsx.
+ */
 export function swell(x: number, z: number, t: number): number {
-  return 0.1 * Math.sin(x * 0.021 + z * 0.013 + t * 0.55)
-    + 0.07 * Math.sin(-x * 0.011 + z * 0.027 + t * 0.41)
+  const a = Math.sin(x * 0.0031 + z * 0.0022)
+  const b = Math.sin(-x * 0.0017 + z * 0.0026)
+  const phase = a * 1.15 + b * 0.8
+  const rate = 0.55 + 0.45 * (a * 0.5 + 0.5)
+  return 0.07 * Math.sin(x * 0.021 + z * 0.013) * Math.sin(t * 0.26 * rate + phase)
+    + 0.05 * Math.sin(-x * 0.011 + z * 0.027) * Math.sin(t * 0.18 * rate + phase * 0.67 + 1.7)
 }

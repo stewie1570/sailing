@@ -11,7 +11,8 @@ interface ChartMeta {
   harbors: { name: string; x: number; z: number }[]
 }
 
-const NEAR_METRES = 1800
+/** Local chart window. A third of the old 1.8 km, matching the scaled lake. */
+const NEAR_METRES = 600
 
 /**
  * North-up aerial chart. Lake shows the whole of Windermere; Near stays centred
@@ -157,7 +158,7 @@ export function NavMap() {
         if (readRef.current) readRef.current.textContent = `${hdg}  ${spd}`
 
         let place = 'Windermere'
-        let best = 2500
+        let best = 850
         for (const h of meta.harbors) {
           const d = Math.hypot(h.x - telemetry.x, h.z - telemetry.z)
           if (d < best) {

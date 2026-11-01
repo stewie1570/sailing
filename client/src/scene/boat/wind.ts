@@ -5,8 +5,8 @@ import { useSyncExternalStore } from 'react'
  *
  * Direction uses the hull's yaw sense: 0 blows toward +z (south). Meteorologists
  * name the opposite heading — where the air comes from — and that is what the
- * dial shows. Speed stays inside a working inland range, about Beaufort 3 to 4
- * (roughly 7 to 17 knots): enough to sail a heavy cruiser, short of a gale.
+ * dial shows. Speed stays inside a fresh inland range, about Beaufort 4 to 6
+ * (roughly 12 to 27 knots): a breeze that moves a heavy cruiser, short of a gale.
  *
  * The breeze holds steady for about two minutes, then eases onto a new
  * heading and speed over several seconds. It does not jump. A veer is a
@@ -15,9 +15,9 @@ import { useSyncExternalStore } from 'react'
 
 export const WIND_STEADY_S = 120
 export const WIND_SHIFT_S = 8
-/** Metres per second. About 7 to 17 knots. */
-export const WIND_SPEED_MIN = 3.4
-export const WIND_SPEED_MAX = 9
+/** Metres per second. About 12 to 27 knots. */
+export const WIND_SPEED_MIN = 6.2
+export const WIND_SPEED_MAX = 14
 export const MS_TO_KN = 1.943844
 
 const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] as const

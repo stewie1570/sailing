@@ -1,14 +1,19 @@
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useMemo } from 'react'
 import * as THREE from 'three'
 import { skyGlsl, skyUniforms } from './environment'
 
 const vertexShader = /* glsl */ `
   varying vec3 vDir;
   void main() {
-    vDir = position; // unit sphere centred on the camera
-    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-    gl_Position = projectionMatrix * mvPosition;
+    // Draw the dome in view space, centred on the camera, and recover the
+    // world direction from the view rotation. Following the camera with a
+    // world-space mesh jitters: the boat is kilometres from the origin, and
+    // the dome was a frame behind the camera, so the clouds shook whenever
+    // the hull moved. No transpose(): this shader is GLSL 1.
+    mat3 viewRot = mat3(viewMatrix);
+    vDir = vec3(dot(viewRot[0], position), dot(viewRot[1], position), dot(viewRot[2], position));
+    gl_Position = projectionMatrix * vec4(position, 1.0);
     gl_Position.z = gl_Position.w * 0.9999; // push to the far plane so the near plane never clips it
   }
 `
@@ -44,7 +49,6 @@ const fragmentShader = /* glsl */ `
 `
 
 export function Sky({ cloudMap }: { cloudMap: THREE.Texture }) {
-  const mesh = useRef<THREE.Mesh>(null)
   const material = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
       vertexShader,
@@ -59,12 +63,11 @@ export function Sky({ cloudMap }: { cloudMap: THREE.Texture }) {
 
   useFrame((state) => {
     material.uniforms.uTime.value = state.clock.elapsedTime
-    if (mesh.current) mesh.current.position.copy(state.camera.position)
   })
 
   return (
-    <mesh ref={mesh} material={material} renderOrder={-100} frustumCulled={false}>
-      <sphereGeometry args={[1, 24, 12]} />
+    <mesh material={material} renderOrder={-100} frustumCulled={false}>
+      <sphereGeometry args={[1, 48, 24]} />
     </mesh>
   )
 }
