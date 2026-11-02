@@ -16,6 +16,13 @@
  * jib lines up with it and luffs. If the sheet holds it inside the wind,
  * the cloth takes an angle and drives.
  *
+ * Wing-and-wing is the exception on a run. Hauling one sheet until the
+ * window sits wholly on that side takes the clew across, opposite the main.
+ * The breeze is from astern, so it blows the cloth out to the far end of
+ * that window instead of leaving it pinched on the inboard edge, edge-on
+ * to the wind. Out there the main is not in front of the jib, so the jib
+ * keeps its full drive.
+ *
  * Force is the usual wind-axis split. Drag follows the apparent wind, lift
  * is perpendicular to it, and the angle of attack is the angle between that
  * wind and the sail. Coefficients peak, then stall, so sheeting in too far
@@ -318,6 +325,21 @@ export function jibAllowances(portTight: number, stbdTight: number) {
   }
 }
 
+/**
+ * Side a winged jib should fill on, or 0 when the sheets have not taken it across.
+ *
+ * `weatherAngle` is where a free clew would weathercock, which on a run is the
+ * main's side. A window hauled wholly onto the other side cannot reach it. The
+ * following wind then presses the clew out to the far sheet — square, and clear
+ * of the main — instead of holding the cloth on the inboard edge, where it
+ * stands edge-on and adds almost no drive.
+ */
+function wingedSide(allow: { min: number; max: number }, weatherAngle: number) {
+  if (weatherAngle > 0 && allow.max <= 0 && allow.min < 0) return -1
+  if (weatherAngle < 0 && allow.min >= 0 && allow.max > 0) return 1
+  return 0
+}
+
 function jibTarget(awa: number, portTight: number, stbdTight: number, sailHoist: number) {
   if (sailHoist < 0.05) return 0
   const allow = jibAllowances(portTight, stbdTight)
@@ -326,6 +348,12 @@ function jibTarget(awa: number, portTight: number, stbdTight: number, sailHoist:
   let angle = awa
   if (astern < 0.35) angle = jibSide * Math.abs(awa)
   else if (Math.abs(awa) > 0.15) jibSide = Math.sign(awa) || jibSide
+  // Only on a run. Closer to the wind, sheeting across backwinds the jib
+  // and the ordinary clamp (the inboard edge) is the trim the sailor set.
+  if (Math.abs(awa) > RUN_AWA) {
+    const side = wingedSide(allow, angle)
+    if (side !== 0) angle = side * Math.abs(awa)
+  }
   return Math.min(allow.max, Math.max(allow.min, angle))
 }
 
@@ -356,6 +384,7 @@ function aeroLoads(
 /**
  * The jib's own drive, from where the sheets allow it to sit relative to the wind.
  * On a run, a jib left on the mainsail's side is in its shadow and loses most of that drive.
+ * Winged to the other side it stands in clear air, so that loss is not applied.
  */
 function evaluateJib(
   pose: BodyMotion,
