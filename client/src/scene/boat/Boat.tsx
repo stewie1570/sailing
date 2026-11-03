@@ -2,6 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
+import { applyCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld } from './collision'
 import {
@@ -237,6 +238,7 @@ export function Boat({ map }: { map: MapData }) {
         camera.position.z = pose.z + off.z
       }
       orbit.target.set(pose.x, y + 1.15, pose.z)
+      applyCameraNudge(camera, orbit.target)
       camera.lookAt(orbit.target)
       prev.x = pose.x
       prev.y = y

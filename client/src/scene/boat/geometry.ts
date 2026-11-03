@@ -38,6 +38,8 @@ const WINDOW: RGB = [0.12, 0.18, 0.24]
 const METAL: RGB = [0.72, 0.74, 0.76]
 const METAL_DARK: RGB = [0.42, 0.44, 0.47]
 const KEEL: RGB = [0.14, 0.15, 0.17]
+/** Bronze blade. Dark antifoul disappeared against the lake once it was under water. */
+const BRONZE: RGB = [0.68, 0.48, 0.28]
 const WOOD: RGB = [0.34, 0.22, 0.14]
 const SAIL: RGB = [0.97, 0.95, 0.9]
 const SAIL_BAND: RGB = [0.9, 0.88, 0.82]
@@ -508,10 +510,10 @@ export function buildWheel(): THREE.Mesh {
 export function buildRudder(): THREE.Mesh {
   const g: Geo = { pos: [], col: [], idx: [] }
   const r = [
-    vert(g, -0.035, 0.55, 0.02, KEEL), vert(g, 0.035, 0.55, 0.02, KEEL),
-    vert(g, 0.035, 0.5, -0.98, KEEL), vert(g, -0.035, 0.5, -0.98, KEEL),
-    vert(g, -0.025, -0.65, -0.12, KEEL), vert(g, 0.025, -0.65, -0.12, KEEL),
-    vert(g, 0.025, -0.65, -1.08, KEEL), vert(g, -0.025, -0.65, -1.08, KEEL),
+    vert(g, -0.035, 0.55, 0.02, BRONZE), vert(g, 0.035, 0.55, 0.02, BRONZE),
+    vert(g, 0.035, 0.5, -0.98, BRONZE), vert(g, -0.035, 0.5, -0.98, BRONZE),
+    vert(g, -0.025, -0.65, -0.12, BRONZE), vert(g, 0.025, -0.65, -0.12, BRONZE),
+    vert(g, 0.025, -0.65, -1.08, BRONZE), vert(g, -0.025, -0.65, -1.08, BRONZE),
   ]
   quad(g, r[0], r[1], r[5], r[4])
   quad(g, r[3], r[7], r[6], r[2])

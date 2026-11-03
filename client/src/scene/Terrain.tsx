@@ -60,9 +60,10 @@ const fragmentShader = /* glsl */ `
     vec3 light = uSunColor * uSunIntensity * ndl + hemi;
     vec3 col = albedo * light;
 
-    // Submerged terrain: tint and darken with depth so the lakebed reads through the water correctly.
+    // Submerged terrain: dim with depth, but keep the upper lakebed light enough
+    // to read once the surface is transparent.
     float depth = max(-vWorldPos.y, 0.0);
-    col *= mix(1.0, 0.35, clamp(depth / 12.0, 0.0, 1.0));
+    col *= mix(1.0, 0.55, smoothstep(0.4, 18.0, depth));
 
     gl_FragColor = vec4(col, 1.0);
     #include <fog_fragment>

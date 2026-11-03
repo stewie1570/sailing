@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { speedKnots, telemetry } from '../scene/boat/telemetry'
+import { HARBOR_BASINS, harborPieces, type HarborPiece } from '../scene/harborLayout'
 import { compassPoint, getWind, MS_TO_KN, windFromDegrees } from '../scene/boat/wind'
 
 interface ChartMeta {
@@ -46,6 +47,7 @@ export function NavMap() {
       })
       .catch(() => {})
 
+    const pieces = harborPieces()
     let raf = 0
     const draw = () => {
       raf = requestAnimationFrame(draw)
@@ -103,6 +105,40 @@ export function NavMap() {
         x: ((px(x) - sx) / sw) * cssW,
         y: ((py(z) - sy) / sh) * cssH,
       })
+      const chartTo = (cx: number, cy: number) => toScreen((cx - meta!.image.width / 2) * mpp, (cy - meta!.image.height / 2) * mpp)
+
+      ctx.fillStyle = '#1b6486'
+      for (const basin of HARBOR_BASINS) {
+        ctx.beginPath()
+        basin.forEach(([bx, by], i) => {
+          const p = chartTo(bx, by)
+          if (i === 0) ctx.moveTo(p.x, p.y)
+          else ctx.lineTo(p.x, p.y)
+        })
+        ctx.closePath()
+        ctx.fill()
+      }
+
+      const kindColor: Record<HarborPiece['kind'], string> = {
+        mole: '#c6b496',
+        deck: '#efe6d2',
+        finger: '#f7f3ea',
+      }
+      for (const piece of pieces) {
+        const a = chartTo(piece.x0, piece.y0)
+        const b = chartTo(piece.x1, piece.y1)
+        const dx = b.x - a.x
+        const dy = b.y - a.y
+        const len = Math.hypot(dx, dy)
+        const thick = Math.max(piece.kind === 'mole' ? 2.2 : 1.7, (piece.thickness / viewW) * cssW)
+        if (len < (piece.kind === 'mole' ? 1 : 2)) continue
+        ctx.save()
+        ctx.translate((a.x + b.x) / 2, (a.y + b.y) / 2)
+        ctx.rotate(Math.atan2(dy, dx))
+        ctx.fillStyle = kindColor[piece.kind]
+        ctx.fillRect(-len / 2 - 0.6, -thick / 2, len + 1.2, thick)
+        ctx.restore()
+      }
 
       for (const b of meta.buoys) {
         const p = toScreen(b.x, b.z)
@@ -116,13 +152,27 @@ export function NavMap() {
       ctx.font = '600 11px Segoe UI, sans-serif'
       ctx.textAlign = 'center'
       ctx.lineWidth = 3
-      for (const h of meta.harbors) {
-        const p = toScreen(h.x, h.z)
-        if (p.x < 8 || p.y < 14 || p.x > cssW - 8 || p.y > cssH - 8) continue
-        ctx.strokeStyle = 'rgba(8, 16, 28, 0.8)'
-        ctx.strokeText(h.name, p.x, p.y)
-        ctx.fillStyle = '#f4f7fb'
-        ctx.fillText(h.name, p.x, p.y)
+      // Near mode already names the harbor in the title. On the lake, the name sits
+      // just above the basin so it does not cover the slips.
+      if (!localRef.current) {
+        HARBOR_BASINS.forEach((basin, index) => {
+          const name = meta!.harbors[index]?.name
+          if (!name) return
+          let top = Number.POSITIVE_INFINITY
+          let mid = 0
+          for (const [bx, by] of basin) {
+            const p = chartTo(bx, by)
+            mid += p.x
+            if (p.y < top) top = p.y
+          }
+          const x = mid / basin.length
+          const y = top - 8
+          if (x < 8 || y < 16 || x > cssW - 8 || y > cssH - 8) return
+          ctx.strokeStyle = 'rgba(8, 16, 28, 0.8)'
+          ctx.strokeText(name, x, y)
+          ctx.fillStyle = '#f4f7fb'
+          ctx.fillText(name, x, y)
+        })
       }
 
       if (telemetry.ready) {

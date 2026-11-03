@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../map/mapData'
 import { environment, skyGlsl, skyUniforms } from './environment'
+import { telemetry } from './boat/telemetry'
 import { WIND_SPEED_MAX, WIND_SPEED_MIN, getWind } from './boat/wind'
 import { QUALITY_PRESETS, useQuality } from './quality'
 
@@ -52,6 +53,7 @@ const fragmentShader = /* glsl */ `
   uniform float uRippleStrength;
   uniform vec2 uWindDir;   // world xz, the way the air is moving
   uniform float uWindGain; // chop scale, about 1 in a moderate breeze
+  uniform vec2 uGearPos;   // world xz of the screws and rudder
   varying vec3 vWorldPos;
   varying float vSwell;
   #include <fog_pars_fragment>
@@ -142,21 +144,37 @@ const fragmentShader = /* glsl */ `
     float spec = pow(max(dot(N, H), 0.0), shininess) * (shininess + 2.0) / 1200.0;
     reflection += uSunColor * spec * uSunIntensity * 2.8;
 
-    // Water body colour: absorption with depth, slight brightening where sunlight hits ripples.
-    float absorb = 1.0 - exp(-max(depth, 0.0) / 5.5);
+    // Absorption is slow through the first few metres so the colour stays a clear
+    // teal over the screws instead of dropping straight to the deep dye.
+    float absorb = 1.0 - exp(-max(depth, 0.0) / 8.0);
     vec3 body = mix(uShallowColor, uDeepColor, absorb);
     float ndl = max(dot(N, uSunDir), 0.0);
     body *= 0.75 + 0.5 * ndl;
 
-    // Transparency toward the shore so the sandy lakebed reads through, with a foam line at the edge.
+    // Shore shallows show the bottom. That same ramp used to reach solid by a
+    // couple of metres, which hid the rudder and screws in open water.
     float shoreAlpha = smoothstep(-0.15, 2.5, depth);
     float foamNoise = texture2D(uDetailMap, vWorldPos.xz / 18.0).r;
     float foamBand = (1.0 - smoothstep(0.0, 0.9, depth)) * smoothstep(-0.25, 0.05, depth);
     float foam = foamBand * smoothstep(0.35, 0.75, foamNoise + 0.25 * vSwell * 3.0) * rippleFade;
 
-    vec3 col = mix(body, reflection, F);
+    // V.y is the view against a flat surface, so ripple normals cannot flicker
+    // the opening. Close overhead views clear the foreground. The patch around
+    // the running gear stays clear from a lower quarter view as well.
+    float close = 1.0 - smoothstep(12.0, 64.0, dist);
+    float overhead = smoothstep(0.08, 0.36, V.y);
+    float gearDist = length(vWorldPos.xz - uGearPos);
+    float nearGear = 1.0 - smoothstep(1.2, 8.5, gearDist);
+    float window = max(close * overhead, nearGear * smoothstep(0.04, 0.18, V.y));
+    // Tint what shows through. A deep-water body colour here would ink it back out.
+    body = mix(body, mix(uShallowColor, body, 0.25) * 1.2, window);
+
+    vec3 col = mix(body, reflection, F * mix(1.0, 0.35, window));
     col = mix(col, vec3(0.85, 0.88, 0.9), foam);
-    float alpha = max(shoreAlpha, F * 0.9);
+    float solidAlpha = max(shoreAlpha, F * 0.9);
+    // Shallows stay more transparent than the cap. Gear water is the clearest.
+    float openAlpha = min(shoreAlpha, mix(0.36, 0.18, nearGear));
+    float alpha = mix(solidAlpha, openAlpha, window);
     alpha = max(alpha, foam);
     alpha *= smoothstep(-0.6, -0.2, depth); // fully hidden over land
 
@@ -204,6 +222,7 @@ export function Water({ map }: { map: MapData }) {
           uRippleStrength: { value: 0.28 },
           uWindDir: { value: new THREE.Vector2(0, 1) },
           uWindGain: { value: 1.2 },
+          uGearPos: { value: new THREE.Vector2(1e5, 1e5) },
         },
       ]),
     })
@@ -218,6 +237,14 @@ export function Water({ map }: { map: MapData }) {
     const wind = getWind()
     const dir = material.uniforms.uWindDir.value as THREE.Vector2
     dir.set(Math.sin(wind.blowYaw), Math.cos(wind.blowYaw))
+    if (telemetry.ready) {
+      // Stern gear, boat-local (0, -5.2) rotated by yaw into world xz.
+      const gear = material.uniforms.uGearPos.value as THREE.Vector2
+      gear.set(
+        telemetry.x - 5.2 * Math.sin(telemetry.yaw),
+        telemetry.z - 5.2 * Math.cos(telemetry.yaw),
+      )
+    }
     const span = WIND_SPEED_MAX - WIND_SPEED_MIN
     // The speed band itself is a fresh breeze, so even the quiet end chops the surface.
     material.uniforms.uWindGain.value = 0.95 + 0.8 * ((wind.speed - WIND_SPEED_MIN) / span)

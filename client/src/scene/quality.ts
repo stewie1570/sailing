@@ -27,6 +27,9 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
 
 const STORAGE_KEY = 'sailing.quality'
 
+// A previous build remembered a shrunken drawing buffer. Drop it so the picture comes back.
+if (typeof localStorage !== 'undefined') localStorage.removeItem('sailing.pixels')
+
 function initialQuality(): QualityLevel {
   const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
   if (saved === 'low' || saved === 'medium' || saved === 'high') return saved

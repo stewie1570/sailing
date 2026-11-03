@@ -173,6 +173,12 @@ html:-webkit-full-screen {
   gap: 4px;
   margin-bottom: 8px;
 }
+.helm-tablist {
+  display: flex;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
 .helm-tabs button {
   flex: 1;
   font: inherit;
@@ -187,9 +193,16 @@ html:-webkit-full-screen {
   min-height: 36px;
   cursor: pointer;
 }
-.helm-tabs button.active {
+.helm-tabs button.active,
+.helm-tabs button.helm-gear.open {
   background: rgba(61, 220, 132, 0.22);
   border-color: rgba(61, 220, 132, 0.65);
+}
+.helm-tabs button.helm-gear {
+  flex: 0 0 40px;
+  padding: 6px;
+  display: grid;
+  place-items: center;
 }
 .sail-panel {
   max-height: calc(100dvh - 96px);
@@ -454,6 +467,13 @@ html:-webkit-full-screen {
   font-weight: 700;
 }
 .tick-astern { color: rgba(229, 120, 124, 0.9); }
+.throttle-mode {
+  margin: 0 2px 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(61, 220, 132, 0.9);
+}
 .throttle-dir {
   height: 18px;
   line-height: 18px;
@@ -738,3 +758,148 @@ html:-webkit-full-screen {
   .throttles { transform: scale(0.6); transform-origin: bottom right; }
   .navmap canvas { height: 96px; }
 }
+
+.controller-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: rgba(4, 10, 18, 0.55);
+  pointer-events: auto;
+}
+.controller-modal {
+  width: min(440px, 100%);
+  max-height: min(720px, calc(100dvh - 48px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 16px 12px;
+  color: #e8eef4;
+  background: rgba(10, 20, 32, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  outline: none;
+}
+.controller-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.controller-head h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.controller-close,
+.controller-clear {
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.controller-status,
+.controller-help {
+  margin: 0;
+  color: rgba(232, 238, 244, 0.72);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.controller-modes {
+  display: flex;
+  gap: 6px;
+}
+.controller-modes button {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.controller-modes button.active {
+  background: rgba(61, 220, 132, 0.22);
+  border-color: rgba(61, 220, 132, 0.65);
+}
+.controller-active {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+.controller-active input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #3ddc84;
+}
+.controller-active-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+.controller-list {
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  margin: 0 -6px;
+  padding: 0 6px 4px;
+}
+.controller-group {
+  margin: 10px 2px 4px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 244, 0.5);
+}
+.controller-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  margin-bottom: 4px;
+}
+.controller-row.selected .controller-pick {
+  background: rgba(61, 220, 132, 0.16);
+  border-color: rgba(61, 220, 132, 0.7);
+}
+.controller-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
+  font: inherit;
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.controller-bind {
+  font-size: 12px;
+  color: rgba(232, 238, 244, 0.62);
+}
+.controller-row.selected .controller-bind { color: #d7ffe8; }
+.controller-clear { align-self: center; }
