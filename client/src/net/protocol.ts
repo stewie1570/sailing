@@ -86,6 +86,21 @@ export function randomPlayerId(): string {
   return randomFromAlphabet(PLAYER_ID_LENGTH)
 }
 
+/** One AIS text, ship to ship. Short enough to read at the helm. */
+export const AIS_TEXT_MAX = 160
+
+/** Strip control characters, trim, and cap the length. Empty means there is nothing to send. */
+export function cleanHail(raw: string): string {
+  let out = ''
+  for (const char of raw) {
+    const code = char.charCodeAt(0)
+    if (code < 32 || code === 127) continue
+    out += char
+    if (out.length === AIS_TEXT_MAX) break
+  }
+  return out.trim()
+}
+
 /** Strip control characters and cap the length. Empty stays empty so a field can be mid-edit. */
 export function cleanName(raw: string): string {
   let out = ''

@@ -673,7 +673,7 @@ html:-webkit-full-screen {
   position: absolute;
   z-index: 3;
   transform: translate(-50%, calc(-100% - 12px));
-  pointer-events: none;
+  pointer-events: auto;
   padding: 4px 8px 5px;
   border-radius: 6px;
   background: rgba(8, 16, 28, 0.9);
@@ -681,8 +681,23 @@ html:-webkit-full-screen {
   color: #f4f7fb;
   font-size: 12px;
   line-height: 1.35;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.navmap-tip button {
+  margin-top: 6px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(159, 212, 255, 0.16);
+  border: 1px solid rgba(159, 212, 255, 0.45);
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
 }
 .navmap-tip[hidden] { display: none; }
 .navmap-tip[data-place='below'] { transform: translate(-50%, 14px); }
@@ -799,6 +814,125 @@ html:-webkit-full-screen {
   width: 100%;
   height: auto;
   min-height: 0;
+}
+.ais-note {
+  position: fixed;
+  z-index: 30;
+  left: 50%;
+  top: max(72px, 14vh);
+  transform: translateX(-50%);
+  width: min(340px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  pointer-events: auto;
+  color: #f4f7fb;
+  background: rgba(8, 16, 28, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+}
+.ais-note-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ais-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(159, 212, 255, 0.9);
+}
+.ais-note-head strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 16px;
+  font-weight: 600;
+}
+.ais-motion {
+  margin-top: 2px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(244, 247, 251, 0.88);
+}
+.ais-motion span { display: block; }
+.ais-motion[hidden] { display: none; }
+.ais-note-head button,
+.ais-note form button {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.ais-note form button {
+  background: rgba(159, 212, 255, 0.18);
+  border-color: rgba(159, 212, 255, 0.5);
+}
+.ais-note form button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.ais-log {
+  max-height: 180px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ais-log p {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ais-log p span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 227, 163, 0.9);
+}
+.ais-log p.mine {
+  background: rgba(159, 212, 255, 0.12);
+}
+.ais-log p.mine span { color: rgba(159, 212, 255, 0.95); }
+.ais-note form {
+  display: flex;
+  gap: 6px;
+}
+.ais-note input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 7px 8px;
+}
+.ais-note input:focus {
+  outline: 1px solid rgba(159, 212, 255, 0.7);
+  border-color: rgba(159, 212, 255, 0.7);
+}
+.ais-error {
+  margin: 0;
+  font-size: 12px;
+  color: #ffb4b4;
 }
 .controller-backdrop {
   position: fixed;

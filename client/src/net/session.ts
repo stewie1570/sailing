@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { resetHelm } from '../scene/boat/helm'
 import { resetSail } from '../scene/boat/sail'
 import { followWind, getWind, releaseWind, resetWind } from '../scene/boat/wind'
+import { clearAis, receiveAis } from './aisMail'
 import {
   MAX_SAILORS,
   isRoomCode,
@@ -310,6 +311,7 @@ function resetMatch(notice: string | null) {
   hostSeats = []
   localShip.fresh = false
   clearShips()
+  clearAis()
   releaseWind()
   clearJoinTimeout()
   clearRoomClose()
@@ -502,6 +504,26 @@ function onRoom(room: RoomMessage) {
   })
 }
 
+function onHail(fromId: string, fromName: string, toId: string, text: string) {
+  if (state.role !== 'host' && state.role !== 'guest') return
+  if (typeof fromId !== 'string' || typeof text !== 'string') return
+  if (toId !== state.playerId) return
+  receiveAis(fromId, typeof fromName === 'string' ? fromName : 'Sailor', text)
+}
+
+/** Hand one AIS text to the room. The server stamps the sender. Null means it went out. */
+export async function sendHail(toPlayerId: string, text: string): Promise<string | null> {
+  const conn = connection
+  if (!conn || (state.role !== 'host' && state.role !== 'guest') || state.phase !== 'sailing') return 'Not in a room.'
+  if (conn.state !== signalR.HubConnectionState.Connected) return 'Not connected.'
+  try {
+    await conn.invoke('Hail', toPlayerId, text)
+    return null
+  } catch (err) {
+    return faultText(err, 'Could not send.')
+  }
+}
+
 function onWind(wind: WindSample) {
   if (state.role !== 'guest') return
   if (!Number.isFinite(wind.blowYaw) || !Number.isFinite(wind.speed)) return
@@ -558,6 +580,7 @@ function wire(conn: signalR.HubConnection) {
     rememberShip(ship)
   })
   conn.on('Wind', onWind)
+  conn.on('Hail', onHail)
   conn.on('Dismissed', onDismissed)
   conn.on('RoomClosed', onRoomClosed)
   conn.onreconnecting(() => {
@@ -638,6 +661,7 @@ function prepareBoat() {
   localShip.fresh = false
   resetHelm()
   resetSail()
+  clearAis()
 }
 
 export function sailAlone(rawName: string) {
@@ -706,6 +730,7 @@ export async function joinGame(rawName: string, rawCode: string) {
   prepareBoat()
   hostSeats = []
   clearShips()
+  clearAis()
   joinExtended = false
   nextPresentAt = 0
   update({

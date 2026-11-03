@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ShipMessage } from '../net/protocol'
 import { eachFreshShip, useSession } from '../net/session'
+import { openAis } from '../net/aisMail'
 import { formatKnots, propulsionLabel, telemetry } from '../scene/boat/telemetry'
 import { HARBOR_BASINS, harborPieces, type HarborPiece } from '../scene/harborLayout'
 import { compassPoint, getWind, MS_TO_KN, windFromDegrees } from '../scene/boat/wind'
@@ -47,6 +48,8 @@ export function NavMap() {
   const localRef = useRef(false)
   const sharedRef = useRef(false)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  const heldRef = useRef<ChartShip | null>(null)
+  const stickRef = useRef(false)
   const open = shared && wide
 
   useEffect(() => {
@@ -269,10 +272,17 @@ export function NavMap() {
           }
         })
       }
+      let shown: ChartShip | null = hot >= 0 ? others[hot] : null
+      if (shown) heldRef.current = shown
+      else if (heldRef.current && (stickRef.current || (pointer && overTip(pointer, tipRef.current, canvas)))) {
+        const id = heldRef.current.ship.playerId
+        shown = others.find((other) => other.ship.playerId === id) ?? heldRef.current
+      } else heldRef.current = null
+      const shownId = shown?.ship.playerId
       for (let i = 0; i < others.length; i++) {
-        drawOtherBoat(ctx, others[i], i === hot)
+        drawOtherBoat(ctx, others[i], others[i].ship.playerId === shownId)
       }
-      placeTip(tipRef.current, tipNameRef.current, tipSpeedRef.current, tipDriveRef.current, canvas, hot >= 0 ? others[hot] : null)
+      placeTip(tipRef.current, tipNameRef.current, tipSpeedRef.current, tipDriveRef.current, canvas, shown)
 
       ctx.fillStyle = 'rgba(255,255,255,0.92)'
       ctx.font = '700 12px Segoe UI, sans-serif'
@@ -334,6 +344,12 @@ export function NavMap() {
     }
     const onLeave = (ev: PointerEvent) => {
       if (ev.pointerType === 'touch') return
+      const next = ev.relatedTarget
+      if (tipRef.current && next instanceof Node && tipRef.current.contains(next)) {
+        stickRef.current = true
+        return
+      }
+      stickRef.current = false
       pointerRef.current = null
     }
     const onDown = (ev: PointerEvent) => {
@@ -363,10 +379,39 @@ export function NavMap() {
         <span ref={readRef} className="navmap-read">—</span>
       </div>
       <canvas ref={canvasRef} />
-      <div ref={tipRef} className="navmap-tip" role="tooltip" hidden>
+      <div
+        ref={tipRef}
+        className="navmap-tip"
+        role="tooltip"
+        hidden
+        onPointerEnter={() => { stickRef.current = true }}
+        onPointerLeave={(ev) => {
+          const next = ev.relatedTarget
+          if (canvasRef.current && next instanceof Node && canvasRef.current.contains(next)) {
+            stickRef.current = false
+            return
+          }
+          stickRef.current = false
+          pointerRef.current = null
+          heldRef.current = null
+        }}
+      >
         <strong ref={tipNameRef} />
         <span ref={tipSpeedRef} />
         <span ref={tipDriveRef} />
+        <button
+          type="button"
+          onClick={() => {
+            const ship = heldRef.current?.ship
+            if (!ship) return
+            openAis(ship.playerId, ship.name || 'Sailor')
+            stickRef.current = false
+            pointerRef.current = null
+            heldRef.current = null
+          }}
+        >
+          Message
+        </button>
       </div>
       <div className="navmap-zoom">
         <button type="button" className={local ? '' : 'active'} onClick={() => setLocal(false)}>
@@ -388,6 +433,16 @@ export function NavMap() {
       </div>
     </div>
   )
+}
+
+function overTip(pointer: { x: number; y: number }, tip: HTMLElement | null, canvas: HTMLCanvasElement) {
+  if (!tip || tip.hidden) return false
+  const box = tip.getBoundingClientRect()
+  const host = canvas.getBoundingClientRect()
+  const x = host.left + pointer.x
+  const y = host.top + pointer.y
+  const pad = 16
+  return x >= box.left - pad && x <= box.right + pad && y >= box.top - pad && y <= box.bottom + pad
 }
 
 function overShip(pointer: { x: number; y: number }, other: ChartShip) {

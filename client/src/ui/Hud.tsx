@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { leaveGame, useSession } from '../net/session'
 import { speedKnots, telemetry } from '../scene/boat/telemetry'
 import { HelmDock } from './HelmDock'
+import { AisNote } from './AisNote'
 import { NavMap } from './NavMap'
 import { WheelSlider } from './WheelSlider'
 import { perf, setQuality, useQuality, type QualityLevel } from '../scene/quality'
@@ -195,6 +196,7 @@ export function Hud({ loading }: { loading: boolean }) {
       </div>
 
       <NavMap />
+      {session.role === 'host' || session.role === 'guest' ? <AisNote /> : null}
       <HelmDock />
       <WheelSlider />
     </>
