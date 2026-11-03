@@ -73,6 +73,11 @@ export function closeAis() {
   publish()
 }
 
+/** The draft currently in the open note. Read from effects, not during render. */
+export function currentAisDraft(): string {
+  return view.draft
+}
+
 export function setAisDraft(peerId: string, draft: string) {
   const thread = threads.get(peerId)
   if (!thread || thread.draft === draft) return

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import type { ShipMessage } from '../net/protocol'
 import { eachFreshShip, useSession } from '../net/session'
 import { openAis } from '../net/aisMail'
@@ -404,7 +405,10 @@ export function NavMap() {
           onClick={() => {
             const ship = heldRef.current?.ship
             if (!ship) return
-            openAis(ship.playerId, ship.name || 'Sailor')
+            // Mount the field inside this tap. iOS only opens the keyboard for
+            // a focus call that happens in the gesture, not in an effect later.
+            flushSync(() => openAis(ship.playerId, ship.name || 'Sailor'))
+            document.getElementById('ais-draft')?.focus({ preventScroll: true })
             stickRef.current = false
             pointerRef.current = null
             heldRef.current = null

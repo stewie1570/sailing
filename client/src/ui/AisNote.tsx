@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { remoteShip, sendHail, shipIsFresh } from '../net/session'
 import { AIS_TEXT_MAX, cleanHail } from '../net/protocol'
 import { formatKnots, propulsionLabel } from '../scene/boat/telemetry'
-import { closeAis, rememberSent, setAisDraft, setAisError, useAisMail } from '../net/aisMail'
+import { closeAis, currentAisDraft, rememberSent, setAisDraft, setAisError, useAisMail } from '../net/aisMail'
 
 /**
  * The same note on both boats. One helm opens it from the chart. The other
@@ -14,10 +14,28 @@ export function AisNote() {
   const logRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const peerId = mail.peerId
+  const [trackedPeer, setTrackedPeer] = useState(peerId)
+  const [draftReady, setDraftReady] = useState(() => cleanHail(mail.draft).length > 0)
+  const loadedPeer = useRef<string | null>(null)
+  if (peerId !== trackedPeer) {
+    setTrackedPeer(peerId)
+    setDraftReady(cleanHail(mail.draft).length > 0)
+  }
 
   useEffect(() => {
-    if (!peerId) return
-    inputRef.current?.focus()
+    if (!peerId) {
+      loadedPeer.current = null
+      return
+    }
+    const input = inputRef.current
+    if (!input) return
+    // Load a saved draft only when the other boat changes. After that the field
+    // owns the text, so a re-render cannot wipe a keystroke.
+    if (loadedPeer.current !== peerId) {
+      loadedPeer.current = peerId
+      input.value = currentAisDraft()
+    }
+    input.focus({ preventScroll: true })
   }, [peerId])
 
   useEffect(() => {
@@ -36,7 +54,7 @@ export function AisNote() {
   }, [peerId])
 
   if (!peerId) return null
-  const ready = cleanHail(mail.draft).length > 0 && !busy
+  const ready = draftReady && !busy
 
   return (
     <section className="ais-note" role="dialog" aria-labelledby="ais-note-title">
@@ -61,8 +79,8 @@ export function AisNote() {
       <form
         onSubmit={(event) => {
           event.preventDefault()
-          if (!ready) return
-          const text = cleanHail(mail.draft)
+          const text = cleanHail(inputRef.current?.value ?? '')
+          if (!text || busy) return
           setBusy(true)
           void sendHail(peerId, text).then((err) => {
             setBusy(false)
@@ -70,17 +88,31 @@ export function AisNote() {
               setAisError(err)
               return
             }
+            if (inputRef.current) inputRef.current.value = ''
+            setDraftReady(false)
             rememberSent(peerId, text)
           })
         }}
       >
         <input
           ref={inputRef}
-          value={mail.draft}
+          id="ais-draft"
+          type="text"
+          name="ais"
+          defaultValue={mail.draft}
           maxLength={AIS_TEXT_MAX}
+          enterKeyHint="send"
+          autoComplete="off"
+          autoCapitalize="sentences"
+          autoCorrect="on"
+          spellCheck
+          aria-label={mail.notes.length > 0 ? `Reply to ${mail.peerName || 'Sailor'}` : `Message ${mail.peerName || 'Sailor'}`}
           placeholder={mail.notes.length > 0 ? 'Reply' : `Message ${mail.peerName || 'Sailor'}`}
+          onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => {
-            setAisDraft(peerId, event.target.value)
+            const next = event.target.value
+            setAisDraft(peerId, next)
+            setDraftReady(cleanHail(next).length > 0)
             if (mail.error) setAisError(null)
           }}
         />
