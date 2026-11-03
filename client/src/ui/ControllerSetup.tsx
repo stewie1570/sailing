@@ -78,8 +78,8 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
               <span className="controller-active-name">Active throttles</span>
               <span className="controller-help">
                 {activeThrottles
-                  ? 'A stick position is the lever. Centred is stop. Buttons still nudge.'
-                  : 'Sticks and buttons nudge the levers and leave them. Push farther and they move faster.'}
+                  ? 'A stick position is the lever. Centred is stop. Buttons still nudge. The controller function toggles this.'
+                  : 'Sticks and buttons nudge the levers and leave them. Push farther and they move faster. The controller function toggles this.'}
               </span>
             </span>
           </label>
@@ -101,7 +101,10 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
                     aria-current={selected ? 'true' : undefined}
                     onClick={() => setListening(action.id)}
                   >
-                    <span>{action.label}</span>
+                    <span>
+                      {action.label}
+                      {action.id === 'toggleActive' ? (activeThrottles ? ' · on' : ' · off') : ''}
+                    </span>
                     <span className="controller-bind">{boundText(binding, selected, pads.length)}</span>
                   </button>
                   {binding && (

@@ -183,6 +183,14 @@ const RATE = {
   lookHeight: 6,
 }
 
+/** True on the frame a bound control crosses into a press. Holding it does not repeat. */
+function rising(id: ActionId, pads: readonly PadSample[], prev: Map<ActionId, number>) {
+  const value = readAction(id, pads)
+  const was = prev.get(id) ?? 0
+  prev.set(id, value)
+  return was < 0.5 && value >= 0.5
+}
+
 function apply(pads: readonly PadSample[], dt: number) {
   const helm = getHelm()
   const patch: Partial<Helm> = {}
@@ -233,6 +241,7 @@ function apply(pads: readonly PadSample[], dt: number) {
 export function useControllerLoop() {
   useEffect(() => {
     const seen = new Map<number, PadSample>()
+    const held = new Map<ActionId, number>()
     let last = performance.now()
     let raf = 0
     const tick = (now: number) => {
@@ -249,6 +258,8 @@ export function useControllerLoop() {
 
       const listening = state.listening
       if (listening) {
+        // Keep the edge tracker current so closing the dialog on a held button does not toggle.
+        rising('toggleActive', pads, held)
         for (const pad of pads) {
           const hit = captureInput(seen.get(pad.index) ?? null, pad)
           seen.set(pad.index, pad)
@@ -263,6 +274,7 @@ export function useControllerLoop() {
         return
       }
       seen.clear()
+      if (rising('toggleActive', pads, held)) setActiveThrottles(!state.activeThrottles)
       apply(pads, dt)
     }
     raf = requestAnimationFrame(tick)

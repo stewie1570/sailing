@@ -185,9 +185,89 @@ const fragmentShader = /* glsl */ `
   }
 `
 
+/**
+ * Same surface as the full shader, without the normal-map ripples or the extra
+ * detail taps. Those samples dominate a full-screen transparent pass on a Mali.
+ * The gear window and the shore fade stay, so the screws still read.
+ */
+const fragmentShaderSimple = /* glsl */ `
+  uniform float uTime;
+  uniform sampler2D uDepthMap;
+  uniform vec2 uMapOrigin;
+  uniform vec2 uMapSize;
+  uniform float uDepthOffset;
+  uniform float uDepthRange;
+  uniform vec3 uDeepColor;
+  uniform vec3 uShallowColor;
+  uniform float uSunIntensity;
+  uniform vec2 uWindDir;
+  uniform float uWindGain;
+  uniform vec2 uGearPos;
+  varying vec3 vWorldPos;
+  varying float vSwell;
+  #include <fog_pars_fragment>
+  ${skyGlsl}
+
+  void main() {
+    vec3 toCam = cameraPosition - vWorldPos;
+    float dist = length(toCam);
+    vec3 V = toCam / dist;
+
+    vec2 uv = (vWorldPos.xz - uMapOrigin) / uMapSize;
+    float encoded = texture2D(uDepthMap, clamp(uv, 0.0, 1.0)).r;
+    float depth = encoded * uDepthRange - uDepthOffset;
+    bool outside = any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)));
+    if (outside) depth = 40.0;
+
+    float along = dot(vWorldPos.xz, uWindDir);
+    float rippleFade = 1.0 - smoothstep(3000.0, 9000.0, dist);
+    vec2 slope = uWindDir * sin(along * 0.42 + uTime * 0.55) * 0.035 * uWindGain * rippleFade;
+    slope *= mix(0.35, 1.0, clamp(depth / 6.0, 0.0, 1.0));
+    vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
+
+    float cosT = max(dot(N, V), 0.0);
+    float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
+    vec3 R = reflect(-V, N);
+    R.y = abs(R.y);
+    vec3 reflection = skyColor(R, false);
+    vec3 H = normalize(V + uSunDir);
+    float spec = pow(max(dot(N, H), 0.0), 90.0);
+    reflection += uSunColor * spec * uSunIntensity * 0.35;
+
+    float absorb = 1.0 - exp(-max(depth, 0.0) / 8.0);
+    vec3 body = mix(uShallowColor, uDeepColor, absorb);
+    body *= 0.75 + 0.5 * max(dot(N, uSunDir), 0.0);
+
+    float shoreAlpha = smoothstep(-0.15, 2.5, depth);
+    float foamBand = (1.0 - smoothstep(0.0, 0.9, depth)) * smoothstep(-0.25, 0.05, depth);
+    float foam = foamBand * smoothstep(0.4, 0.8, 0.55 + 0.35 * sin(along * 0.2) + vSwell) * rippleFade;
+
+    float close = 1.0 - smoothstep(12.0, 64.0, dist);
+    float overhead = smoothstep(0.08, 0.36, V.y);
+    float gearDist = length(vWorldPos.xz - uGearPos);
+    float nearGear = 1.0 - smoothstep(1.2, 8.5, gearDist);
+    float window = max(close * overhead, nearGear * smoothstep(0.04, 0.18, V.y));
+    body = mix(body, mix(uShallowColor, body, 0.25) * 1.2, window);
+
+    vec3 col = mix(body, reflection, F * mix(1.0, 0.35, window));
+    col = mix(col, vec3(0.85, 0.88, 0.9), foam);
+    float solidAlpha = max(shoreAlpha, F * 0.9);
+    float openAlpha = min(shoreAlpha, mix(0.36, 0.18, nearGear));
+    float alpha = mix(solidAlpha, openAlpha, window);
+    alpha = max(alpha, foam);
+    alpha *= smoothstep(-0.6, -0.2, depth);
+
+    gl_FragColor = vec4(col, alpha);
+    #include <fog_fragment>
+    #include <tonemapping_fragment>
+    #include <colorspace_fragment>
+  }
+`
+
 export function Water({ map }: { map: MapData }) {
   const quality = useQuality()
   const preset = QUALITY_PRESETS[quality]
+  const simple = quality === 'low'
 
   // The surface extends beyond the map so the horizon is always water or hills, never a hard edge.
   const geometry = useMemo(() => {
@@ -199,7 +279,7 @@ export function Water({ map }: { map: MapData }) {
   const material = useMemo(() => {
     const mat = new THREE.ShaderMaterial({
       vertexShader,
-      fragmentShader,
+      fragmentShader: simple ? fragmentShaderSimple : fragmentShader,
       fog: true,
       transparent: true,
       depthWrite: false,
@@ -230,7 +310,7 @@ export function Water({ map }: { map: MapData }) {
     mat.uniforms.uDetailMap.value = map.textures.detail
     mat.uniforms.uNormalMap.value = map.textures.waterNormal
     return mat
-  }, [map])
+  }, [map, simple])
 
   useFrame((state) => {
     material.uniforms.uTime.value = state.clock.elapsedTime

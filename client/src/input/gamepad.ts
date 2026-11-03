@@ -20,6 +20,7 @@ export const ACTIONS = [
   { id: 'lookStbd', label: 'Look to starboard', group: 'Camera' },
   { id: 'lookUp', label: 'Look up', group: 'Camera' },
   { id: 'lookDown', label: 'Look down', group: 'Camera' },
+  { id: 'toggleActive', label: 'Toggle active throttles', group: 'Engines' },
   { id: 'portAhead', label: 'Port throttle ahead', group: 'Engines' },
   { id: 'portAstern', label: 'Port throttle astern', group: 'Engines' },
   { id: 'stbdAhead', label: 'Starboard throttle ahead', group: 'Engines' },
