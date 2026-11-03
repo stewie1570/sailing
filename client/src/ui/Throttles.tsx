@@ -1,5 +1,6 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useCancelSliderTouch } from './sliderTouch'
+import { useController } from '../input/controller'
 import {
   NEUTRAL_GRAB,
   NEUTRAL_RELEASE,
@@ -204,9 +205,12 @@ function Slot({ side, value }: { side: 'port' | 'starboard'; value: number }) {
 
 export function Throttles() {
   const helm = useHelm()
+  const { activeThrottles, pads } = useController()
+  const sticksDrive = activeThrottles && pads.length > 0
 
   return (
     <div id="panel-engine" role="tabpanel" aria-label="Engine" aria-labelledby="tab-engine">
+      {sticksDrive && <div className="throttle-mode">Sticks are the levers</div>}
       <Thruster end="bow" value={helm.bow} />
       <div className="throttle-dir">Ahead</div>
       <div className="throttle-body">
