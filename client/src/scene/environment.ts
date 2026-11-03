@@ -13,12 +13,14 @@ export const environment = {
   skyHorizon: new THREE.Color(0.55, 0.68, 0.82),
   /** Ambient light arriving from above (sky) and below (ground bounce). */
   hemiSky: new THREE.Color(0.24, 0.31, 0.45),
-  hemiGround: new THREE.Color(0.16, 0.15, 0.11),
+  // A little more bounce so underwater faces (rudder, screw backs) are not black.
+  hemiGround: new THREE.Color(0.24, 0.26, 0.22),
   /** Fog is slightly blue-grey haze; density per metre (exp2). */
   fogColor: new THREE.Color(0.58, 0.69, 0.8),
   fogDensity: 0.000095,
-  waterDeep: new THREE.Color(0.008, 0.045, 0.085),
-  waterShallow: new THREE.Color(0.03, 0.26, 0.25),
+  // Lighter than a solid dye so a few metres of water still reads as water, not ink.
+  waterDeep: new THREE.Color(0.02, 0.09, 0.15),
+  waterShallow: new THREE.Color(0.07, 0.36, 0.34),
 }
 
 /**
