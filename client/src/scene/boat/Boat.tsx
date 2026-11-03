@@ -1,5 +1,5 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { applyCameraNudge } from '../cameraDrive'
@@ -35,6 +35,7 @@ import {
 import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
 import { getBoom, getClew, getHoist, getJibHoist, luffAmount, readRig, stepHoist, stepJibHoist } from './sail'
 import { getWind, getWindDebug, stepWind } from './wind'
+import { noteLocalShip } from '../../net/session'
 import { publishTelemetry, publishWheel } from './telemetry'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
@@ -54,7 +55,7 @@ function disposeMesh(mesh: THREE.Mesh) {
  * and chases the heading about a second behind, finishing at the same angle
  * relative to the hull.
  */
-export function Boat({ map }: { map: MapData }) {
+export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const hull = useMemo(() => buildSailboat(), [])
   const wheel = useMemo(() => buildWheel(), [])
   const boomMesh = useMemo(() => buildBoom(), [])
@@ -75,7 +76,9 @@ export function Boat({ map }: { map: MapData }) {
     () => colliderWorld(map, preset.terrainSegments, preset.treeFraction),
     [map, preset.terrainSegments, preset.treeFraction],
   )
-  const pose = useMemo<Pose>(() => spawnPose(map), [map])
+  // The slot is the berth assigned when we entered. Later roster edits must not move the hull.
+  const [berth] = useState(slot)
+  const pose = useMemo<Pose>(() => spawnPose(map, berth), [map, berth])
   const group = useRef<THREE.Group>(null)
   const wheelRef = useRef<THREE.Group>(null)
   const boomRef = useRef<THREE.Group>(null)
@@ -191,11 +194,27 @@ export function Boat({ map }: { map: MapData }) {
     if (rudderRef.current) rudderRef.current.rotation.y = drive.rudder * RUDDER_LOCK
     const boomAngle = getBoom()
     const trim = readRig(pose, wind)
+    const hoistNow = getHoist()
+    const flap = luffAmount(trim.main.aoa, trim.main.awa, hoistNow)
+    noteLocalShip(
+      pose.x,
+      pose.z,
+      pose.yaw,
+      drive.rudder,
+      drive.port,
+      drive.starboard,
+      hoistNow,
+      boomAngle,
+      getJibHoist(),
+      getClew(),
+      trim.main.awa,
+      flap,
+      trim.jib.luff,
+    )
     if (boomRef.current) boomRef.current.rotation.y = boomAngle
     if (sailRef.current) {
-      const h = getHoist()
+      const h = hoistNow
       if (Math.abs(boomAngle) > 0.08) camberSide.current = boomAngle > 0 ? -1 : 1
-      const flap = luffAmount(trim.main.aoa, trim.main.awa, h)
       const gust = Math.min(1, trim.main.aws / 3.5)
       const amp = flap * (0.4 + 0.6 * gust)
       // Two rates, so a luffing main slats instead of wagging on a clock.

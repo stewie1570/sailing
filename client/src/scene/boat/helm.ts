@@ -73,6 +73,13 @@ export function getHelm(): Helm {
   return helm
 }
 
+/** A new outing starts stopped, furled, and amidships. The sliders read this store. */
+export function resetHelm() {
+  helm = { ...ZERO }
+  for (const key of Object.keys(drag) as Control[]) drag[key] = false
+  listeners.forEach((listener) => listener())
+}
+
 /**
  * Keep the jib sheets inside a shared haul. The sheet the sailor is moving
  * stops at whatever the other one has not already taken. If both move in the
