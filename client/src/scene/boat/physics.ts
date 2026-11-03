@@ -24,9 +24,21 @@ export const MOTION = {
   maxFrame: 0.1,
 }
 
-export function spawnPose(map: MapData): Pose {
+/** Metres of beam between boats in a room, so the fleet does not spawn inside one hull. */
+const FLEET_GAP = 22
+
+export function spawnPose(map: MapData, slot = 0): Pose {
   const p = chartToWorld(map, SPAWN_CHART[0], SPAWN_CHART[1])
-  return { x: p.x, z: p.z, yaw: SPAWN_YAW, speed: 0, sway: 0, yawRate: 0 }
+  let z = p.z
+  // Line the room up along the beam, south of the harbor mouth, and step over any shore.
+  for (let n = 0; n < slot; n++) {
+    let guard = 0
+    do {
+      z += FLEET_GAP
+      guard++
+    } while (guard < 12 && map.isLand(p.x, z))
+  }
+  return { x: p.x, z, yaw: SPAWN_YAW, speed: 0, sway: 0, yawRate: 0 }
 }
 
 /** Camera offset behind the bow, in world metres, for a given yaw. */

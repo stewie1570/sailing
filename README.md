@@ -83,8 +83,21 @@ are detected and inpainted). From the classification:
 
 World units are metres; origin at the map centre, +x east, +z south, water at y = 0.
 
+## Play
+
+The first screen is the menu.
+
+- **Sail alone** never opens a socket. The boat, the breeze, and the chart stay on this device.
+- **Host a room** picks a 4-character code. That browser is the source of truth for the room: who is in it, and the breeze. It is also the source of truth for the host's own boat.
+- **Join** uses the code. Each guest is the source of truth for their own boat and publishes it into the room. Up to 8 sailors.
+
+Leaving the menu from the HUD closes a hosted room. If the host's connection drops, guests keep the last roster for a few seconds in case it reconnects, then return to the menu.
+
 ## Server
 
-- `GET /api/health`, `GET /api/world`, `GET /api/sessions`
-- SignalR hub at `/hubs/game` (`GameHub`): presence (`Welcome`, `PlayerJoined`, `PlayerLeft`), `Ping`
-  for latency, `SetName`. Boat state replication and wind will be added here with the simulation.
+The server is a relay. It does not keep a sailor list, a room directory, or anyone's position. The only memory is on the open socket: which code that connection asked to join, and whether it claimed the host seat, so a disconnect can be announced and a guest cannot publish the room. That dies with the connection. SignalR groups are how a message reaches the other sockets, not a roster the game consults.
+
+- `GET /api/health`, `GET /api/world`
+- SignalR hub at `/hubs/game`: `Host`, `Join`, `Leave`, `Present`, `CloseRoom`, `Dismiss`, `Room`, `Ship`, `Wind`, `Ping`
+
+`Room` (roster and breeze) and `Wind` are accepted only from the socket that hosted. `Ship` is restamped with that socket's own sailor id, then forwarded. Nothing is stored.

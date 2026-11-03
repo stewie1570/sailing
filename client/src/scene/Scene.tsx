@@ -3,7 +3,9 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Suspense, use, useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 import { loadMapData, type MapData } from '../map/mapData'
+import { useMySlot } from '../net/session'
 import { Boat } from './boat/Boat'
+import { RemoteFleet } from './boat/RemoteBoat'
 import { chaseOffset, spawnPose } from './boat/physics'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
@@ -95,6 +97,7 @@ function Lighting() {
 
 function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
   const map = use(mapPromise)
+  const slot = useMySlot()
 
   // Start just astern of the boat, close enough to read the hull. The boat keeps this
   // offset, and the view yaws with the helm about a second behind.
@@ -140,7 +143,8 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
       <Trees map={map} />
       <Buoys map={map} />
       <Harbors map={map} />
-      <Boat map={map} />
+      <Boat map={map} slot={slot} />
+      <RemoteFleet />
       <OrbitControls
         makeDefault
         target={target}

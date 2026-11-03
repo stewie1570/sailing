@@ -9,6 +9,8 @@ public sealed class WorldInfo
     public string Name { get; } = "Lake Windermere";
     public string MapBasePath { get; } = "/map";
     public double WaterLevel { get; } = 0;
-    /// <summary>Simulation tick rate the server will run at once physics exists.</summary>
+    /// <summary>
+    /// Hint only. The server does not simulate: each sailor ticks their own boat, and the host keeps the room.
+    /// </summary>
     public int TickRateHz { get; } = 20;
 }

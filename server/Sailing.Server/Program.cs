@@ -12,7 +12,6 @@ builder.Services.AddSignalR(options =>
 });
 
 builder.Services.AddSingleton<WorldInfo>();
-builder.Services.AddSingleton<SessionRegistry>();
 
 // The Vite dev server runs on a different origin; allow it in development. SignalR with WebSockets needs
 // credentials allowed for the negotiate step.
@@ -39,7 +38,6 @@ app.UseStaticFiles();
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow }));
 app.MapGet("/api/world", (WorldInfo world) => Results.Ok(world));
-app.MapGet("/api/sessions", (SessionRegistry sessions) => Results.Ok(new { count = sessions.Count }));
 
 app.MapHub<GameHub>("/hubs/game");
 

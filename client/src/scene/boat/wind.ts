@@ -147,6 +147,32 @@ export function resetWind(blowYaw = START_YAW, speed = START_SPEED) {
   publish()
 }
 
+/**
+ * Guests do not roll their own forecast. The host's breeze is the room's breeze,
+ * and between samples the needle eases toward the last one instead of jumping.
+ * `snap` is for the sample that arrives before the hull is ticking.
+ */
+let followed: { yaw: number; speed: number; shifting: boolean } | null = null
+
+export function followWind(blowYaw: number, speed: number, shifting: boolean, snap: boolean) {
+  followed = { yaw: blowYaw, speed, shifting }
+  if (!snap) return
+  clock.blowYaw = blowYaw
+  clock.speed = speed
+  clock.toYaw = blowYaw
+  clock.toSpeed = speed
+  clock.fromYaw = blowYaw
+  clock.fromSpeed = speed
+  clock.phase = shifting ? 'shift' : 'steady'
+  clock.age = 0
+  publish()
+}
+
+/** Solo sailing and the host run the local breeze again. */
+export function releaseWind() {
+  followed = null
+}
+
 export function setWindRandom(fn: () => number) {
   random = fn
 }
@@ -158,6 +184,18 @@ export function setWindRandom(fn: () => number) {
 export function stepWind(dt: number) {
   const step = Math.min(Math.max(dt, 0), 0.5)
   if (step === 0) return
+  if (followed) {
+    const k = 1 - Math.exp(-step / 0.45)
+    clock.blowYaw += wrapPi(followed.yaw - clock.blowYaw) * k
+    clock.speed += (followed.speed - clock.speed) * k
+    clock.toYaw = clock.blowYaw
+    clock.toSpeed = clock.speed
+    clock.fromYaw = clock.blowYaw
+    clock.fromSpeed = clock.speed
+    clock.phase = followed.shifting ? 'shift' : 'steady'
+    publish()
+    return
+  }
   clock.age += step
   if (clock.phase === 'steady') {
     clock.blowYaw = clock.toYaw
