@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useControllerLoop } from '../input/controller'
+import { setHelmMode, useController, useControllerLoop } from '../input/controller'
 import { useHelmKeyboard } from '../scene/boat/helm'
 import { ControllerSetup } from './ControllerSetup'
 import { SailingControls } from './SailingControls'
 import { Throttles } from './Throttles'
-
-type Tab = 'engine' | 'sailing'
 
 function GearIcon() {
   return (
@@ -20,9 +18,9 @@ function GearIcon() {
 }
 
 export function HelmDock() {
-  const [tab, setTab] = useState<Tab>('engine')
+  const { helmMode } = useController()
   const [controllers, setControllers] = useState(false)
-  useHelmKeyboard(tab)
+  useHelmKeyboard(helmMode)
   useControllerLoop()
 
   return (
@@ -33,10 +31,10 @@ export function HelmDock() {
             type="button"
             role="tab"
             id="tab-engine"
-            aria-selected={tab === 'engine'}
+            aria-selected={helmMode === 'engine'}
             aria-controls="panel-engine"
-            className={tab === 'engine' ? 'active' : ''}
-            onClick={() => setTab('engine')}
+            className={helmMode === 'engine' ? 'active' : ''}
+            onClick={() => setHelmMode('engine')}
           >
             Engine
           </button>
@@ -44,10 +42,10 @@ export function HelmDock() {
             type="button"
             role="tab"
             id="tab-sailing"
-            aria-selected={tab === 'sailing'}
+            aria-selected={helmMode === 'sailing'}
             aria-controls="panel-sailing"
-            className={tab === 'sailing' ? 'active' : ''}
-            onClick={() => setTab('sailing')}
+            className={helmMode === 'sailing' ? 'active' : ''}
+            onClick={() => setHelmMode('sailing')}
           >
             Sailing
           </button>
@@ -63,7 +61,7 @@ export function HelmDock() {
           <GearIcon />
         </button>
       </div>
-      {tab === 'engine' ? <Throttles /> : <SailingControls />}
+      {helmMode === 'engine' ? <Throttles /> : <SailingControls />}
       {controllers && createPortal(<ControllerSetup onClose={() => setControllers(false)} />, document.body)}
     </div>
   )

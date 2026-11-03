@@ -1,8 +1,8 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { nudgeCamera } from '../scene/cameraDrive'
-import { controlDrag, getHelm, updateHelm, type Helm } from '../scene/boat/helm'
+import { controlDrag, getHelm, updateHelm, type Helm, type HelmMode } from '../scene/boat/helm'
 import {
-  ACTIONS,
+  actionsFor,
   axisLever,
   bindingValue,
   captureInput,
@@ -11,6 +11,7 @@ import {
   padFor,
   rateStep,
   sameBinding,
+  scopeOf,
   type ActionId,
   type Binding,
   type PadSample,
@@ -18,9 +19,18 @@ import {
 
 const STORAGE_KEY = 'sailing.controller'
 
+type BindingMap = Partial<Record<ActionId, Binding>>
+
+interface BindingSets {
+  shared: BindingMap
+  engine: BindingMap
+  sailing: BindingMap
+}
+
 interface SavedController {
   activeThrottles: boolean
-  bindings: Partial<Record<ActionId, Binding>>
+  helmMode: HelmMode
+  bindings: BindingSets
 }
 
 export interface ControllerState extends SavedController {
@@ -28,8 +38,39 @@ export interface ControllerState extends SavedController {
   pads: PadSample[]
 }
 
+function emptyBindings(): BindingSets {
+  return { shared: {}, engine: {}, sailing: {} }
+}
+
+function pickBindings(stored: unknown): BindingMap {
+  const bindings: BindingMap = {}
+  if (!stored || typeof stored !== 'object') return bindings
+  for (const [id, binding] of Object.entries(stored)) {
+    if (isActionId(id) && isBinding(binding)) bindings[id] = binding
+  }
+  return bindings
+}
+
+/** Older saves kept one flat map. Shared controls stay shared; the rest land in their mode. */
+function bindingsFrom(stored: unknown): BindingSets {
+  if (stored && typeof stored === 'object' && 'shared' in stored && 'engine' in stored && 'sailing' in stored) {
+    const sets = stored as Partial<BindingSets>
+    return {
+      shared: pickBindings(sets.shared),
+      engine: pickBindings(sets.engine),
+      sailing: pickBindings(sets.sailing),
+    }
+  }
+  const flat = pickBindings(stored)
+  const sets = emptyBindings()
+  for (const [id, binding] of Object.entries(flat) as [ActionId, Binding][]) {
+    sets[scopeOf(id)][id] = binding
+  }
+  return sets
+}
+
 function emptySaved(): SavedController {
-  return { activeThrottles: false, bindings: {} }
+  return { activeThrottles: false, helmMode: 'engine', bindings: emptyBindings() }
 }
 
 function loadSaved(): SavedController {
@@ -37,14 +78,8 @@ function loadSaved(): SavedController {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return emptySaved()
     const parsed = JSON.parse(raw) as Partial<SavedController>
-    const bindings: Partial<Record<ActionId, Binding>> = {}
-    const stored = parsed.bindings
-    if (stored && typeof stored === 'object') {
-      for (const [id, binding] of Object.entries(stored)) {
-        if (isActionId(id) && isBinding(binding)) bindings[id] = binding
-      }
-    }
-    return { activeThrottles: parsed.activeThrottles === true, bindings }
+    const helmMode = parsed.helmMode === 'sailing' ? 'sailing' : 'engine'
+    return { activeThrottles: parsed.activeThrottles === true, helmMode, bindings: bindingsFrom(parsed.bindings) }
   } catch {
     return emptySaved()
   }
@@ -56,7 +91,7 @@ const listeners = new Set<() => void>()
 function commit(next: ControllerState, persist: boolean) {
   state = next
   if (persist) {
-    const saved: SavedController = { activeThrottles: next.activeThrottles, bindings: next.bindings }
+    const saved: SavedController = { activeThrottles: next.activeThrottles, helmMode: next.helmMode, bindings: next.bindings }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved))
   }
   listeners.forEach((listener) => listener())
@@ -90,23 +125,51 @@ export function setActiveThrottles(on: boolean) {
   replace({ activeThrottles: on }, true)
 }
 
-export function clearBinding(id: ActionId) {
-  if (!state.bindings[id]) return
-  const bindings = { ...state.bindings }
-  delete bindings[id]
-  replace({ bindings }, true)
+export function setHelmMode(mode: HelmMode) {
+  if (state.helmMode === mode) return
+  let listening = state.listening
+  if (listening && scopeOf(listening) !== 'shared' && scopeOf(listening) !== mode) {
+    const list = actionsFor(mode)
+    listening = list.find((action) => scopeOf(action.id) === mode && !state.bindings[mode][action.id])?.id
+      ?? list.find((action) => scopeOf(action.id) === mode)?.id
+      ?? list[0].id
+  }
+  replace({ helmMode: mode, listening }, true)
 }
 
-/** Assign a control. The same press cannot stay bound to another function. */
-export function bindAction(id: ActionId, binding: Binding) {
-  const bindings = { ...state.bindings }
-  for (const key of Object.keys(bindings) as ActionId[]) {
-    const existing = bindings[key]
-    if (existing && sameBinding(existing, binding)) delete bindings[key]
+export function clearBinding(id: ActionId) {
+  const scope = scopeOf(id)
+  if (!state.bindings[scope][id]) return
+  const bucket = { ...state.bindings[scope] }
+  delete bucket[id]
+  replace({ bindings: { ...state.bindings, [scope]: bucket } }, true)
+}
+
+function withoutControl(bucket: BindingMap, binding: Binding) {
+  const next = { ...bucket }
+  for (const key of Object.keys(next) as ActionId[]) {
+    const existing = next[key]
+    if (existing && sameBinding(existing, binding)) delete next[key]
   }
-  bindings[id] = binding
-  const index = ACTIONS.findIndex((action) => action.id === id)
-  const next = ACTIONS[index + 1]?.id ?? id
+  return next
+}
+
+/**
+ * Assign a control. It can run one engine function and one sailing function.
+ * A shared control (mode switch, camera, rudder) is the same button in both modes,
+ * so it is cleared from either mode's list.
+ */
+export function bindAction(id: ActionId, binding: Binding) {
+  const scope = scopeOf(id)
+  const bindings: BindingSets = {
+    shared: withoutControl(state.bindings.shared, binding),
+    engine: scope === 'sailing' ? state.bindings.engine : withoutControl(state.bindings.engine, binding),
+    sailing: scope === 'engine' ? state.bindings.sailing : withoutControl(state.bindings.sailing, binding),
+  }
+  bindings[scope] = { ...bindings[scope], [id]: binding }
+  const list = actionsFor(state.helmMode)
+  const index = list.findIndex((action) => action.id === id)
+  const next = list[index + 1]?.id ?? id
   replace({ bindings, listening: state.listening === id ? next : state.listening }, true)
 }
 
@@ -131,7 +194,7 @@ function padsChanged(next: PadSample[]) {
 }
 
 function readAction(id: ActionId, pads: readonly PadSample[]) {
-  const binding = state.bindings[id]
+  const binding = state.bindings[scopeOf(id)][id]
   if (!binding) return 0
   const pad = padFor(binding, pads)
   if (!pad) return 0
@@ -144,13 +207,13 @@ function readAction(id: ActionId, pads: readonly PadSample[]) {
  * Buttons have no position, so those throttles keep nudging instead.
  */
 function activeLever(ahead: ActionId, astern: ActionId, pads: readonly PadSample[]) {
-  const aheadBinding = state.bindings[ahead]
+  const aheadBinding = state.bindings.engine[ahead]
   if (aheadBinding?.source === 'axis') {
     const pad = padFor(aheadBinding, pads)
     if (!pad) return null
     return axisLever(pad.axes[aheadBinding.index] ?? 0, aheadBinding.sign)
   }
-  const asternBinding = state.bindings[astern]
+  const asternBinding = state.bindings.engine[astern]
   if (asternBinding?.source === 'axis') {
     const pad = padFor(asternBinding, pads)
     if (!pad) return null
@@ -194,7 +257,8 @@ function rising(id: ActionId, pads: readonly PadSample[], prev: Map<ActionId, nu
 function apply(pads: readonly PadSample[], dt: number) {
   const helm = getHelm()
   const patch: Partial<Helm> = {}
-  const active = state.activeThrottles
+  const mode = state.helmMode
+  const active = state.activeThrottles && mode === 'engine'
 
   const lever = (
     current: number,
@@ -211,18 +275,22 @@ function apply(pads: readonly PadSample[], dt: number) {
     return rateStep(current, readAction(ahead, pads) - readAction(astern, pads), rate, dt, min, max)
   }
 
-  const portPosition = active ? activeLever('portAhead', 'portAstern', pads) : null
-  const stbdPosition = active ? activeLever('stbdAhead', 'stbdAstern', pads) : null
-  patch.port = lever(helm.port, 'portAhead', 'portAstern', RATE.throttle, 'port', -1, 1, portPosition)
-  patch.starboard = lever(helm.starboard, 'stbdAhead', 'stbdAstern', RATE.throttle, 'starboard', -1, 1, stbdPosition)
+  // The rudder is shared, so the wheel still steers after the mode button.
   patch.rudder = lever(helm.rudder, 'rudderStbd', 'rudderPort', RATE.rudder, 'rudder', -1, 1, null)
-  patch.bow = lever(helm.bow, 'bowStbd', 'bowPort', RATE.thruster, 'bow', -1, 1, null)
-  patch.stern = lever(helm.stern, 'sternStbd', 'sternPort', RATE.thruster, 'stern', -1, 1, null)
-  patch.sheet = lever(helm.sheet, 'sheetOut', 'sheetIn', RATE.sheet, 'sheet', 0, 1, null)
-  patch.halyard = lever(helm.halyard, 'halyardUp', 'halyardDown', RATE.furler, 'halyard', 0, 1, null)
-  patch.jib = lever(helm.jib, 'jibOut', 'jibIn', RATE.furler, 'jib', 0, 1, null)
-  patch.jibPort = lever(helm.jibPort, 'jibPortHaul', 'jibPortEase', RATE.sheet, 'jibPort', 0, 1, null)
-  patch.jibStarboard = lever(helm.jibStarboard, 'jibStbdHaul', 'jibStbdEase', RATE.sheet, 'jibStarboard', 0, 1, null)
+  if (mode === 'engine') {
+    const portPosition = active ? activeLever('portAhead', 'portAstern', pads) : null
+    const stbdPosition = active ? activeLever('stbdAhead', 'stbdAstern', pads) : null
+    patch.port = lever(helm.port, 'portAhead', 'portAstern', RATE.throttle, 'port', -1, 1, portPosition)
+    patch.starboard = lever(helm.starboard, 'stbdAhead', 'stbdAstern', RATE.throttle, 'starboard', -1, 1, stbdPosition)
+    patch.bow = lever(helm.bow, 'bowStbd', 'bowPort', RATE.thruster, 'bow', -1, 1, null)
+    patch.stern = lever(helm.stern, 'sternStbd', 'sternPort', RATE.thruster, 'stern', -1, 1, null)
+  } else {
+    patch.sheet = lever(helm.sheet, 'sheetOut', 'sheetIn', RATE.sheet, 'sheet', 0, 1, null)
+    patch.halyard = lever(helm.halyard, 'halyardUp', 'halyardDown', RATE.furler, 'halyard', 0, 1, null)
+    patch.jib = lever(helm.jib, 'jibOut', 'jibIn', RATE.furler, 'jib', 0, 1, null)
+    patch.jibPort = lever(helm.jibPort, 'jibPortHaul', 'jibPortEase', RATE.sheet, 'jibPort', 0, 1, null)
+    patch.jibStarboard = lever(helm.jibStarboard, 'jibStbdHaul', 'jibStbdEase', RATE.sheet, 'jibStarboard', 0, 1, null)
+  }
   updateHelm(patch)
 
   const zoom = readAction('zoomOut', pads) - readAction('zoomIn', pads)
@@ -257,9 +325,9 @@ export function useControllerLoop() {
       if (padsChanged(pads)) replace({ pads }, false)
 
       const listening = state.listening
+      const activeEdge = rising('toggleActive', pads, held)
+      const helmEdge = rising('toggleHelm', pads, held)
       if (listening) {
-        // Keep the edge tracker current so closing the dialog on a held button does not toggle.
-        rising('toggleActive', pads, held)
         for (const pad of pads) {
           const hit = captureInput(seen.get(pad.index) ?? null, pad)
           seen.set(pad.index, pad)
@@ -274,7 +342,8 @@ export function useControllerLoop() {
         return
       }
       seen.clear()
-      if (rising('toggleActive', pads, held)) setActiveThrottles(!state.activeThrottles)
+      if (helmEdge) setHelmMode(state.helmMode === 'engine' ? 'sailing' : 'engine')
+      if (state.helmMode === 'engine' && activeEdge) setActiveThrottles(!state.activeThrottles)
       apply(pads, dt)
     }
     raf = requestAnimationFrame(tick)

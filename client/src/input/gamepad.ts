@@ -1,3 +1,5 @@
+import type { HelmMode } from '../scene/boat/helm'
+
 /** One physical control on a pad: a button, or one end of an axis. */
 export interface Binding {
   padId: string
@@ -10,23 +12,24 @@ export interface Binding {
 export interface ActionDef {
   id: ActionId
   label: string
-  group: 'Camera' | 'Engines' | 'Sails'
+  group: 'Mode' | 'Camera' | 'Steering' | 'Engines' | 'Sails'
 }
 
 export const ACTIONS = [
+  { id: 'toggleHelm', label: 'Switch engine / sailing', group: 'Mode' },
   { id: 'zoomIn', label: 'Zoom in', group: 'Camera' },
   { id: 'zoomOut', label: 'Zoom out', group: 'Camera' },
   { id: 'lookPort', label: 'Look to port', group: 'Camera' },
   { id: 'lookStbd', label: 'Look to starboard', group: 'Camera' },
   { id: 'lookUp', label: 'Look up', group: 'Camera' },
   { id: 'lookDown', label: 'Look down', group: 'Camera' },
+  { id: 'rudderPort', label: 'Rudder to port', group: 'Steering' },
+  { id: 'rudderStbd', label: 'Rudder to starboard', group: 'Steering' },
   { id: 'toggleActive', label: 'Toggle active throttles', group: 'Engines' },
   { id: 'portAhead', label: 'Port throttle ahead', group: 'Engines' },
   { id: 'portAstern', label: 'Port throttle astern', group: 'Engines' },
   { id: 'stbdAhead', label: 'Starboard throttle ahead', group: 'Engines' },
   { id: 'stbdAstern', label: 'Starboard throttle astern', group: 'Engines' },
-  { id: 'rudderPort', label: 'Rudder to port', group: 'Engines' },
-  { id: 'rudderStbd', label: 'Rudder to starboard', group: 'Engines' },
   { id: 'bowPort', label: 'Bow thruster to port', group: 'Engines' },
   { id: 'bowStbd', label: 'Bow thruster to starboard', group: 'Engines' },
   { id: 'sternPort', label: 'Stern thruster to port', group: 'Engines' },
@@ -49,6 +52,24 @@ const ACTION_IDS = new Set<string>(ACTIONS.map((action) => action.id))
 
 export function isActionId(value: string): value is ActionId {
   return ACTION_IDS.has(value)
+}
+
+/** Shared controls run in both modes. Engine and sailing controls each have their own binding. */
+export type BindingScope = 'shared' | HelmMode
+
+export function scopeOf(id: ActionId): BindingScope {
+  const group = ACTIONS.find((action) => action.id === id)!.group
+  if (group === 'Engines') return 'engine'
+  if (group === 'Sails') return 'sailing'
+  return 'shared'
+}
+
+/** Functions to program for one mode. Shared rows are in both lists. */
+export function actionsFor(mode: HelmMode) {
+  return ACTIONS.filter((action) => {
+    const scope = scopeOf(action.id)
+    return scope === 'shared' || scope === mode
+  })
 }
 
 /** Stick travel inside this is "let go". Past it, the amount is how hard it is pushed. */

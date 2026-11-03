@@ -1,29 +1,51 @@
 import { useEffect, useRef } from 'react'
-import { ACTIONS, bindingLabel, shortPadName, type Binding } from '../input/gamepad'
+import { actionsFor, bindingLabel, sameBinding, scopeOf, shortPadName, type ActionId, type Binding } from '../input/gamepad'
 import {
   clearBinding,
   getController,
   setActiveThrottles,
+  setHelmMode,
   setListening,
   useController,
 } from '../input/controller'
+import type { HelmMode } from '../scene/boat/helm'
 
-function boundText(binding: Binding | undefined, selected: boolean, padCount: number) {
+function boundText(binding: Binding | undefined, selected: boolean, padCount: number, also: string | null) {
+  const name = !binding
+    ? null
+    : padCount > 1 ? `${shortPadName(binding.padId)} · ${bindingLabel(binding)}` : bindingLabel(binding)
   if (selected) {
-    return binding ? `Press a control · now ${bindingLabel(binding)}` : 'Press a control'
+    const now = name ? `Press a control · now ${name}` : 'Press a control'
+    return also ? `${now} · ${also}` : now
   }
-  if (!binding) return 'Not set'
-  return padCount > 1 ? `${shortPadName(binding.padId)} · ${bindingLabel(binding)}` : bindingLabel(binding)
+  if (!name) return 'Not set'
+  return also ? `${name} · ${also}` : name
+}
+
+function otherModeUse(id: ActionId, binding: Binding | undefined, mode: HelmMode) {
+  if (!binding || scopeOf(id) !== mode) return null
+  const other: HelmMode = mode === 'engine' ? 'sailing' : 'engine'
+  const bucket = getController().bindings[other]
+  for (const action of actionsFor(other)) {
+    if (scopeOf(action.id) !== other) continue
+    const existing = bucket[action.id]
+    if (existing && sameBinding(existing, binding)) {
+      return `${other === 'engine' ? 'Engine' : 'Sailing'}: ${action.label}`
+    }
+  }
+  return null
 }
 
 export function ControllerSetup({ onClose }: { onClose: () => void }) {
-  const { activeThrottles, bindings, listening, pads } = useController()
+  const { activeThrottles, bindings, helmMode, listening, pads } = useController()
   const dialogRef = useRef<HTMLDivElement>(null)
   const selectedRef = useRef<HTMLButtonElement>(null)
+  const actions = actionsFor(helmMode)
 
   useEffect(() => {
-    const saved = getController().bindings
-    const first = ACTIONS.find((action) => !saved[action.id]) ?? ACTIONS[0]
+    const saved = getController()
+    const list = actionsFor(saved.helmMode)
+    const first = list.find((action) => !saved.bindings[scopeOf(action.id)][action.id]) ?? list[0]
     setListening(first.id)
     dialogRef.current?.focus()
     return () => setListening(null)
@@ -64,10 +86,29 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
         <p className="controller-status">
           {pads.length === 0
             ? 'No controller yet. Press a button on it, then pick a function.'
-            : `${names.join(', ')} connected. Pick a function, press a button or push a stick, and the next function is selected.`}
+            : `${names.join(', ')} connected. A control can do one thing in Engine and another in Sailing. The switch picks which one runs.`}
         </p>
 
-        {pads.length > 0 && (
+        <div className="controller-modes" role="group" aria-label="Programming mode">
+          <button
+            type="button"
+            className={helmMode === 'engine' ? 'active' : ''}
+            aria-pressed={helmMode === 'engine'}
+            onClick={() => setHelmMode('engine')}
+          >
+            Engine
+          </button>
+          <button
+            type="button"
+            className={helmMode === 'sailing' ? 'active' : ''}
+            aria-pressed={helmMode === 'sailing'}
+            onClick={() => setHelmMode('sailing')}
+          >
+            Sailing
+          </button>
+        </div>
+
+        {pads.length > 0 && helmMode === 'engine' && (
           <label className="controller-active">
             <input
               type="checkbox"
@@ -86,10 +127,11 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="controller-list">
-          {ACTIONS.map((action, index) => {
+          {actions.map((action, index) => {
             const selected = listening === action.id
-            const binding = bindings[action.id]
-            const showGroup = index === 0 || ACTIONS[index - 1].group !== action.group
+            const binding = bindings[scopeOf(action.id)][action.id]
+            const showGroup = index === 0 || actions[index - 1].group !== action.group
+            const modeNote = action.id === 'toggleHelm' ? (helmMode === 'engine' ? 'Engine' : 'Sailing') : null
             return (
               <div key={action.id}>
                 {showGroup && <div className="controller-group">{action.group}</div>}
@@ -103,9 +145,12 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
                   >
                     <span>
                       {action.label}
+                      {modeNote ? ` · ${modeNote}` : ''}
                       {action.id === 'toggleActive' ? (activeThrottles ? ' · on' : ' · off') : ''}
                     </span>
-                    <span className="controller-bind">{boundText(binding, selected, pads.length)}</span>
+                    <span className="controller-bind">
+                      {boundText(binding, selected, pads.length, otherModeUse(action.id, binding, helmMode))}
+                    </span>
                   </button>
                   {binding && (
                     <button type="button" className="controller-clear" onClick={() => clearBinding(action.id)}>

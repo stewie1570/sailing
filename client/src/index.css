@@ -814,6 +814,26 @@ html:-webkit-full-screen {
   font-size: 13px;
   line-height: 1.4;
 }
+.controller-modes {
+  display: flex;
+  gap: 6px;
+}
+.controller-modes button {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.controller-modes button.active {
+  background: rgba(61, 220, 132, 0.22);
+  border-color: rgba(61, 220, 132, 0.65);
+}
 .controller-active {
   display: flex;
   gap: 10px;
