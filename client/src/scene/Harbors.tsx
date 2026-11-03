@@ -13,9 +13,7 @@ interface Placement { position: THREE.Vector3; rotationY: number; scale: THREE.V
 
 function instanced(geometry: THREE.BufferGeometry, placements: Placement[]): THREE.InstancedMesh | null {
   if (placements.length === 0) return null
-  const material = new THREE.MeshLambertMaterial()
-  material.precision = 'mediump'
-  const mesh = new THREE.InstancedMesh(geometry, material, placements.length)
+  const mesh = new THREE.InstancedMesh(geometry, new THREE.MeshLambertMaterial(), placements.length)
   const m = new THREE.Matrix4()
   const q = new THREE.Quaternion()
   placements.forEach((p, i) => {

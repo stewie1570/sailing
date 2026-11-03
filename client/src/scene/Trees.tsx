@@ -42,7 +42,6 @@ export function Trees({ map }: { map: MapData }) {
   const mesh = useMemo(() => {
     const geometry = buildTreeGeometry()
     const material = new THREE.MeshLambertMaterial({ vertexColors: true })
-    material.precision = 'mediump'
     const count = Math.floor(map.trees.length * fraction)
     const inst = new THREE.InstancedMesh(geometry, material, count)
     const m = new THREE.Matrix4()

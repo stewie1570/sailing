@@ -8,7 +8,7 @@ import { chaseOffset, spawnPose } from './boat/physics'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
-import { MAX_FPS, perf, QUALITY_PRESETS, getQuality, setQuality, tightenPixels, usePixelScale, useQuality } from './quality'
+import { MAX_FPS, perf, QUALITY_PRESETS, getQuality, setQuality, useQuality } from './quality'
 import { Sky } from './Sky'
 import { Terrain } from './Terrain'
 import { Trees } from './Trees'
@@ -26,16 +26,13 @@ function PerfMonitor() {
       perf.frameMs = (acc.time / acc.frames) * 1000
       perf.drawCalls = gl.info.render.calls
       perf.triangles = gl.info.render.triangles
-      // Sustained trouble for ~4 s drops a quality level. On low, the same miss
-      // shrinks the drawing buffer instead, which is the expensive part on a Mali.
-      const q = getQuality()
-      const slow = q === 'low' ? perf.fps < 22 : perf.fps < 24
-      acc.slowSeconds = slow ? acc.slowSeconds + acc.time : 0
+      // Sustained < 24 fps for ~4 s drops one quality level (never below low).
+      acc.slowSeconds = perf.fps < 24 ? acc.slowSeconds + acc.time : 0
       if (acc.slowSeconds > 4) {
         acc.slowSeconds = 0
+        const q = getQuality()
         if (q === 'high') setQuality('medium')
         else if (q === 'medium') setQuality('low')
-        else tightenPixels()
       }
       acc.frames = 0
       acc.time = 0
@@ -79,12 +76,10 @@ function FrameCap() {
 /** Applies the DPR cap of the active quality preset to the renderer. */
 function QualityApplier() {
   const quality = useQuality()
-  const pixelScale = usePixelScale()
   const setDpr = useThree((s) => s.setDpr)
   useEffect(() => {
-    const cap = QUALITY_PRESETS[quality].maxDpr * (quality === 'low' ? pixelScale : 1)
-    setDpr(Math.min(window.devicePixelRatio || 1, cap))
-  }, [quality, pixelScale, setDpr])
+    setDpr(Math.min(window.devicePixelRatio || 1, QUALITY_PRESETS[quality].maxDpr))
+  }, [quality, setDpr])
   return null
 }
 

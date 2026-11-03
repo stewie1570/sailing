@@ -49,16 +49,12 @@ export function NavMap() {
 
     const pieces = harborPieces()
     let raf = 0
-    let lastDraw = 0
-    const draw = (now: number) => {
+    const draw = () => {
       raf = requestAnimationFrame(draw)
-      // The photo blit is real work on a weak CPU, and the boat icon does not need 60 Hz.
-      if (now - lastDraw < 100) return
-      lastDraw = now
       const cssW = canvas.clientWidth
       const cssH = canvas.clientHeight
       if (cssW < 2 || cssH < 2) return
-      const dpr = 1
+      const dpr = Math.min(2, window.devicePixelRatio || 1)
       const bw = Math.floor(cssW * dpr)
       const bh = Math.floor(cssH * dpr)
       if (canvas.width !== bw || canvas.height !== bh) {
