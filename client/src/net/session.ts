@@ -103,6 +103,14 @@ export function shipIsFresh(playerId: string, now = performance.now()): boolean 
   return !!ship && now - ship.at < STALE_SHIP_MS
 }
 
+/** Hulls the owner is still publishing. A stale boat is hidden, so it is not solid either. */
+export function eachFreshShip(visit: (ship: ShipMessage) => void) {
+  const now = performance.now()
+  for (const ship of ships.values()) {
+    if (now - ship.at < STALE_SHIP_MS) visit(ship)
+  }
+}
+
 const localShip: ShipVisual & { fresh: boolean } = {
   fresh: false,
   x: 0,

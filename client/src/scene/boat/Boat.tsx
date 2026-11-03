@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { applyCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
-import { blocked, colliderWorld } from './collision'
+import { blocked, colliderWorld, hullPenetration } from './collision'
 import {
   buildBoom,
   buildJib,
@@ -35,7 +35,8 @@ import {
 import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
 import { getBoom, getClew, getHoist, getJibHoist, luffAmount, readRig, stepHoist, stepJibHoist } from './sail'
 import { getWind, getWindDebug, stepWind } from './wind'
-import { noteLocalShip } from '../../net/session'
+import { MAX_SAILORS } from '../../net/protocol'
+import { eachFreshShip, noteLocalShip } from '../../net/session'
 import { publishTelemetry, publishWheel } from './telemetry'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
@@ -79,6 +80,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   // The slot is the berth assigned when we entered. Later roster edits must not move the hull.
   const [berth] = useState(slot)
   const pose = useMemo<Pose>(() => spawnPose(map, berth), [map, berth])
+  const fleetRef = useRef<{ x: number; z: number; yaw: number; heave: number; sunk: number }[] | null>(null)
   const group = useRef<THREE.Group>(null)
   const wheelRef = useRef<THREE.Group>(null)
   const boomRef = useRef<THREE.Group>(null)
@@ -177,7 +179,41 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     stepHoist(drive.halyard, frame)
     stepJibHoist(drive.jib, frame)
     const wind = getWind()
-    integrate(pose, drive, delta, (x, z, yaw) => blocked(world, x, z, yaw, swell(x, z, time)), {
+    // Other sailors are the authority for their own boats. This hull stops against
+    // the pose they published, the way it stops against a dock. If a late packet
+    // left us inside them, a move that climbs back out is still allowed.
+    const fleet = fleetRef.current ??= Array.from({ length: MAX_SAILORS }, () => ({ x: 0, z: 0, yaw: 0, heave: 0, sunk: 0 }))
+    let fleetCount = 0
+    eachFreshShip((ship) => {
+      if (fleetCount >= fleet.length) return
+      const other = fleet[fleetCount++]
+      other.x = ship.x
+      other.z = ship.z
+      other.yaw = ship.yaw
+      other.heave = swell(ship.x, ship.z, time)
+    })
+    const started = swell(pose.x, pose.z, time)
+    for (let i = 0; i < fleetCount; i++) {
+      const other = fleet[i]
+      other.sunk = hullPenetration(
+        world.shape, pose.x, pose.z, pose.yaw, started,
+        other.x, other.z, other.yaw, other.heave,
+      )
+    }
+    integrate(pose, drive, delta, (x, z, yaw) => {
+      const heave = swell(x, z, time)
+      if (blocked(world, x, z, yaw, heave)) return true
+      for (let i = 0; i < fleetCount; i++) {
+        const other = fleet[i]
+        const pen = hullPenetration(
+          world.shape, x, z, yaw, heave,
+          other.x, other.z, other.yaw, other.heave,
+          Math.max(other.sunk, 1e-4),
+        )
+        if (pen > 0 && pen > other.sunk - 0.001) return true
+      }
+      return false
+    }, {
       wind,
       sail: {
         hoist: getHoist(),

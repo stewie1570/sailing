@@ -21,8 +21,8 @@ import {
 import { swell } from './physics'
 
 /**
- * Someone else's hull. It is a ghost: the owner simulates it, and we only pose
- * what they published. These boats do not push the local hull around.
+ * Someone else's hull, posed from the snapshot they publish. The local boat
+ * stops against that pose; this mesh does not run its own simulation.
  */
 export function RemoteBoat({ playerId }: { playerId: string }) {
   const hull = useMemo(() => buildSailboat(), [])

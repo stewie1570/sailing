@@ -540,3 +540,119 @@ export function blocked(world: ColliderWorld, x: number, z: number, yaw: number,
   }
   return hitsTrees(world.trees, world.shape, x, z, yaw, heave)
 }
+
+/**
+ * How deeply two hulls occupy the same water, in metres. Zero when they are clear.
+ *
+ * Both outlines are the same solid the dock test uses. `limit` stops the search
+ * once the overlap is already at least that deep, which is all the helm needs
+ * when it only has to refuse a pose that is no better than the one it left.
+ */
+export function hullPenetration(
+  shape: BoatShape,
+  x: number,
+  z: number,
+  yaw: number,
+  heave: number,
+  ox: number,
+  oz: number,
+  oyaw: number,
+  oheave: number,
+  limit = Infinity,
+): number {
+  const dx = ox - x
+  const dz = oz - z
+  const reach = shape.radius * 2
+  if (dx * dx + dz * dz > reach * reach) return 0
+  const c = Math.cos(yaw)
+  const s = Math.sin(yaw)
+  const oc = Math.cos(oyaw)
+  const os = Math.sin(oyaw)
+  let worst = 0
+  const slices = shape.slices
+  for (let i = 0; i < slices.length; i++) {
+    const a = slices[i]
+    const a0 = a.y0 + heave
+    const a1 = a.y1 + heave
+    for (let j = 0; j < slices.length; j++) {
+      const b = slices[j]
+      if (b.y1 + oheave < a0 || b.y0 + oheave > a1) continue
+      const pen = convexPenetration(a.xz, x, z, c, s, b.xz, ox, oz, oc, os)
+      if (pen > worst) worst = pen
+      if (worst >= limit) return worst
+    }
+  }
+  return worst
+}
+
+const spanA = new Float32Array(2)
+const spanB = new Float32Array(2)
+
+function projectSpan(xz: Float32Array, x: number, z: number, c: number, s: number, ax: number, az: number, out: Float32Array) {
+  let min = Infinity
+  let max = -Infinity
+  for (let i = 0; i < xz.length; i += 2) {
+    const wx = x + xz[i] * c + xz[i + 1] * s
+    const wz = z - xz[i] * s + xz[i + 1] * c
+    const p = wx * ax + wz * az
+    if (p < min) min = p
+    if (p > max) max = p
+  }
+  out[0] = min
+  out[1] = max
+}
+
+/** Minimum overlap of two convex outlines. Zero when a separating axis exists. */
+function convexPenetration(
+  a: Float32Array,
+  ax: number,
+  az: number,
+  ac: number,
+  as: number,
+  b: Float32Array,
+  bx: number,
+  bz: number,
+  bc: number,
+  bs: number,
+): number {
+  if (a.length < 6 || b.length < 6) return 0
+  const fromA = penetrationFromEdges(a, ax, az, ac, as, b, bx, bz, bc, bs)
+  if (fromA === 0) return 0
+  const fromB = penetrationFromEdges(b, bx, bz, bc, bs, a, ax, az, ac, as)
+  return Math.min(fromA, fromB)
+}
+
+function penetrationFromEdges(
+  edge: Float32Array,
+  ex: number,
+  ez: number,
+  ec: number,
+  es: number,
+  other: Float32Array,
+  ox: number,
+  oz: number,
+  oc: number,
+  os: number,
+): number {
+  let min = Infinity
+  const n = edge.length
+  for (let i = 0; i < n; i += 2) {
+    const j = (i + 2) % n
+    const x0 = ex + edge[i] * ec + edge[i + 1] * es
+    const z0 = ez - edge[i] * es + edge[i + 1] * ec
+    const x1 = ex + edge[j] * ec + edge[j + 1] * es
+    const z1 = ez - edge[j] * es + edge[j + 1] * ec
+    let nx = z0 - z1
+    let nz = x1 - x0
+    const len = Math.hypot(nx, nz)
+    if (len < 1e-8) continue
+    nx /= len
+    nz /= len
+    projectSpan(edge, ex, ez, ec, es, nx, nz, spanA)
+    projectSpan(other, ox, oz, oc, os, nx, nz, spanB)
+    const overlap = Math.min(spanA[1], spanB[1]) - Math.max(spanA[0], spanB[0])
+    if (overlap <= 0) return 0
+    if (overlap < min) min = overlap
+  }
+  return min === Infinity ? 0 : min
+}
