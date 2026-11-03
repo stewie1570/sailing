@@ -119,6 +119,8 @@ const localShip: ShipVisual & { fresh: boolean } = {
   rudder: 0,
   port: 0,
   starboard: 0,
+  bow: 0,
+  stern: 0,
   hoist: 0,
   boom: 0,
   jibHoist: 0,
@@ -126,6 +128,8 @@ const localShip: ShipVisual & { fresh: boolean } = {
   vane: 0,
   luff: 0,
   jibLuff: 0,
+  speed: 0,
+  sway: 0,
 }
 
 /** Written every sim frame. The network loop copies it; the sim does not wait on the socket. */
@@ -143,6 +147,10 @@ export function noteLocalShip(
   vane: number,
   luff: number,
   jibLuff: number,
+  speed: number,
+  sway: number,
+  bow: number,
+  stern: number,
 ) {
   localShip.x = x
   localShip.z = z
@@ -157,6 +165,10 @@ export function noteLocalShip(
   localShip.vane = vane
   localShip.luff = luff
   localShip.jibLuff = jibLuff
+  localShip.speed = speed
+  localShip.sway = sway
+  localShip.bow = bow
+  localShip.stern = stern
   localShip.fresh = true
 }
 
@@ -216,6 +228,10 @@ function rememberShip(ship: ShipMessage) {
     known.vane = ship.vane
     known.luff = ship.luff
     known.jibLuff = ship.jibLuff
+    known.speed = ship.speed
+    known.sway = ship.sway
+    known.bow = ship.bow
+    known.stern = ship.stern
     known.at = performance.now()
     return
   }
@@ -390,6 +406,10 @@ async function sendShip() {
     vane: round(localShip.vane, 4),
     luff: round(localShip.luff, 3),
     jibLuff: round(localShip.jibLuff, 3),
+    speed: round(localShip.speed, 2),
+    sway: round(localShip.sway, 2),
+    bow: round(localShip.bow, 3),
+    stern: round(localShip.stern, 3),
   }
   try {
     await conn.invoke('Ship', message)

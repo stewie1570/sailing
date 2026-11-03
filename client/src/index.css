@@ -650,6 +650,7 @@ html:-webkit-full-screen {
 }
 .navmap-zoom {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-top: 6px;
 }
@@ -667,6 +668,29 @@ html:-webkit-full-screen {
 .navmap-zoom button.active {
   background: rgba(61, 220, 132, 0.25);
   border-color: rgba(61, 220, 132, 0.6);
+}
+.navmap-tip {
+  position: absolute;
+  z-index: 3;
+  transform: translate(-50%, calc(-100% - 12px));
+  pointer-events: none;
+  padding: 4px 8px 5px;
+  border-radius: 6px;
+  background: rgba(8, 16, 28, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f4f7fb;
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.navmap-tip[hidden] { display: none; }
+.navmap-tip[data-place='below'] { transform: translate(-50%, 14px); }
+.navmap-tip strong { display: block; font-weight: 600; }
+.navmap-tip span {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  color: rgba(244, 247, 251, 0.9);
 }
 
 .wheel-slider {
@@ -759,6 +783,22 @@ html:-webkit-full-screen {
 @media (max-height: 560px) {
   .throttles { transform: scale(0.6); transform-origin: bottom right; }
   .navmap canvas { height: 96px; }
+}
+/* A shared room can open the chart to half the width and half the height, a quarter of the screen. */
+.navmap.wide {
+  width: min(50vw, calc(100vw - max(12px, env(safe-area-inset-left)) - 12px));
+  height: min(50vh, calc(100dvh - max(12px, env(safe-area-inset-bottom)) - 12px));
+  min-width: min(50vw, calc(100vw - 24px));
+  min-height: min(50vh, calc(100dvh - 24px));
+  display: flex;
+  flex-direction: column;
+  z-index: 8;
+}
+.navmap.wide canvas {
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
 }
 .controller-backdrop {
   position: fixed;

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { speedKnots, telemetry } from '../scene/boat/telemetry'
+import type { ShipMessage } from '../net/protocol'
+import { eachFreshShip, useSession } from '../net/session'
+import { formatKnots, propulsionLabel, telemetry } from '../scene/boat/telemetry'
 import { HARBOR_BASINS, harborPieces, type HarborPiece } from '../scene/harborLayout'
 import { compassPoint, getWind, MS_TO_KN, windFromDegrees } from '../scene/boat/wind'
 
@@ -15,20 +17,42 @@ interface ChartMeta {
 /** Local chart window. A third of the old 1.8 km, matching the scaled lake. */
 const NEAR_METRES = 600
 
+/** How close the pointer must be, in CSS pixels, to count as over another boat. */
+const SHIP_HIT = 18
+
+interface ChartShip {
+  ship: ShipMessage
+  x: number
+  y: number
+}
+
 /**
  * North-up aerial chart. Lake shows the whole of Windermere; Near stays centred
  * on the boat so the shoreline you are following stays readable.
+ * A shared room also plots the other boats. Hover one for her speed and whether
+ * she is under engine, sail, or both. Expand grows the chart to a quarter of the screen.
  */
 export function NavMap() {
+  const session = useSession()
+  const shared = session.role === 'host' || session.role === 'guest'
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const titleRef = useRef<HTMLSpanElement>(null)
   const readRef = useRef<HTMLSpanElement>(null)
+  const tipRef = useRef<HTMLDivElement>(null)
+  const tipNameRef = useRef<HTMLElement>(null)
+  const tipSpeedRef = useRef<HTMLElement>(null)
+  const tipDriveRef = useRef<HTMLElement>(null)
   const [local, setLocal] = useState(false)
+  const [wide, setWide] = useState(false)
   const localRef = useRef(false)
+  const sharedRef = useRef(false)
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  const open = shared && wide
 
   useEffect(() => {
     localRef.current = local
-  }, [local])
+    sharedRef.current = shared
+  }, [local, shared])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -53,7 +77,10 @@ export function NavMap() {
       raf = requestAnimationFrame(draw)
       const cssW = canvas.clientWidth
       const cssH = canvas.clientHeight
-      if (cssW < 2 || cssH < 2) return
+      if (cssW < 2 || cssH < 2) {
+        if (tipRef.current) tipRef.current.hidden = true
+        return
+      }
       const dpr = Math.min(2, window.devicePixelRatio || 1)
       const bw = Math.floor(cssW * dpr)
       const bh = Math.floor(cssH * dpr)
@@ -65,7 +92,10 @@ export function NavMap() {
       ctx.clearRect(0, 0, cssW, cssH)
       ctx.fillStyle = '#16324a'
       ctx.fillRect(0, 0, cssW, cssH)
-      if (!img.complete || img.naturalWidth === 0 || !meta) return
+      if (!img.complete || img.naturalWidth === 0 || !meta) {
+        if (tipRef.current) tipRef.current.hidden = true
+        return
+      }
 
       const mpp = meta.metersPerPixel
       const worldW = meta.worldSize[0]
@@ -203,8 +233,7 @@ export function NavMap() {
 
         const deg = (heading * 180) / Math.PI
         const hdg = `${(Math.round((deg + 360) % 360) % 360).toString().padStart(3, '0')}°`
-        const kn = speedKnots(telemetry.speed, telemetry.sway)
-        const spd = `${kn < -0.05 ? '−' : ''}${Math.abs(kn).toFixed(1)} kn`
+        const spd = formatKnots(telemetry.speed, telemetry.sway)
         if (readRef.current) readRef.current.textContent = `${hdg}  ${spd}`
 
         let place = 'Windermere'
@@ -218,6 +247,32 @@ export function NavMap() {
         }
         if (titleRef.current) titleRef.current.textContent = place
       }
+
+      const others: ChartShip[] = []
+      if (sharedRef.current) {
+        eachFreshShip((ship) => {
+          const p = toScreen(ship.x, ship.z)
+          if (p.x < -24 || p.y < -24 || p.x > cssW + 24 || p.y > cssH + 24) return
+          others.push({ ship, x: p.x, y: p.y })
+        })
+      }
+      const pointer = sharedRef.current ? pointerRef.current : null
+      let hot = -1
+      if (pointer) {
+        let best = Number.POSITIVE_INFINITY
+        others.forEach((other, index) => {
+          if (!overShip(pointer, other)) return
+          const dist = (pointer.x - other.x) ** 2 + (pointer.y - other.y) ** 2
+          if (dist < best) {
+            best = dist
+            hot = index
+          }
+        })
+      }
+      for (let i = 0; i < others.length; i++) {
+        drawOtherBoat(ctx, others[i], i === hot)
+      }
+      placeTip(tipRef.current, tipNameRef.current, tipSpeedRef.current, tipDriveRef.current, canvas, hot >= 0 ? others[hot] : null)
 
       ctx.fillStyle = 'rgba(255,255,255,0.92)'
       ctx.font = '700 12px Segoe UI, sans-serif'
@@ -269,20 +324,50 @@ export function NavMap() {
       ctx.fillRect(10, cssH - 12, bar, 2)
       ctx.fillText(label, 14 + bar, cssH - 8)
     }
+    const pointFrom = (ev: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      return { x: ev.clientX - rect.left, y: ev.clientY - rect.top }
+    }
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerType === 'touch') return
+      pointerRef.current = pointFrom(ev)
+    }
+    const onLeave = (ev: PointerEvent) => {
+      if (ev.pointerType === 'touch') return
+      pointerRef.current = null
+    }
+    const onDown = (ev: PointerEvent) => {
+      if (ev.pointerType === 'mouse') return
+      const next = pointFrom(ev)
+      const prev = pointerRef.current
+      if (prev && Math.hypot(prev.x - next.x, prev.y - next.y) < 8) pointerRef.current = null
+      else pointerRef.current = next
+    }
+    canvas.addEventListener('pointermove', onMove)
+    canvas.addEventListener('pointerleave', onLeave)
+    canvas.addEventListener('pointerdown', onDown)
     raf = requestAnimationFrame(draw)
     return () => {
       dead = true
       cancelAnimationFrame(raf)
+      canvas.removeEventListener('pointermove', onMove)
+      canvas.removeEventListener('pointerleave', onLeave)
+      canvas.removeEventListener('pointerdown', onDown)
     }
   }, [])
 
   return (
-    <div className="hud navmap">
+    <div className={open ? 'hud navmap wide' : 'hud navmap'}>
       <div className="navmap-head">
         <span ref={titleRef}>Chart</span>
         <span ref={readRef} className="navmap-read">—</span>
       </div>
       <canvas ref={canvasRef} />
+      <div ref={tipRef} className="navmap-tip" role="tooltip" hidden>
+        <strong ref={tipNameRef} />
+        <span ref={tipSpeedRef} />
+        <span ref={tipDriveRef} />
+      </div>
       <div className="navmap-zoom">
         <button type="button" className={local ? '' : 'active'} onClick={() => setLocal(false)}>
           Lake
@@ -290,7 +375,94 @@ export function NavMap() {
         <button type="button" className={local ? 'active' : ''} onClick={() => setLocal(true)}>
           Near
         </button>
+        {shared && (
+          <button
+            type="button"
+            className={open ? 'active' : ''}
+            aria-pressed={open}
+            onClick={() => setWide((on) => !on)}
+          >
+            {open ? 'Shrink' : 'Expand'}
+          </button>
+        )}
       </div>
     </div>
   )
+}
+
+function overShip(pointer: { x: number; y: number }, other: ChartShip) {
+  const dx = pointer.x - other.x
+  const dy = pointer.y - other.y
+  if (dx * dx + dy * dy <= SHIP_HIT * SHIP_HIT) return true
+  const half = Math.min(72, 8 + other.ship.name.length * 3.2)
+  return Math.abs(dx) <= half && dy < -2 && dy > -30
+}
+
+function drawOtherBoat(ctx: CanvasRenderingContext2D, other: ChartShip, hot: boolean) {
+  const { ship, x, y } = other
+  const heading = Math.atan2(Math.sin(ship.yaw), -Math.cos(ship.yaw))
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.rotate(heading)
+  ctx.beginPath()
+  ctx.moveTo(0, -10)
+  ctx.lineTo(5.5, 7)
+  ctx.lineTo(0, 3)
+  ctx.lineTo(-5.5, 7)
+  ctx.closePath()
+  ctx.fillStyle = hot ? '#ffe7ad' : '#f6c453'
+  ctx.strokeStyle = '#2a1c08'
+  ctx.lineWidth = hot ? 2.2 : 1.4
+  ctx.fill()
+  ctx.stroke()
+  const surge = Number.isFinite(ship.speed) ? ship.speed : 0
+  const reach = 8 + Math.min(20, Math.abs(surge) * 3.2)
+  ctx.beginPath()
+  ctx.moveTo(0, -6)
+  ctx.lineTo(0, -reach)
+  ctx.strokeStyle = 'rgba(246, 196, 83, 0.95)'
+  ctx.lineWidth = 1.4
+  ctx.stroke()
+  ctx.restore()
+
+  const name = ship.name || 'Sailor'
+  ctx.font = '600 10px Segoe UI, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.lineWidth = 3
+  ctx.strokeStyle = 'rgba(8, 16, 28, 0.82)'
+  ctx.strokeText(name, x, y - 14)
+  ctx.fillStyle = hot ? '#fff6df' : '#ffe3a3'
+  ctx.fillText(name, x, y - 14)
+}
+
+function placeTip(
+  tip: HTMLDivElement | null,
+  nameNode: HTMLElement | null,
+  speedNode: HTMLElement | null,
+  driveNode: HTMLElement | null,
+  canvas: HTMLCanvasElement,
+  other: ChartShip | null,
+) {
+  if (!tip || !nameNode || !speedNode || !driveNode) return
+  if (!other) {
+    tip.hidden = true
+    return
+  }
+  const { ship } = other
+  nameNode.textContent = ship.name || 'Sailor'
+  speedNode.textContent = formatKnots(ship.speed, ship.sway)
+  driveNode.textContent = propulsionLabel(ship.port, ship.starboard, ship.bow, ship.stern, ship.hoist, ship.jibHoist)
+  tip.hidden = false
+  const parentW = canvas.parentElement?.clientWidth ?? canvas.clientWidth
+  const left = canvas.offsetLeft + other.x
+  const top = canvas.offsetTop + other.y
+  tip.style.left = `${left}px`
+  tip.style.top = `${top}px`
+  const tipW = tip.offsetWidth
+  const min = tipW / 2 + 4
+  const max = Math.max(min, parentW - tipW / 2 - 4)
+  tip.style.left = `${Math.min(max, Math.max(min, left))}px`
+  const above = top - tip.offsetHeight - 12
+  if (above < 4) tip.dataset.place = 'below'
+  else delete tip.dataset.place
 }

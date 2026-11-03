@@ -26,7 +26,7 @@ export interface RoomMessage {
   wind: WindSample
 }
 
-/** The pose and the sail trim the owner is showing. Remote hulls copy this; they do not resimulate it. */
+/** The pose, the speed, and the sail trim the owner is showing. Remote hulls copy this; they do not resimulate it. */
 export interface ShipVisual {
   x: number
   z: number
@@ -34,6 +34,10 @@ export interface ShipVisual {
   rudder: number
   port: number
   starboard: number
+  /** −1 shoves the bow to port, 0 off, +1 to starboard. */
+  bow: number
+  /** −1 shoves the stern to port, 0 off, +1 to starboard. */
+  stern: number
   hoist: number
   boom: number
   jibHoist: number
@@ -41,6 +45,10 @@ export interface ShipVisual {
   vane: number
   luff: number
   jibLuff: number
+  /** Metres per second along the bow. Negative is astern. */
+  speed: number
+  /** Metres per second, lateral. */
+  sway: number
 }
 
 export interface ShipMessage extends ShipVisual {

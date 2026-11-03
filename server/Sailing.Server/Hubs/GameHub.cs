@@ -193,13 +193,17 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         && Finite(ship.Rudder, -1.5, 1.5)
         && Finite(ship.Port, -1.5, 1.5)
         && Finite(ship.Starboard, -1.5, 1.5)
+        && Finite(ship.Bow, -1.5, 1.5)
+        && Finite(ship.Stern, -1.5, 1.5)
         && Finite(ship.Hoist, -0.1, 1.1)
         && Finite(ship.Boom, -4, 4)
         && Finite(ship.JibHoist, -0.1, 1.1)
         && Finite(ship.Clew, -4, 4)
         && Finite(ship.Vane, -8, 8)
         && Finite(ship.Luff, -0.1, 1.1)
-        && Finite(ship.JibLuff, -0.1, 1.1);
+        && Finite(ship.JibLuff, -0.1, 1.1)
+        && Finite(ship.Speed, -40, 40)
+        && Finite(ship.Sway, -40, 40);
 
     private static bool Finite(double value, double min, double max)
         => double.IsFinite(value) && value >= min && value <= max;
@@ -277,6 +281,10 @@ public sealed record ShipRelay(
     double Clew,
     double Vane,
     double Luff,
-    double JibLuff);
+    double JibLuff,
+    double Speed,
+    double Sway,
+    double Bow,
+    double Stern);
 
 public sealed record PongMessage(long ClientSentAt, long ServerTime);
