@@ -1,5 +1,6 @@
 import { Boat, Stage, type BadgeTone } from './diagram'
 import { BEAM, clamp, lerp, loopFade, relativeWind, rudderFrom, sailLook, snap, track } from './math'
+import { useLessonAudio } from './narration'
 import { useSeconds } from './useSeconds'
 import { FigureCopy, type SlideProps } from './widgets'
 
@@ -77,8 +78,8 @@ function frame(time: number) {
   }
 }
 
-export function CourseSlide({ playing }: SlideProps) {
-  const { time, reduced } = useSeconds(playing)
+export function CourseSlide({ playing, audio, lineRef }: SlideProps) {
+  const { time, reduced, seek, hold } = useSeconds(playing)
   const pose = reduced
     ? {
         t: 0,
@@ -91,6 +92,7 @@ export function CourseSlide({ playing }: SlideProps) {
         caption: 'Into the wind or on the side, you tack. Behind you, or behind and to the side, you gybe.',
       }
     : frame(time)
+  useLessonAudio(audio, lineRef, reduced ? `${pose.caption} ${BEATS.join(' ')}` : pose.caption)
   const tone: BadgeTone = pose.tack ? 'tack' : 'gybe'
   const look = sailLook(relativeWind(0, pose.heading), pose.boom)
   return (
@@ -99,7 +101,7 @@ export function CourseSlide({ playing }: SlideProps) {
         time={reduced ? 0 : time}
         windFrom={0}
         badge={{ tone, title: pose.tack ? 'Tack' : 'Gybe', detail: phrase(pose.off) }}
-        progress={reduced ? null : { time: pose.t, duration: DUR }}
+        progress={reduced ? null : { time: pose.t, duration: DUR, onSeek: seek, onScrub: hold }}
       >
         <Boat
           heading={pose.heading}

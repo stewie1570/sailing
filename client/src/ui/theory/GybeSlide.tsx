@@ -1,5 +1,6 @@
 import { Boat, Stage, type BadgeTone } from './diagram'
 import { PI, loopFade, rudderFrom, track, trail } from './math'
+import { useLessonAudio } from './narration'
 import { useSeconds } from './useSeconds'
 import { FigureCopy, type SlideProps } from './widgets'
 
@@ -117,8 +118,16 @@ function poseAt(time: number) {
   }
 }
 
-export function GybeSlide({ playing }: SlideProps) {
-  const { time, reduced } = useSeconds(playing)
+export function GybeSlide({ playing, audio, lineRef }: SlideProps) {
+  const { time, reduced, seek, hold } = useSeconds(playing)
+  const pose = poseAt(time)
+  useLessonAudio(
+    audio,
+    lineRef,
+    reduced
+      ? `With the wind behind you, sheeting in locks the boom before the sail gybes. ${BEATS.join(' ')}`
+      : pose.caption,
+  )
   if (reduced) {
     return (
       <>
@@ -145,7 +154,6 @@ export function GybeSlide({ playing }: SlideProps) {
     )
   }
 
-  const pose = poseAt(time)
   return (
     <>
       <Stage
@@ -153,7 +161,7 @@ export function GybeSlide({ playing }: SlideProps) {
         windFrom={PI}
         alert={pose.alert}
         badge={{ tone: pose.tone, title: pose.title, detail: pose.detail }}
-        progress={{ time: pose.t, duration: DUR }}
+        progress={{ time: pose.t, duration: DUR, onSeek: seek, onScrub: hold }}
       >
         <Boat
           heading={pose.heading}

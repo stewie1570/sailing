@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Boat, Stage } from './diagram'
 import { knotsOf, lerp, loopFade, sailLook, track } from './math'
+import { useLessonAudio } from './narration'
 import { useSeconds } from './useSeconds'
 import { FigureCopy, SheetRange, type SlideProps } from './widgets'
 
@@ -77,8 +78,8 @@ function beat(t: number) {
   return 'Leave it here: quiet everywhere, and driving.'
 }
 
-export function TrimSlide({ playing, onHold }: SlideProps) {
-  const { time, reduced } = useSeconds(playing)
+export function TrimSlide({ playing, onHold, audio, lineRef }: SlideProps) {
+  const { time, reduced, seek, hold } = useSeconds(playing)
   const { time: flutter } = useSeconds(!reduced)
   const [sheet, setSheet] = useState<number | null>(null)
   const [wasPlaying, setWasPlaying] = useState(playing)
@@ -94,6 +95,7 @@ export function TrimSlide({ playing, onHold }: SlideProps) {
   const slider = handsOn ? (sheet ?? 0) : sheetOf(boom)
   const note = words(look.luff, look.stall, look.speed, false)
   const caption = handsOn ? words(look.luff, look.stall, look.speed, true) : beat(animated.t)
+  useLessonAudio(audio, lineRef, reduced ? `${caption} ${BEATS.join(' ')}` : caption)
 
   return (
     <>
@@ -101,7 +103,7 @@ export function TrimSlide({ playing, onHold }: SlideProps) {
         time={flutter}
         windFrom={0}
         speed={{ knots: knotsOf(look.speed), note }}
-        progress={handsOn ? null : { time: animated.t, duration: DUR }}
+        progress={handsOn ? null : { time: animated.t, duration: DUR, onSeek: seek, onScrub: hold }}
       >
         <Boat
           heading={HEADING}

@@ -1,19 +1,29 @@
 export type SlideProps = {
   playing: boolean
   onHold: () => void
+  audio: boolean
+  /** Latest sentence to speak when narration is turned on. */
+  lineRef: { current: string }
 }
 
 export function FigureCopy({
   reduced,
   caption,
   beats,
+  rule,
 }: {
   reduced: boolean
   caption: string
   beats: readonly string[]
+  rule?: string
 }) {
   return (
     <div className="theory-copy">
+      {rule && (
+        <p className="theory-rule">
+          <strong>{rule}</strong>
+        </p>
+      )}
       <p className="theory-caption">{caption}</p>
       {reduced && (
         <ul className="theory-beats">

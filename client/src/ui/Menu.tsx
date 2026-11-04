@@ -13,6 +13,7 @@ export function Menu({ onLearn, hidden = false }: { onLearn: () => void; hidden?
   return (
     <div className="menu" hidden={hidden}>
       <div className="menu-sky" />
+      <div className="menu-stack">
       <div className="menu-card">
         <p className="menu-kicker">Sailing and docking</p>
         <h1>Lake Windermere</h1>
@@ -88,13 +89,13 @@ export function Menu({ onLearn, hidden = false }: { onLearn: () => void; hidden?
           </button>
         )}
 
-        <button type="button" className="menu-choice menu-theory" disabled={connecting} onClick={onLearn}>
-          Sailing theory
-        </button>
-
         <p className="menu-foot">
           The host keeps the room. Each sailor steers their own boat.
         </p>
+      </div>
+      <button type="button" className="menu-learn" disabled={connecting} onClick={onLearn}>
+        Learn sailing theory
+      </button>
       </div>
     </div>
   )

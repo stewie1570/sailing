@@ -469,6 +469,50 @@ function WindVane({ windFrom, time }: { windFrom: number; time: number }) {
   )
 }
 
+function LessonBar({
+  time,
+  duration,
+  onSeek,
+  onScrub,
+}: {
+  time: number
+  duration: number
+  onSeek?: (time: number) => void
+  onScrub?: (down: boolean) => void
+}) {
+  const span = duration > 0 ? ((time % duration) + duration) % duration : 0
+  const step = 0.05
+  const max = Math.max(step, duration - step)
+  const shown = Math.min(span, max)
+  const fraction = duration > 0 ? shown / duration : 0
+  const release = () => onScrub?.(false)
+  return (
+    <label className="theory-progress">
+      <span className="theory-progress-track" aria-hidden="true">
+        <span className="theory-progress-fill" style={{ width: `${fraction * 100}%` }} />
+      </span>
+      {onSeek && (
+        <input
+          type="range"
+          min={0}
+          max={max}
+          step={step}
+          value={shown}
+          aria-label="Lesson progress"
+          aria-valuetext={`${Math.round(fraction * 100)} percent. Drag to rewind.`}
+          onChange={(event) => onSeek(Number(event.target.value))}
+          onPointerDown={() => onScrub?.(true)}
+          onPointerUp={release}
+          onPointerCancel={release}
+          onKeyDown={() => onScrub?.(true)}
+          onKeyUp={release}
+          onBlur={release}
+        />
+      )}
+    </label>
+  )
+}
+
 export function Stage({
   time,
   windFrom,
@@ -483,11 +527,10 @@ export function Stage({
   children: ReactNode
   badge?: { tone: BadgeTone; title: string; detail?: string } | null
   speed?: { knots: number; note: string } | null
-  progress?: { time: number; duration: number } | null
+  progress?: { time: number; duration: number; onSeek?: (time: number) => void; onScrub?: (down: boolean) => void } | null
   alert?: boolean
 }) {
   const uid = useId().replace(/:/g, '')
-  const fraction = progress ? (progress.time % progress.duration) / progress.duration : 0
   return (
     <div className={`theory-stage${alert ? ' is-alert' : ''}`}>
       <svg viewBox={`0 0 ${VW} ${VH}`} className="theory-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -511,9 +554,7 @@ export function Stage({
         </div>
       )}
       {progress && (
-        <div className="theory-progress" aria-hidden="true">
-          <span style={{ transform: `scaleX(${fraction})` }} />
-        </div>
+        <LessonBar time={progress.time} duration={progress.duration} onSeek={progress.onSeek} onScrub={progress.onScrub} />
       )}
     </div>
   )

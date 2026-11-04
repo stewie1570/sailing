@@ -80,6 +80,26 @@
   cursor: pointer;
 }
 
+.theory-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.theory-ico {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  display: block;
+}
+
+.theory-nav button.theory-audio.is-on {
+  background: rgba(61, 220, 132, 0.18);
+  border-color: rgba(61, 220, 132, 0.55);
+}
+
 .theory-back {
   flex: 0 0 auto;
 }
@@ -108,7 +128,7 @@
   position: relative;
   flex: 0 0 auto;
   align-self: center;
-  width: min(100%, 880px);
+  width: min(100%, 880px, calc((100dvh - 380px) * 640 / 460));
   aspect-ratio: 640 / 460;
   background: #0e4054;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -192,27 +212,75 @@
 
 .theory-progress {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 10px;
-  height: 3px;
-  border-radius: 99px;
-  background: rgba(255, 255, 255, 0.16);
-  overflow: hidden;
+  z-index: 2;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 14px;
 }
 
-.theory-progress span {
+.theory-progress-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.theory-progress-fill {
   display: block;
   height: 100%;
+  border-radius: inherit;
+  background: rgba(244, 247, 251, 0.92);
+  position: relative;
+}
+
+.theory-progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -7px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 99px;
+  background: #f4f7fb;
+  transform: translateY(-50%);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.theory-progress input {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  transform-origin: left center;
-  background: rgba(244, 247, 251, 0.85);
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.theory-progress:focus-within .theory-progress-track {
+  box-shadow: 0 0 0 2px rgba(61, 220, 132, 0.85);
 }
 
 .theory-copy {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.theory-rule {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.45;
+}
+
+.theory-rule strong {
+  font-weight: 700;
 }
 
 .theory-caption {
@@ -355,6 +423,8 @@
   }
   .theory-nav > button {
     flex: 1;
+    padding-left: 8px;
+    padding-right: 8px;
   }
 }
 

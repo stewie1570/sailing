@@ -1,76 +1,50 @@
 import { useState } from 'react'
 import { Boat, Stage } from './diagram'
-import { PI, lerp, loopFade, smooth, track, trail } from './math'
+import { lerp, loopFade, sailLook, track } from './math'
+import { useLessonAudio } from './narration'
 import { useSeconds } from './useSeconds'
 import { FigureCopy, SheetRange, type SlideProps } from './widgets'
 
-const DUR = 16.6
-const EASED = PI / 2
-const HAULED = 0.16
-const OUT = 1.5
+const DUR = 13.6
+const HEADING = 0.72
+const EASED = 0.72
+const HAULED = 0.28
+const RULE = 'The sheet is the rope that controls the sail.'
 
 const BEATS = [
-  'The mainsail travels about 180°, from the port beam to the starboard beam.',
-  'The wind blows the sail out. The sheet only decides how far it may go.',
-  'Haul the sheet and the sail comes in against the wind.',
-  'Ease the sheet and the wind blows the sail back out along the same arc.',
+  'The wind is in front of the boat. Ease the sheet and the sail swings out. The cloth flaps.',
+  'Haul the sheet. The rope pulls the sail in against the wind until the cloth holds still.',
+  'Sheeted in, the boat starts to move. Ease the rope and the sail falls back out.',
 ]
 
-function sliderOf(allowed: number) {
-  return (EASED - allowed) / (EASED - HAULED)
+function sliderOf(boom: number) {
+  return (EASED - boom) / (EASED - HAULED)
 }
 
 function poseAt(time: number) {
   const t = time % DUR
   const boom = track(t, [
-    { t: 0, v: -OUT },
-    { t: 2.5, v: -OUT },
-    { t: 5.1, v: -0.18 },
-    { t: 6.3, v: -0.18 },
-    { t: 8.8, v: -OUT },
-    { t: 9.6, v: -OUT },
-    { t: 10.5, v: OUT, ease: 'snap' },
-    { t: 12.5, v: OUT },
-    { t: 14.0, v: -OUT, ease: 'snap' },
-    { t: DUR, v: -OUT },
+    { t: 0, v: EASED },
+    { t: 2.6, v: EASED },
+    { t: 5.2, v: HAULED },
+    { t: 8.0, v: HAULED },
+    { t: 10.6, v: EASED },
+    { t: DUR, v: EASED },
   ])
-  const windFrom = track(t, [
-    { t: 0, v: PI / 2 },
-    { t: 9.2, v: PI / 2 },
-    { t: 11.4, v: (3 * PI) / 2 },
-    { t: 12.3, v: (3 * PI) / 2 },
-    { t: 14.7, v: PI / 2 },
-    { t: DUR, v: PI / 2 },
-  ])
-  const hauling = t >= 2.5 && t < 8.8
-  const allowed = hauling ? Math.max(Math.abs(boom), HAULED) : EASED
-  const mark = t < 2.4 ? lerp(-EASED, EASED, smooth(t / 2.4)) : null
-  let ghosts: number[] = []
-  if (t >= 9.6 && t <= 10.7) ghosts = trail((t - 9.6) / 0.9, -OUT, OUT)
-  else if (t >= 12.5 && t <= 14.2) ghosts = trail((t - 12.5) / 1.5, OUT, -OUT)
-  let caption = 'Back across the same arc. The sheet is still the limit, and the wind does the pushing.'
-  if (t < 2.5) caption = 'This arc is how far the mainsail can travel: about 180°, from one side of the boat to the other.'
-  else if (t < 6.4) caption = 'Haul the main sheet and you pull the sail in against the wind.'
-  else if (t < 9.3) caption = 'Ease the sheet. The wind blows the sail back out until the rope stops it.'
-  else if (t < 12.4) caption = 'With the sheet eased, the sail can use that whole arc. It crosses about 180°, from one side to the other.'
-  return { t, boom, windFrom, allowed, mark, ghosts, caption, opacity: loopFade(t, DUR) }
+  let caption = 'The rope is the limit. The wind does the pushing.'
+  if (t < 2.8) caption = 'The wind is in front of the boat. With the sheet eased, the sail swings out and the cloth flaps.'
+  else if (t < 5.6) caption = 'Haul the sheet. The rope pulls the sail in against the wind.'
+  else if (t < 8.4) caption = 'Sheeted in, the cloth holds still and the boat starts to move.'
+  else if (t < 11.2) caption = 'Ease the sheet and the sail falls back out. The cloth flaps again.'
+  return { t, boom, caption, opacity: loopFade(t, DUR) }
 }
 
 function poseFromSheet(sheet: number) {
-  const allowed = lerp(EASED, HAULED, sheet)
-  let caption = 'The sheet sets the limit. The wind pushes the sail out until the rope is tight.'
-  if (sheet < 0.22) caption = 'Eased. The wind holds the sail out at the end of the sheet, on the edge of the 180° arc.'
-  else if (sheet > 0.78) caption = 'Hauled. The sheet has pulled the sail in against the wind, toward the middle of the boat.'
-  return {
-    t: 0,
-    boom: -allowed,
-    windFrom: PI / 2,
-    allowed,
-    mark: null as number | null,
-    ghosts: [] as number[],
-    caption,
-    opacity: 1,
-  }
+  const boom = lerp(EASED, HAULED, sheet)
+  let caption = 'The sheet sets how far the sail can swing out.'
+  if (sheet < 0.22) caption = 'Eased. The sail is out and the cloth is flapping in the wind ahead of the boat.'
+  else if (sheet > 0.78) caption = 'Hauled in. The rope has pulled the sail against the wind, and the cloth holds still.'
+  return { t: 0, boom, caption, opacity: 1 }
 }
 
 function statusFor(sheet: number) {
@@ -79,8 +53,9 @@ function statusFor(sheet: number) {
   return 'Sheet partly in'
 }
 
-export function SheetSlide({ playing, onHold }: SlideProps) {
-  const { time, reduced } = useSeconds(playing)
+export function SheetSlide({ playing, onHold, audio, lineRef }: SlideProps) {
+  const { time, reduced, seek, hold } = useSeconds(playing)
+  const { time: flutter } = useSeconds(!reduced)
   const [sheet, setSheet] = useState<number | null>(null)
   const [wasPlaying, setWasPlaying] = useState(playing)
   if (playing !== wasPlaying) {
@@ -90,25 +65,36 @@ export function SheetSlide({ playing, onHold }: SlideProps) {
 
   const handsOn = reduced || (!playing && sheet != null)
   const pose = handsOn ? poseFromSheet(sheet ?? 0) : poseAt(time)
-  const slider = handsOn ? (sheet ?? 0) : sliderOf(pose.allowed)
+  const look = sailLook(-HEADING, pose.boom)
+  const slider = handsOn ? (sheet ?? 0) : sliderOf(pose.boom)
+  const narrated = reduced ? BEATS.join(' ') : pose.caption
+  useLessonAudio(audio, lineRef, narrated, RULE)
 
   return (
     <>
-      <Stage time={handsOn ? 0 : time} windFrom={pose.windFrom} progress={handsOn ? null : { time: pose.t, duration: DUR }}>
+      <Stage
+        time={flutter}
+        windFrom={0}
+        progress={
+          handsOn
+            ? null
+            : { time: pose.t, duration: DUR, onSeek: seek, onScrub: hold }
+        }
+      >
         <Boat
-          heading={0}
+          heading={HEADING}
           boom={pose.boom}
-          time={handsOn ? 0 : time}
-          speed={0.42}
+          time={flutter}
+          speed={look.speed}
+          luff={look.luff}
+          stall={look.stall}
           showArc
-          allowed={pose.allowed}
-          mark={pose.mark}
-          ghosts={pose.ghosts}
+          allowed={pose.boom}
           opacity={pose.opacity}
-          windFrom={pose.windFrom}
+          windFrom={0}
         />
       </Stage>
-      <FigureCopy reduced={reduced} caption={pose.caption} beats={BEATS} />
+      <FigureCopy reduced={reduced} caption={pose.caption} beats={BEATS} rule={RULE} />
       <SheetRange
         value={slider}
         status={statusFor(slider)}
