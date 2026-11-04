@@ -1,41 +1,37 @@
 import { useSyncExternalStore } from 'react'
 
-export interface AisLine {
-  id: number
+export interface AisReceived {
+  fromId: string
+  fromName: string
   text: string
-  /** True when this helm sent the line. */
-  mine: boolean
-}
-
-interface Thread {
-  peerName: string
-  notes: AisLine[]
-  draft: string
 }
 
 export interface AisMailView {
   peerId: string | null
   peerName: string
-  notes: readonly AisLine[]
-  draft: string
+  /** The one hail shown in the open note. Empty when this note was opened to write first. */
+  receivedText: string
+  /** A hail waiting above the chart. Absent while the note is open, or after it is closed. */
+  banner: AisReceived | null
   error: string | null
 }
 
-const EMPTY: readonly AisLine[] = []
-const threads = new Map<string, Thread>()
-let openId: string | null = null
+let incoming: AisReceived | null = null
+let peerId: string | null = null
+let peerName = ''
 let error: string | null = null
-let seq = 0
+/** True while the shared chart is expanded. A hail then opens the note; otherwise it waits on the chart. */
+let chartWide = false
 let view: AisMailView = snapshot()
 const listeners = new Set<() => void>()
 
 function snapshot(): AisMailView {
-  const thread = openId ? threads.get(openId) : undefined
+  const mine = incoming && peerId === incoming.fromId ? incoming.text : ''
   return {
-    peerId: openId,
-    peerName: thread?.peerName ?? '',
-    notes: thread?.notes ?? EMPTY,
-    draft: thread?.draft ?? '',
+    peerId,
+    peerName,
+    receivedText: mine,
+    banner: incoming && !peerId ? incoming : null,
     error,
   }
 }
@@ -45,44 +41,27 @@ function publish() {
   listeners.forEach((listener) => listener())
 }
 
-function ensure(peerId: string, peerName: string) {
-  const name = peerName.trim() || 'Sailor'
-  let thread = threads.get(peerId)
-  if (!thread) {
-    thread = { peerName: name, notes: [], draft: '' }
-    threads.set(peerId, thread)
-  } else if (name) {
-    thread.peerName = name
-  }
-  return thread
+export function setAisChartWide(wide: boolean) {
+  chartWide = wide
 }
 
-/** Open the note addressed to this boat. A draft already started is still there. */
-export function openAis(peerId: string, peerName: string) {
-  if (!peerId) return
-  ensure(peerId, peerName)
-  openId = peerId
+/** Open the note addressed to this boat. */
+export function openAis(id: string, name: string) {
+  if (!id) return
+  peerId = id
+  peerName = name.trim() || 'Sailor'
   error = null
   publish()
 }
 
+/** Close the note and drop the hail. Nothing is kept. */
 export function closeAis() {
-  if (!openId && !error) return
-  openId = null
+  if (!peerId && !incoming && !error) return
+  peerId = null
+  peerName = ''
+  incoming = null
   error = null
   publish()
-}
-
-/** The draft currently in the open note. Read from effects, not during render. */
-export function currentAisDraft(): string {
-  return view.draft
-}
-
-export function setAisDraft(peerId: string, draft: string) {
-  const thread = threads.get(peerId)
-  if (!thread || thread.draft === draft) return
-  thread.draft = draft
-  if (openId === peerId) publish()
 }
 
 export function setAisError(message: string | null) {
@@ -90,31 +69,29 @@ export function setAisError(message: string | null) {
   publish()
 }
 
-/** Keep a line this helm just handed to the room. */
-export function rememberSent(peerId: string, text: string) {
-  const thread = threads.get(peerId)
-  if (!thread) return
-  thread.notes = [...thread.notes, { id: ++seq, text, mine: true }].slice(-24)
-  thread.draft = ''
-  error = null
-  publish()
-}
-
-/** The other boat hailed us. Open the same note, with their line in it. */
+/**
+ * The other boat hailed us. Only this text is kept.
+ * An expanded chart opens the note. A small chart leaves it above the chart until it is tapped.
+ * A note that is already open shows the new text instead.
+ */
 export function receiveAis(fromId: string, fromName: string, text: string) {
   const body = text.trim()
   if (!fromId || !body) return
-  const thread = ensure(fromId, fromName)
-  thread.notes = [...thread.notes, { id: ++seq, text: body, mine: false }].slice(-24)
-  openId = fromId
+  const name = fromName.trim() || 'Sailor'
+  incoming = { fromId, fromName: name, text: body }
   error = null
+  if (chartWide || peerId) {
+    peerId = fromId
+    peerName = name
+  }
   publish()
 }
 
 export function clearAis() {
-  if (threads.size === 0 && !openId && !error) return
-  threads.clear()
-  openId = null
+  if (!incoming && !peerId && !error) return
+  incoming = null
+  peerId = null
+  peerName = ''
   error = null
   publish()
 }

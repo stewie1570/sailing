@@ -627,6 +627,44 @@ html:-webkit-full-screen {
   z-index: 6;
   padding: 8px 8px 6px;
 }
+.ais-banner {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 5;
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  color: #f4f7fb;
+  background: rgba(8, 16, 28, 0.94);
+  border: 1px solid rgba(159, 212, 255, 0.45);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.ais-banner-name {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 227, 163, 0.95);
+}
+.ais-banner-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: normal;
+}
 .navmap-head {
   display: flex;
   justify-content: space-between;
@@ -883,14 +921,7 @@ html:-webkit-full-screen {
   opacity: 0.45;
   cursor: default;
 }
-.ais-log {
-  max-height: 180px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.ais-log p {
+.ais-received {
   margin: 0;
   padding: 6px 8px;
   border-radius: 6px;
@@ -900,7 +931,7 @@ html:-webkit-full-screen {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.ais-log p span {
+.ais-received span {
   display: block;
   margin-bottom: 2px;
   font-size: 11px;
@@ -909,10 +940,6 @@ html:-webkit-full-screen {
   text-transform: uppercase;
   color: rgba(255, 227, 163, 0.9);
 }
-.ais-log p.mine {
-  background: rgba(159, 212, 255, 0.12);
-}
-.ais-log p.mine span { color: rgba(159, 212, 255, 0.95); }
 .ais-note form {
   display: flex;
   gap: 6px;

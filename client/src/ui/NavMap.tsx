@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { ShipMessage } from '../net/protocol'
 import { eachFreshShip, useSession } from '../net/session'
-import { openAis } from '../net/aisMail'
+import { openAis, setAisChartWide, useAisMail } from '../net/aisMail'
 import { formatKnots, propulsionLabel, telemetry } from '../scene/boat/telemetry'
 import { HARBOR_BASINS, harborPieces, type HarborPiece } from '../scene/harborLayout'
 import { compassPoint, getWind, MS_TO_KN, windFromDegrees } from '../scene/boat/wind'
@@ -52,11 +52,17 @@ export function NavMap() {
   const heldRef = useRef<ChartShip | null>(null)
   const stickRef = useRef(false)
   const open = shared && wide
+  const mail = useAisMail()
 
   useEffect(() => {
     localRef.current = local
     sharedRef.current = shared
   }, [local, shared])
+
+  useEffect(() => {
+    setAisChartWide(open)
+    return () => setAisChartWide(false)
+  }, [open])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -373,8 +379,24 @@ export function NavMap() {
     }
   }, [])
 
+  const banner = shared ? mail.banner : null
+
   return (
     <div className={open ? 'hud navmap wide' : 'hud navmap'}>
+      {banner && (
+        <button
+          type="button"
+          className="ais-banner"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => {
+            flushSync(() => openAis(banner.fromId, banner.fromName))
+            document.getElementById('ais-draft')?.focus({ preventScroll: true })
+          }}
+        >
+          <span className="ais-banner-name">{banner.fromName}</span>
+          <span className="ais-banner-text">{banner.text}</span>
+        </button>
+      )}
       <div className="navmap-head">
         <span ref={titleRef}>Chart</span>
         <span ref={readRef} className="navmap-read">—</span>

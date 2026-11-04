@@ -2,47 +2,31 @@ import { useEffect, useRef, useState } from 'react'
 import { remoteShip, sendHail, shipIsFresh } from '../net/session'
 import { AIS_TEXT_MAX, cleanHail } from '../net/protocol'
 import { formatKnots, propulsionLabel } from '../scene/boat/telemetry'
-import { closeAis, currentAisDraft, rememberSent, setAisDraft, setAisError, useAisMail } from '../net/aisMail'
+import { closeAis, setAisError, useAisMail } from '../net/aisMail'
 
 /**
- * The same note on both boats. One helm opens it from the chart. The other
- * helm's copy opens when the text arrives.
+ * One hail, then a reply. Closing the note throws that hail away.
+ * A collapsed chart does not open this; the line sits above the chart until it is tapped.
  */
 export function AisNote() {
   const mail = useAisMail()
   const inputRef = useRef<HTMLInputElement>(null)
-  const logRef = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const peerId = mail.peerId
   const [trackedPeer, setTrackedPeer] = useState(peerId)
-  const [draftReady, setDraftReady] = useState(() => cleanHail(mail.draft).length > 0)
-  const loadedPeer = useRef<string | null>(null)
+  const [draftReady, setDraftReady] = useState(false)
   if (peerId !== trackedPeer) {
     setTrackedPeer(peerId)
-    setDraftReady(cleanHail(mail.draft).length > 0)
+    setDraftReady(false)
   }
 
   useEffect(() => {
-    if (!peerId) {
-      loadedPeer.current = null
-      return
-    }
+    if (!peerId) return
     const input = inputRef.current
     if (!input) return
-    // Load a saved draft only when the other boat changes. After that the field
-    // owns the text, so a re-render cannot wipe a keystroke.
-    if (loadedPeer.current !== peerId) {
-      loadedPeer.current = peerId
-      input.value = currentAisDraft()
-    }
+    input.value = ''
     input.focus({ preventScroll: true })
   }, [peerId])
-
-  useEffect(() => {
-    const log = logRef.current
-    if (!log) return
-    log.scrollTop = log.scrollHeight
-  }, [mail.notes])
 
   useEffect(() => {
     if (!peerId) return
@@ -55,6 +39,7 @@ export function AisNote() {
 
   if (!peerId) return null
   const ready = draftReady && !busy
+  const reply = mail.receivedText.length > 0
 
   return (
     <section className="ais-note" role="dialog" aria-labelledby="ais-note-title">
@@ -66,15 +51,11 @@ export function AisNote() {
         </div>
         <button type="button" onClick={closeAis}>Close</button>
       </div>
-      {mail.notes.length > 0 && (
-        <div className="ais-log" ref={logRef}>
-          {mail.notes.map((line) => (
-            <p key={line.id} className={line.mine ? 'mine' : ''}>
-              <span>{line.mine ? 'You' : mail.peerName || 'Sailor'}</span>
-              {line.text}
-            </p>
-          ))}
-        </div>
+      {reply && (
+        <p className="ais-received">
+          <span>{mail.peerName || 'Sailor'}</span>
+          {mail.receivedText}
+        </p>
       )}
       <form
         onSubmit={(event) => {
@@ -90,7 +71,7 @@ export function AisNote() {
             }
             if (inputRef.current) inputRef.current.value = ''
             setDraftReady(false)
-            rememberSent(peerId, text)
+            setAisError(null)
           })
         }}
       >
@@ -99,20 +80,17 @@ export function AisNote() {
           id="ais-draft"
           type="text"
           name="ais"
-          defaultValue={mail.draft}
           maxLength={AIS_TEXT_MAX}
           enterKeyHint="send"
           autoComplete="off"
           autoCapitalize="sentences"
           autoCorrect="on"
           spellCheck
-          aria-label={mail.notes.length > 0 ? `Reply to ${mail.peerName || 'Sailor'}` : `Message ${mail.peerName || 'Sailor'}`}
-          placeholder={mail.notes.length > 0 ? 'Reply' : `Message ${mail.peerName || 'Sailor'}`}
+          aria-label={reply ? `Reply to ${mail.peerName || 'Sailor'}` : `Message ${mail.peerName || 'Sailor'}`}
+          placeholder={reply ? 'Reply' : `Message ${mail.peerName || 'Sailor'}`}
           onPointerDown={(event) => event.stopPropagation()}
           onChange={(event) => {
-            const next = event.target.value
-            setAisDraft(peerId, next)
-            setDraftReady(cleanHail(next).length > 0)
+            setDraftReady(cleanHail(event.target.value).length > 0)
             if (mail.error) setAisError(null)
           }}
         />
