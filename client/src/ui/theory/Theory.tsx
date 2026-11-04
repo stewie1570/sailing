@@ -20,7 +20,7 @@ const SLIDES: { title: string; lead: string; View: (props: SlideProps) => ReactN
   },
   {
     title: 'Trim on a tack',
-    lead: 'Over-eased, the sail laughs. Over-trimmed, it goes quiet and slow. Stop where the laugh just disappears.',
+    lead: 'Over-eased, the sail luffs. Over-trimmed, it goes quiet and slow. Stop where the luff just disappears.',
     View: TrimSlide,
   },
   {

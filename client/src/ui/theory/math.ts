@@ -65,7 +65,7 @@ export type SailLook = {
 
 /**
  * How the mainsail looks for a wind angle and a boom angle.
- * `luff` is 1 when the cloth is lined up with the wind and laughing.
+ * `luff` is 1 when the cloth is lined up with the wind and luffing.
  * `stall` is 1 when it is sheeted so tight the air has stopped pulling.
  */
 export function sailLook(rel: number, boom: number): SailLook {

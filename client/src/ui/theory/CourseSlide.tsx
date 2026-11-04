@@ -51,7 +51,7 @@ function phrase(off: number) {
 
 function captionFor(t: number) {
   if (t < 2) return 'Going into the wind. To change sides you tack: the bow turns through the wind.'
-  if (t < 5.6) return 'The bow is turning through the wind. The sail laughs as it crosses, then fills on the new side. That is a tack.'
+  if (t < 5.6) return 'The bow is turning through the wind. The sail luffs as it crosses, then fills on the new side. That is a tack.'
   if (t < 10.2) return 'The wind is on the side of the boat. Coming about from here is still a tack.'
   if (t < 13.1) return 'The wind is off to the side and behind you. A turn that brings the stern through the wind is a gybe.'
   if (t < 15.9) return 'The wind is behind you. The stern turns through it, and the sail flips across. That is a gybe.'

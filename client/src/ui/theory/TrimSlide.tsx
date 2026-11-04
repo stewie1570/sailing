@@ -12,10 +12,10 @@ const TIGHT = 0.04
 const SWEET = (EASED - QUIET) / (EASED - TIGHT)
 
 const BEATS = [
-  'Over-eased, the sail laughs: the cloth flaps because it is lined up with the wind.',
-  'Sheet in just until the laugh leaves the whole sail. That trim is the one that gives you speed.',
+  'Over-eased, the sail luffs: the cloth flaps because it is lined up with the wind.',
+  'Sheet in just until the luff leaves the whole sail. That trim is the one that gives you speed.',
   'Over-trimmed, the sail is quiet but stalled, and the boat is not getting much speed.',
-  'Come back to the spot where it has just stopped laughing, and leave it there.',
+  'Come back to the spot where it has just stopped luffing, and leave it there.',
 ]
 
 function boomAt(time: number) {
@@ -46,13 +46,13 @@ function boomOf(sheet: number) {
 function words(luff: number, stall: number, speed: number, telling: boolean) {
   if (luff > 0.55) {
     return telling
-      ? 'Over-eased. The sail is laughing: the cloth is flapping, lined up with the wind, and not driving.'
-      : 'Laughing'
+      ? 'Over-eased. The sail is luffing: the cloth is flapping, lined up with the wind, and not driving.'
+      : 'Luffing'
   }
   if (luff > 0.12) {
     return telling
-      ? 'Still laughing. Sheet in a little more, until the flap is gone from the whole sail.'
-      : 'Still laughing'
+      ? 'Still luffing. Sheet in a little more, until the flap is gone from the whole sail.'
+      : 'Still luffing'
   }
   if (stall > 0.45) {
     return telling
@@ -61,19 +61,19 @@ function words(luff: number, stall: number, speed: number, telling: boolean) {
   }
   if (speed > 0.82) {
     return telling
-      ? 'Just enough. The sail does not laugh anywhere, and this is the speed you are after.'
+      ? 'Just enough. The sail does not luff anywhere, and this is the speed you are after.'
       : 'Just quiet'
   }
-  return telling ? 'Close. Ease a touch if it is tight, or sheet in if any cloth is still laughing.' : 'Trimming'
+  return telling ? 'Close. Ease a touch if it is tight, or sheet in if any cloth is still luffing.' : 'Trimming'
 }
 
 function beat(t: number) {
-  if (t < 3.2) return 'Over-eased. The sail is laughing: the cloth flaps because the sheet lets it line up with the wind.'
-  if (t < 5.8) return 'Sheet in. The laugh should die away, from the leech back toward the mast, until the whole sail is quiet.'
-  if (t < 8.4) return 'Just enough. It does not laugh anywhere on the sail, and the boat is up to speed.'
+  if (t < 3.2) return 'Over-eased. The sail is luffing: the cloth flaps because the sheet lets it line up with the wind.'
+  if (t < 5.8) return 'Sheet in. The luff should die away, from the leech back toward the mast, until the whole sail is quiet.'
+  if (t < 8.4) return 'Just enough. It does not luff anywhere on the sail, and the boat is up to speed.'
   if (t < 10.8) return 'Keep hauling and you over-trim it. The sail stays quiet, but it stops pulling.'
   if (t < 12.6) return 'Over-trimmed. You are not getting much speed. The sail is stalled.'
-  if (t < 15) return 'Ease back until the sail is just short of laughing. That is the trim.'
+  if (t < 15) return 'Ease back until the sail is just short of luffing. That is the trim.'
   return 'Leave it here: quiet everywhere, and driving.'
 }
 
