@@ -246,6 +246,10 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       trim.main.awa,
       flap,
       trim.jib.luff,
+      pose.speed,
+      pose.sway,
+      drive.bow,
+      drive.stern,
     )
     if (boomRef.current) boomRef.current.rotation.y = boomAngle
     if (sailRef.current) {

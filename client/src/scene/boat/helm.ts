@@ -182,6 +182,17 @@ function nudge(value: number, delta: number, heldUntil: number, now: number): { 
   return { value: next, heldUntil }
 }
 
+/** True when the key belongs to a text field, including the AIS note. */
+function isTypingTarget(event: KeyboardEvent) {
+  const fromEvent = event.target instanceof Element ? event.target : null
+  if (fromEvent?.closest('input, textarea, select, [contenteditable="true"]')) return true
+  const active = document.activeElement
+  if (!(active instanceof HTMLElement) || active === document.body) return false
+  if (active.isContentEditable) return true
+  const tag = active.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT'
+}
+
 /**
  * On the engine tab, up and down trim both screws. On the sailing tab those
  * keys ease and harden the sheet instead. Left and right always steer.
@@ -209,8 +220,7 @@ export function useHelmKeyboard(mode: HelmMode) {
 
     const down = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return
-      const tag = (e.target as HTMLElement | null)?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (isTypingTarget(e)) return
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyQ', 'KeyA', 'KeyE', 'KeyD'].includes(e.code)) return
       e.preventDefault()
       held.add(e.code)

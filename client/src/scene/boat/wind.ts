@@ -5,20 +5,27 @@ import { useSyncExternalStore } from 'react'
  *
  * Direction uses the hull's yaw sense: 0 blows toward +z (south). Meteorologists
  * name the opposite heading — where the air comes from — and that is what the
- * dial shows. Speed stays inside a fresh inland range, about Beaufort 4 to 6
- * (roughly 12 to 27 knots): a breeze that moves a heavy cruiser, short of a gale.
+ * dial shows. Speed is drawn again on each update, anywhere from 6 to 30 knots:
+ * light air through a near gale, enough to move a heavy cruiser.
  *
- * The breeze holds steady for about two minutes, then eases onto a new
- * heading and speed over several seconds. It does not jump. A veer is a
- * modest one, about eighteen to seventy-two degrees.
+ * How long the breeze holds, which way it turns, and how hard it blows are
+ * each chosen on their own. The hold is anywhere from thirty seconds to two
+ * minutes. The veer is the tight one: at most twenty-five degrees, either
+ * way, and often less. The new speed is then eased in over several seconds.
+ * The breeze does not jump.
  */
 
-export const WIND_STEADY_S = 120
+/** Seconds the breeze may hold before the next update. */
+export const WIND_HOLD_MIN_S = 30
+export const WIND_HOLD_MAX_S = 120
 export const WIND_SHIFT_S = 8
-/** Metres per second. About 12 to 27 knots. */
-export const WIND_SPEED_MIN = 6.2
-export const WIND_SPEED_MAX = 14
+/** Longest veer on one update, either way. */
+export const WIND_VEER_MAX_DEG = 25
 export const MS_TO_KN = 1.943844
+/** Metres per second. 6 knots. */
+export const WIND_SPEED_MIN = 6 / MS_TO_KN
+/** Metres per second. 30 knots. */
+export const WIND_SPEED_MAX = 30 / MS_TO_KN
 
 const POINTS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'] as const
 
@@ -69,8 +76,13 @@ function fresh(blowYaw: number, speed: number): Clock {
     toSpeed: speed,
     age: 0,
     phase: 'steady',
-    steadyFor: WIND_STEADY_S,
+    steadyFor: holdSeconds(),
   }
+}
+
+/** How long this spell lasts before the breeze is updated again. */
+function holdSeconds() {
+  return WIND_HOLD_MIN_S + random() * (WIND_HOLD_MAX_S - WIND_HOLD_MIN_S)
 }
 
 /** Degrees clockwise from north, naming where the air comes from. */
@@ -112,7 +124,7 @@ function smoothstep(t: number) {
 }
 
 function nextBreeze(fromYaw: number, fromSpeed: number) {
-  const swing = ((17.5 + random() * 55) * Math.PI) / 180
+  const swing = (random() * WIND_VEER_MAX_DEG * Math.PI) / 180
   const sign = random() < 0.5 ? -1 : 1
   let speed = WIND_SPEED_MIN + random() * (WIND_SPEED_MAX - WIND_SPEED_MIN)
   if (Math.abs(speed - fromSpeed) < 0.8) {
@@ -220,7 +232,7 @@ export function stepWind(dt: number) {
       clock.fromSpeed = clock.toSpeed
       clock.phase = 'steady'
       clock.age = 0
-      clock.steadyFor = WIND_STEADY_S + (random() - 0.5) * 32
+      clock.steadyFor = holdSeconds()
     }
   }
   publish()

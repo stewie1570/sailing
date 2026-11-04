@@ -192,7 +192,7 @@ export function Scene({ onReady }: { onReady?: () => void }) {
         gl.setClearColor(environment.fogColor)
         scene.fog = new THREE.FogExp2(environment.fogColor, environment.fogDensity)
       }}
-      style={{ touchAction: 'none' }}
+      style={{ touchAction: 'none', zIndex: 0 }}
     >
       <QualityApplier />
       <FrameCap />

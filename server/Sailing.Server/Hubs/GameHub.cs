@@ -127,6 +127,24 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         return Clients.OthersInGroup(Group(room)).Wind(wind);
     }
 
+    /// <summary>
+    /// Relay one AIS text to the room. The sender's id and name come from this socket.
+    /// Every other helm hears it and opens the note only if it is addressed to them.
+    /// </summary>
+    public Task Hail(string toPlayerId, string text)
+    {
+        var id = PlayerId;
+        var room = RoomCode;
+        var sailor = SailorName;
+        if (id is null || room is null || sailor is null) return Task.CompletedTask;
+        var to = NormalizeId(toPlayerId);
+        if (to is null || to == id) throw new HubException("Choose another boat.");
+        var body = NormalizeHail(text);
+        if (body.Length == 0) throw new HubException("Write a message.");
+        if (TooSoon("hailAt", 500)) throw new HubException("Wait a moment.");
+        return Clients.OthersInGroup(Group(room)).Hail(id, sailor, to, body);
+    }
+
     /// <summary>Round-trip latency probe. The client sends its own timestamp and gets it back.</summary>
     public PongMessage Ping(long clientSentAt) => new(clientSentAt, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
 
@@ -193,13 +211,17 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         && Finite(ship.Rudder, -1.5, 1.5)
         && Finite(ship.Port, -1.5, 1.5)
         && Finite(ship.Starboard, -1.5, 1.5)
+        && Finite(ship.Bow, -1.5, 1.5)
+        && Finite(ship.Stern, -1.5, 1.5)
         && Finite(ship.Hoist, -0.1, 1.1)
         && Finite(ship.Boom, -4, 4)
         && Finite(ship.JibHoist, -0.1, 1.1)
         && Finite(ship.Clew, -4, 4)
         && Finite(ship.Vane, -8, 8)
         && Finite(ship.Luff, -0.1, 1.1)
-        && Finite(ship.JibLuff, -0.1, 1.1);
+        && Finite(ship.JibLuff, -0.1, 1.1)
+        && Finite(ship.Speed, -40, 40)
+        && Finite(ship.Sway, -40, 40);
 
     private static bool Finite(double value, double min, double max)
         => double.IsFinite(value) && value >= min && value <= max;
@@ -241,6 +263,20 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         var name = sb.ToString().Trim();
         return name.Length == 0 ? "Sailor" : name;
     }
+
+    /// <summary>One line, no control characters, capped at the same length the helm allows.</summary>
+    internal static string NormalizeHail(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return "";
+        var sb = new StringBuilder();
+        foreach (var c in raw.Trim())
+        {
+            if (char.IsControl(c)) continue;
+            sb.Append(c);
+            if (sb.Length == 160) break;
+        }
+        return sb.ToString().Trim();
+    }
 }
 
 /// <summary>Strongly-typed client methods. Every one of these is a relay, not server state.</summary>
@@ -252,6 +288,7 @@ public interface IGameClient
     Task Room(RoomRelay room);
     Task Ship(ShipRelay ship);
     Task Wind(WindRelay wind);
+    Task Hail(string fromId, string fromName, string toId, string text);
     Task Dismissed(string playerId, string reason);
     Task RoomClosed();
 }
@@ -277,6 +314,10 @@ public sealed record ShipRelay(
     double Clew,
     double Vane,
     double Luff,
-    double JibLuff);
+    double JibLuff,
+    double Speed,
+    double Sway,
+    double Bow,
+    double Stern);
 
 public sealed record PongMessage(long ClientSentAt, long ServerTime);

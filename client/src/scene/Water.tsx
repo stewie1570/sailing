@@ -246,7 +246,7 @@ export function Water({ map }: { map: MapData }) {
       )
     }
     const span = WIND_SPEED_MAX - WIND_SPEED_MIN
-    // The speed band itself is a fresh breeze, so even the quiet end chops the surface.
+    // Chop follows the 6–30 kn band. The quiet end still keeps a little texture.
     material.uniforms.uWindGain.value = 0.95 + 0.8 * ((wind.speed - WIND_SPEED_MIN) / span)
     const cam = state.camera as THREE.PerspectiveCamera
     const heightPx = state.size.height * state.viewport.dpr

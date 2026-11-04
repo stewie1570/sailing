@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { resetHelm } from '../scene/boat/helm'
 import { resetSail } from '../scene/boat/sail'
 import { followWind, getWind, releaseWind, resetWind } from '../scene/boat/wind'
+import { clearAis, receiveAis } from './aisMail'
 import {
   MAX_SAILORS,
   isRoomCode,
@@ -119,6 +120,8 @@ const localShip: ShipVisual & { fresh: boolean } = {
   rudder: 0,
   port: 0,
   starboard: 0,
+  bow: 0,
+  stern: 0,
   hoist: 0,
   boom: 0,
   jibHoist: 0,
@@ -126,6 +129,8 @@ const localShip: ShipVisual & { fresh: boolean } = {
   vane: 0,
   luff: 0,
   jibLuff: 0,
+  speed: 0,
+  sway: 0,
 }
 
 /** Written every sim frame. The network loop copies it; the sim does not wait on the socket. */
@@ -143,6 +148,10 @@ export function noteLocalShip(
   vane: number,
   luff: number,
   jibLuff: number,
+  speed: number,
+  sway: number,
+  bow: number,
+  stern: number,
 ) {
   localShip.x = x
   localShip.z = z
@@ -157,6 +166,10 @@ export function noteLocalShip(
   localShip.vane = vane
   localShip.luff = luff
   localShip.jibLuff = jibLuff
+  localShip.speed = speed
+  localShip.sway = sway
+  localShip.bow = bow
+  localShip.stern = stern
   localShip.fresh = true
 }
 
@@ -216,6 +229,10 @@ function rememberShip(ship: ShipMessage) {
     known.vane = ship.vane
     known.luff = ship.luff
     known.jibLuff = ship.jibLuff
+    known.speed = ship.speed
+    known.sway = ship.sway
+    known.bow = ship.bow
+    known.stern = ship.stern
     known.at = performance.now()
     return
   }
@@ -294,6 +311,7 @@ function resetMatch(notice: string | null) {
   hostSeats = []
   localShip.fresh = false
   clearShips()
+  clearAis()
   releaseWind()
   clearJoinTimeout()
   clearRoomClose()
@@ -390,6 +408,10 @@ async function sendShip() {
     vane: round(localShip.vane, 4),
     luff: round(localShip.luff, 3),
     jibLuff: round(localShip.jibLuff, 3),
+    speed: round(localShip.speed, 2),
+    sway: round(localShip.sway, 2),
+    bow: round(localShip.bow, 3),
+    stern: round(localShip.stern, 3),
   }
   try {
     await conn.invoke('Ship', message)
@@ -482,6 +504,26 @@ function onRoom(room: RoomMessage) {
   })
 }
 
+function onHail(fromId: string, fromName: string, toId: string, text: string) {
+  if (state.role !== 'host' && state.role !== 'guest') return
+  if (typeof fromId !== 'string' || typeof text !== 'string') return
+  if (toId !== state.playerId) return
+  receiveAis(fromId, typeof fromName === 'string' ? fromName : 'Sailor', text)
+}
+
+/** Hand one AIS text to the room. The server stamps the sender. Null means it went out. */
+export async function sendHail(toPlayerId: string, text: string): Promise<string | null> {
+  const conn = connection
+  if (!conn || (state.role !== 'host' && state.role !== 'guest') || state.phase !== 'sailing') return 'Not in a room.'
+  if (conn.state !== signalR.HubConnectionState.Connected) return 'Not connected.'
+  try {
+    await conn.invoke('Hail', toPlayerId, text)
+    return null
+  } catch (err) {
+    return faultText(err, 'Could not send.')
+  }
+}
+
 function onWind(wind: WindSample) {
   if (state.role !== 'guest') return
   if (!Number.isFinite(wind.blowYaw) || !Number.isFinite(wind.speed)) return
@@ -538,6 +580,7 @@ function wire(conn: signalR.HubConnection) {
     rememberShip(ship)
   })
   conn.on('Wind', onWind)
+  conn.on('Hail', onHail)
   conn.on('Dismissed', onDismissed)
   conn.on('RoomClosed', onRoomClosed)
   conn.onreconnecting(() => {
@@ -618,6 +661,7 @@ function prepareBoat() {
   localShip.fresh = false
   resetHelm()
   resetSail()
+  clearAis()
 }
 
 export function sailAlone(rawName: string) {
@@ -686,6 +730,7 @@ export async function joinGame(rawName: string, rawCode: string) {
   prepareBoat()
   hostSeats = []
   clearShips()
+  clearAis()
   joinExtended = false
   nextPresentAt = 0
   update({
