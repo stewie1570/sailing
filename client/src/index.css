@@ -1325,6 +1325,10 @@ html:-webkit-full-screen {
   background: rgba(229, 72, 77, 0.16);
   color: #ffd0d1;
 }
+.menu-theory {
+  margin-top: 16px;
+}
+
 .menu-foot {
   margin: 16px 0 0;
   font-size: 12px;

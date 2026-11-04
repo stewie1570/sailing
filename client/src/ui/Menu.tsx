@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { cleanName, filterCodeInput, isRoomCode } from '../net/protocol'
 import { hostGame, joinGame, leaveGame, sailAlone, useSession } from '../net/session'
 
-export function Menu() {
+export function Menu({ onLearn, hidden = false }: { onLearn: () => void; hidden?: boolean }) {
   const session = useSession()
   const [name, setName] = useState(session.name)
   const [code, setCode] = useState('')
@@ -11,7 +11,7 @@ export function Menu() {
   const hosting = connecting && session.role === 'host'
 
   return (
-    <div className="menu">
+    <div className="menu" hidden={hidden}>
       <div className="menu-sky" />
       <div className="menu-card">
         <p className="menu-kicker">Sailing and docking</p>
@@ -87,6 +87,10 @@ export function Menu() {
             Cancel
           </button>
         )}
+
+        <button type="button" className="menu-choice menu-theory" disabled={connecting} onClick={onLearn}>
+          Sailing theory
+        </button>
 
         <p className="menu-foot">
           The host keeps the room. Each sailor steers their own boat.
