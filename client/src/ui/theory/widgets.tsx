@@ -1,9 +1,6 @@
 export type SlideProps = {
   playing: boolean
   onHold: () => void
-  audio: boolean
-  /** Latest sentence to speak when narration is turned on. */
-  lineRef: { current: string }
 }
 
 export function FigureCopy({

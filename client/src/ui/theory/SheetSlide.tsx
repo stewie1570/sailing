@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Boat, Stage } from './diagram'
 import { lerp, loopFade, sailLook, track } from './math'
-import { useLessonAudio } from './narration'
 import { useSeconds } from './useSeconds'
 import { FigureCopy, SheetRange, type SlideProps } from './widgets'
 
@@ -53,7 +52,7 @@ function statusFor(sheet: number) {
   return 'Sheet partly in'
 }
 
-export function SheetSlide({ playing, onHold, audio, lineRef }: SlideProps) {
+export function SheetSlide({ playing, onHold }: SlideProps) {
   const { time, reduced, seek, hold } = useSeconds(playing)
   const { time: flutter } = useSeconds(!reduced)
   const [sheet, setSheet] = useState<number | null>(null)
@@ -67,8 +66,6 @@ export function SheetSlide({ playing, onHold, audio, lineRef }: SlideProps) {
   const pose = handsOn ? poseFromSheet(sheet ?? 0) : poseAt(time)
   const look = sailLook(-HEADING, pose.boom)
   const slider = handsOn ? (sheet ?? 0) : sliderOf(pose.boom)
-  const narrated = reduced ? BEATS.join(' ') : pose.caption
-  useLessonAudio(audio, lineRef, narrated, RULE)
 
   return (
     <>

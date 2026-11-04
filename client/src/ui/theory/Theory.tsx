@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CourseSlide } from './CourseSlide'
 import { GybeSlide } from './GybeSlide'
-import { speakNow, stopNarration } from './narration'
 import { SheetSlide } from './SheetSlide'
 import { TrimSlide } from './TrimSlide'
 import { useReducedMotion } from './useSeconds'
@@ -35,8 +34,6 @@ export function Theory({ onBack }: { onBack: () => void }) {
   const reduced = useReducedMotion()
   const [index, setIndex] = useState(0)
   const [playing, setPlaying] = useState(true)
-  const [audio, setAudio] = useState(false)
-  const lineRef = useRef('')
   const rootRef = useRef<HTMLDivElement>(null)
   const swipe = useRef<{ x: number; y: number } | null>(null)
   const slide = SLIDES[index] ?? SLIDES[0]
@@ -110,7 +107,7 @@ export function Theory({ onBack }: { onBack: () => void }) {
           </button>
         </header>
         <div className="theory-body" key={index}>
-          <View playing={playing && !reduced} onHold={() => setPlaying(false)} audio={audio} lineRef={lineRef} />
+          <View playing={playing && !reduced} onHold={() => setPlaying(false)} />
         </div>
         <nav className="theory-nav" aria-label="Slides">
           <button type="button" onClick={() => go(index - 1)} disabled={index === 0}>
@@ -143,21 +140,6 @@ export function Theory({ onBack }: { onBack: () => void }) {
               <span>{playing ? 'Pause' : 'Play'}</span>
             </button>
           )}
-          <button
-            type="button"
-            className={`theory-toggle theory-audio${audio ? ' is-on' : ''}`}
-            aria-pressed={audio}
-            aria-label={audio ? 'Stop narration' : 'Narrate the lesson'}
-            onClick={() => {
-              const next = !audio
-              if (next) speakNow(lineRef.current)
-              else stopNarration()
-              setAudio(next)
-            }}
-          >
-            <AudioIcon on={audio} />
-            <span>Audio</span>
-          </button>
         </nav>
       </div>
     </div>
@@ -176,25 +158,6 @@ function PlayIcon() {
   return (
     <svg className="theory-ico" viewBox="0 0 16 16" aria-hidden="true">
       <path fill="currentColor" d="M4.2 2.3v11.4L13.6 8z" />
-    </svg>
-  )
-}
-
-function AudioIcon({ on }: { on: boolean }) {
-  return (
-    <svg className="theory-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path fill="currentColor" d="M2.1 6.1h2.5L8.2 3v10L4.6 9.9H2.1z" />
-      {on ? (
-        <path
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.4"
-          strokeLinecap="round"
-          d="M10.3 6a3.1 3.1 0 0 1 0 4M12.2 4.3a5.5 5.5 0 0 1 0 7.4"
-        />
-      ) : (
-        <path fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" d="M10.6 6.1 14 9.5M14 6.1l-3.4 3.4" />
-      )}
     </svg>
   )
 }

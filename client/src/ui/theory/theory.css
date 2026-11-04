@@ -95,11 +95,6 @@
   display: block;
 }
 
-.theory-nav button.theory-audio.is-on {
-  background: rgba(61, 220, 132, 0.18);
-  border-color: rgba(61, 220, 132, 0.55);
-}
-
 .theory-back {
   flex: 0 0 auto;
 }
