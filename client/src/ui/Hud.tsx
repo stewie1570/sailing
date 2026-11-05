@@ -105,26 +105,26 @@ export function Hud({ loading }: { loading: boolean }) {
     return () => clearInterval(id)
   }, [])
 
+  const inRoom = session.role !== 'solo' && (!!session.code || session.roster.length > 0)
+
   return (
     <>
-      <div className="hud hud-top-left">
-        <div className="hud-title">Lake Windermere</div>
-        <div className="hud-sub">
-          {loading ? 'Loading chart…' : session.role === 'solo' ? 'On your own' : 'Each boat is steered from its own screen'}
+      {inRoom && (
+        <div className="hud hud-top-left">
+          <RoomChip />
+          {session.roster.length > 0 && (
+            <div className="room-names">
+              {session.roster.map((seat) => (
+                <span key={seat.playerId}>
+                  {seat.name}
+                  {seat.playerId === session.playerId ? ' (you)' : ''}
+                  {seat.host ? ' · host' : ''}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <RoomChip />
-        {session.role !== 'solo' && session.roster.length > 0 && (
-          <div className="room-names">
-            {session.roster.map((seat) => (
-              <span key={seat.playerId}>
-                {seat.name}
-                {seat.playerId === session.playerId ? ' (you)' : ''}
-                {seat.host ? ' · host' : ''}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="hud hud-top-right">
         <div className="hud-row">

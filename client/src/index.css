@@ -76,14 +76,25 @@ html:-webkit-full-screen {
   left: 50%;
   transform: translateX(-50%);
   text-align: center;
-  min-width: 112px;
-  padding: 6px 16px 8px;
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.hud-speed-label,
+.hud-speed-value,
+.hud-speed-unit {
+  color: #f7fbff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.9);
 }
 .hud-speed-label {
   font-size: 10px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(232, 238, 244, 0.55);
 }
 .hud-speed-value {
   font-size: 28px;
@@ -95,7 +106,6 @@ html:-webkit-full-screen {
   margin-left: 4px;
   font-size: 14px;
   font-weight: 500;
-  color: rgba(232, 238, 244, 0.72);
 }
 @media (max-width: 900px) {
   .hud-speed {
@@ -104,15 +114,6 @@ html:-webkit-full-screen {
   }
 }
 
-.hud-title {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-.hud-sub {
-  font-size: 12px;
-  color: rgba(232, 238, 244, 0.7);
-}
 .hud-row {
   display: flex;
   align-items: center;
@@ -918,8 +919,24 @@ html:-webkit-full-screen {
   }
   .sheet-track { height: 92px; }
 }
-/* Phones only. A tablet (short side 744+) and a desktop keep the panel, the scale, and the backing. */
+/* Phones only. A tablet (short side 744+) and a desktop keep the panel, the scale, and the backing.
+   The status card (link and frame rate) goes away; Full and Menu stay as buttons. */
 @media (max-width: 500px), (max-height: 500px) and (max-width: 950px) {
+  .hud-top-right {
+    background: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 0;
+  }
+  .hud-top-right .hud-row:not(.quality) { display: none; }
+  .hud-top-right .quality { margin-top: 0; }
+  .hud-top-right .quality button {
+    background: rgba(8, 18, 30, 0.72);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  }
   .throttles {
     --lever: 96px;
     --slot: 36px;
@@ -1294,7 +1311,6 @@ html:-webkit-full-screen {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
   pointer-events: auto;
 }
 .room-kicker {
