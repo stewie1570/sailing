@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from 'react'
-
 /** The view never redraws faster than this. Thirty is enough for the water and the camera. */
 export const MAX_FPS = 30
 
@@ -25,39 +23,19 @@ export const QUALITY_PRESETS: Record<QualityLevel, QualityPreset> = {
   high: { maxDpr: 2, terrainSegments: [512, 384], waterSegments: [224, 168], treeFraction: 1, anisotropy: 4, fineDetail: true },
 }
 
-const STORAGE_KEY = 'sailing.quality'
-
-// A previous build remembered a shrunken drawing buffer. Drop it so the picture comes back.
-if (typeof localStorage !== 'undefined') localStorage.removeItem('sailing.pixels')
-
-function initialQuality(): QualityLevel {
-  const saved = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null
-  if (saved === 'low' || saved === 'medium' || saved === 'high') return saved
-  // Older tablets: fewer cores and a coarse DPR usually means a weaker GPU. Start low and let adaptive
-  // quality stay there if it is needed; users can override from the HUD.
-  const cores = navigator.hardwareConcurrency ?? 4
-  const isTouchTablet = navigator.maxTouchPoints > 1
-  return cores <= 4 && isTouchTablet ? 'low' : 'medium'
+// A previous build remembered a shrunken drawing buffer, and a chosen quality level.
+// The picture is fixed at low now.
+if (typeof localStorage !== 'undefined') {
+  localStorage.removeItem('sailing.pixels')
+  localStorage.removeItem('sailing.quality')
 }
 
-let quality: QualityLevel = initialQuality()
-const listeners = new Set<() => void>()
-
-export function setQuality(level: QualityLevel) {
-  if (level === quality) return
-  quality = level
-  localStorage.setItem(STORAGE_KEY, level)
-  listeners.forEach((l) => l())
-}
+/** The picture is fixed at low. */
+const quality: QualityLevel = 'low'
 
 export function useQuality(): QualityLevel {
-  return useSyncExternalStore(
-    (cb) => { listeners.add(cb); return () => listeners.delete(cb) },
-    () => quality,
-  )
+  return quality
 }
-
-export function getQuality() { return quality }
 
 /** Frame statistics written from inside the render loop and polled by the HUD. */
 export const perf = { fps: 0, frameMs: 0, drawCalls: 0, triangles: 0 }

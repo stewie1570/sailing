@@ -200,6 +200,11 @@ html:-webkit-full-screen {
   background: rgba(61, 220, 132, 0.22);
   border-color: rgba(61, 220, 132, 0.65);
 }
+/* Stays lit while a screw or thruster is out of stop, including on the sailing tab. */
+.helm-tabs button.engines-on {
+  color: #9cf0c0;
+  text-shadow: 0 0 8px rgba(61, 220, 132, 0.95);
+}
 .helm-tabs button.helm-gear {
   flex: 0 0 40px;
   padding: 6px;
