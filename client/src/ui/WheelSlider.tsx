@@ -45,20 +45,59 @@ export function WheelSlider() {
       const el = rootRef.current
       if (!el) return
       const w = wheelScreen
-      const diameter = Math.max(168, Math.min(460, (w.radius > 4 ? w.radius : 36) * 2.05))
       const vw = window.innerWidth
       const vh = window.innerHeight
+      const compact = vw <= 720 || vh <= 520
+      const radius = w.radius > 4 ? w.radius : compact ? 28 : 36
+      const cap = compact ? Math.min(136, vw * 0.38) : 460
+      const floor = compact ? Math.min(92, cap) : 168
+      const diameter = Math.max(floor, Math.min(cap, radius * (compact ? 1.35 : 2.05)))
       let x = w.x
       let y = w.y
       let onWheel = w.visible && Number.isFinite(x) && Number.isFinite(y)
       if (!onWheel || x < -120 || y < -120 || x > vw + 120 || y > vh + 120) {
         onWheel = false
-        x = vw * 0.5
-        y = vh - 78
+        x = vw * (compact ? 0.34 : 0.5)
+        y = vh - (compact ? 118 : 78)
       }
       const half = diameter / 2
       x = Math.min(vw - half - 10, Math.max(half + 10, x))
       y = Math.min(vh - 28, Math.max(28, y))
+      if (compact) {
+        const obstacles = ['.throttles', '.navmap']
+          .map((sel) => document.querySelector(sel)?.getBoundingClientRect())
+          .filter((rect): rect is DOMRect => !!rect && rect.width > 2 && rect.height > 2)
+        const hits = (cx: number, cy: number, rect: DOMRect) => {
+          const top = cy - 22
+          const bottom = top + 48
+          const left = cx - half
+          const right = cx + half
+          return right > rect.left + 2 && left < rect.right - 2 && bottom > rect.top + 2 && top < rect.bottom - 2
+        }
+        const hitsAny = (cx: number, cy: number) => obstacles.some((rect) => hits(cx, cy, rect))
+        const clamp = (cx: number, cy: number) => ({
+          x: Math.min(vw - half - 8, Math.max(half + 8, cx)),
+          y: Math.min(vh - 28, Math.max(36, cy)),
+        })
+        if (hitsAny(x, y)) {
+          const spots: [number, number][] = []
+          for (const rect of obstacles) {
+            spots.push([rect.left - 8 - half, y], [rect.right + 8 + half, y], [x, rect.top - 28])
+            spots.push([rect.left - 8 - half, rect.top - 28], [rect.right + 8 + half, rect.top - 28])
+          }
+          for (const [cx, cy] of spots) {
+            const next = clamp(cx, cy)
+            if (!hitsAny(next.x, next.y)) {
+              x = next.x
+              y = next.y
+              break
+            }
+          }
+        }
+        const parked = clamp(x, y)
+        x = parked.x
+        y = parked.y
+      }
       el.style.width = `${diameter}px`
       el.style.transform = `translate3d(${x - half}px, ${y - 22}px, 0)`
       el.style.opacity = onWheel ? '1' : '0.92'

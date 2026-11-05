@@ -240,7 +240,7 @@ export function SailingControls() {
         </div>
       </div>
 
-      <div className="furler-block">
+      <div className="furler-block furler-jib">
         <div className="furler-head">
           <span className="sail-toggle-name">Jib</span>
           <span className="sail-toggle-state" ref={jibTrim}>
@@ -250,7 +250,7 @@ export function SailingControls() {
         <ClothFurler label="Jib furler" value={helm.jib} control="jib" onValue={(jib) => updateHelm({ jib })} />
       </div>
 
-      <div className="furler-block">
+      <div className="furler-block furler-main">
         <div className="furler-head">
           <span className="sail-toggle-name">Main</span>
           <span className="sail-toggle-state" ref={trim}>
