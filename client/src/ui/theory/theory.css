@@ -386,7 +386,30 @@
 
 .theory-compare .theory-stage {
   max-height: none;
-  aspect-ratio: 640 / 460;
+}
+
+/* Narrow and tall: crop in on the boat (viewBox 360×408) instead of letterboxing a wide chart. */
+.theory-stage.is-tight {
+  width: min(100%, calc(74dvh * 360 / 408));
+  aspect-ratio: 360 / 408;
+}
+
+/* Short viewports, including phones in landscape. The desktop fit (100dvh - 380px)
+   collapses the diagram to a sliver; give it most of the screen and let the copy scroll. */
+@media (max-height: 539px) {
+  .theory-stage,
+  .theory-stage.is-tight {
+    width: min(100%, max(240px, calc(82dvh * 640 / 460)));
+    aspect-ratio: 640 / 460;
+  }
+  .theory-frame {
+    gap: 6px;
+    padding:
+      max(8px, env(safe-area-inset-top))
+      max(8px, env(safe-area-inset-right))
+      max(8px, env(safe-area-inset-bottom))
+      max(8px, env(safe-area-inset-left));
+  }
 }
 
 .theory-compare figcaption {
@@ -420,6 +443,15 @@
     flex: 1;
     padding-left: 8px;
     padding-right: 8px;
+  }
+}
+
+/* A short landscape phone is also narrow, so the stacked header above would
+   push the diagram below the fold. Keep the title beside the menu button. */
+@media (max-height: 539px) {
+  .theory-top {
+    flex-direction: row;
+    align-items: flex-start;
   }
 }
 

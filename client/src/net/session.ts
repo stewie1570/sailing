@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import { resetHelm } from '../scene/boat/helm'
 import { resetSail } from '../scene/boat/sail'
 import { followWind, getWind, releaseWind, resetWind } from '../scene/boat/wind'
+import { exitFullscreen } from '../ui/fullscreen'
 import { clearAis, receiveAis } from './aisMail'
 import {
   MAX_SAILORS,
@@ -308,6 +309,7 @@ async function shutdown() {
 }
 
 function resetMatch(notice: string | null) {
+  exitFullscreen()
   hostSeats = []
   localShip.fresh = false
   clearShips()
@@ -760,6 +762,8 @@ export async function joinGame(rawName: string, rawCode: string) {
 }
 
 export async function leaveGame() {
+  // Before any await, so the Leave click is still a user gesture and the browser will exit.
+  exitFullscreen()
   const token = ++op
   const conn = connection
   const role = state.role
@@ -777,6 +781,7 @@ export async function leaveGame() {
 }
 
 async function drop(notice: string) {
+  exitFullscreen()
   const token = ++op
   const conn = connection
   if (conn && conn.state === signalR.HubConnectionState.Connected) {

@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { BEAM, clamp } from './math'
 
 const PI = Math.PI
@@ -8,6 +8,26 @@ export const VW = 640
 export const VH = 460
 export const BOAT_X = 320
 export const BOAT_Y = 214
+
+/**
+ * Phone portrait crop. The full 640×460 frame leaves the boat tiny once the
+ * stage can only be as wide as the screen. This window keeps the hull, the
+ * tack/gybe ring, and the wind vane, and matches `.theory-stage.is-tight`.
+ */
+const TIGHT_VIEW = '140 6 360 408'
+const TIGHT_QUERY = '(max-width: 720px) and (min-height: 540px)'
+
+function useTightDiagram() {
+  const [tight, setTight] = useState(() => window.matchMedia(TIGHT_QUERY).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(TIGHT_QUERY)
+    const sync = () => setTight(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+  return tight
+}
 const SAIL = 70
 const ARC = 98
 
@@ -531,9 +551,10 @@ export function Stage({
   alert?: boolean
 }) {
   const uid = useId().replace(/:/g, '')
+  const tight = useTightDiagram()
   return (
-    <div className={`theory-stage${alert ? ' is-alert' : ''}`}>
-      <svg viewBox={`0 0 ${VW} ${VH}`} className="theory-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <div className={`theory-stage${tight ? ' is-tight' : ''}${alert ? ' is-alert' : ''}`}>
+      <svg viewBox={tight ? TIGHT_VIEW : `0 0 ${VW} ${VH}`} className="theory-svg" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <Water uid={uid} time={time} />
         <WindVane windFrom={windFrom} time={time} />
         {children}

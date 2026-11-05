@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { setHelmMode, useController, useControllerLoop } from '../input/controller'
-import { useHelmKeyboard } from '../scene/boat/helm'
+import { useHelm, useHelmKeyboard } from '../scene/boat/helm'
+import { enginesRunning } from '../scene/boat/telemetry'
 import { ControllerSetup } from './ControllerSetup'
 import { SailingControls } from './SailingControls'
 import { Throttles } from './Throttles'
@@ -19,6 +20,8 @@ function GearIcon() {
 
 export function HelmDock() {
   const { helmMode } = useController()
+  const helm = useHelm()
+  const enginesOn = enginesRunning(helm.port, helm.starboard, helm.bow, helm.stern)
   const [controllers, setControllers] = useState(false)
   useHelmKeyboard(helmMode)
   useControllerLoop()
@@ -33,7 +36,8 @@ export function HelmDock() {
             id="tab-engine"
             aria-selected={helmMode === 'engine'}
             aria-controls="panel-engine"
-            className={helmMode === 'engine' ? 'active' : ''}
+            className={[helmMode === 'engine' ? 'active' : '', enginesOn ? 'engines-on' : ''].filter(Boolean).join(' ')}
+            title={enginesOn ? 'Engines running' : undefined}
             onClick={() => setHelmMode('engine')}
           >
             Engine

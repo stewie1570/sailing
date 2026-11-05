@@ -5,40 +5,8 @@ import { HelmDock } from './HelmDock'
 import { AisNote } from './AisNote'
 import { NavMap } from './NavMap'
 import { WheelSlider } from './WheelSlider'
-import { perf, setQuality, useQuality, type QualityLevel } from '../scene/quality'
-
-const LEVELS: QualityLevel[] = ['low', 'medium', 'high']
-
-type FullscreenDoc = Document & {
-  webkitFullscreenElement?: Element | null
-  webkitExitFullscreen?: () => Promise<void> | void
-}
-
-type FullscreenEl = HTMLElement & {
-  webkitRequestFullscreen?: () => Promise<void> | void
-}
-
-function fullscreenElement() {
-  const doc = document as FullscreenDoc
-  return document.fullscreenElement ?? doc.webkitFullscreenElement ?? null
-}
-
-function canFullscreen() {
-  const el = document.documentElement as FullscreenEl
-  return typeof el.requestFullscreen === 'function' || typeof el.webkitRequestFullscreen === 'function'
-}
-
-async function enterFullscreen() {
-  const el = document.documentElement as FullscreenEl
-  if (el.requestFullscreen) await el.requestFullscreen()
-  else el.webkitRequestFullscreen?.()
-}
-
-async function exitFullscreen() {
-  const doc = document as FullscreenDoc
-  if (document.exitFullscreen) await document.exitFullscreen()
-  else doc.webkitExitFullscreen?.()
-}
+import { perf } from '../scene/quality'
+import { canFullscreen, enterFullscreen, exitFullscreen, fullscreenElement } from './fullscreen'
 
 function FullscreenButton() {
   const [active, setActive] = useState(() => !!fullscreenElement())
@@ -129,7 +97,6 @@ function RoomChip() {
 
 export function Hud({ loading }: { loading: boolean }) {
   const session = useSession()
-  const quality = useQuality()
   const [stats, setStats] = useState({ fps: 0, drawCalls: 0, triangles: 0 })
   const [confirmLeave, setConfirmLeave] = useState(false)
 
@@ -138,26 +105,26 @@ export function Hud({ loading }: { loading: boolean }) {
     return () => clearInterval(id)
   }, [])
 
+  const inRoom = session.role !== 'solo' && (!!session.code || session.roster.length > 0)
+
   return (
     <>
-      <div className="hud hud-top-left">
-        <div className="hud-title">Lake Windermere</div>
-        <div className="hud-sub">
-          {loading ? 'Loading chart…' : session.role === 'solo' ? 'On your own' : 'Each boat is steered from its own screen'}
+      {inRoom && (
+        <div className="hud hud-top-left">
+          <RoomChip />
+          {session.roster.length > 0 && (
+            <div className="room-names">
+              {session.roster.map((seat) => (
+                <span key={seat.playerId}>
+                  {seat.name}
+                  {seat.playerId === session.playerId ? ' (you)' : ''}
+                  {seat.host ? ' · host' : ''}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <RoomChip />
-        {session.role !== 'solo' && session.roster.length > 0 && (
-          <div className="room-names">
-            {session.roster.map((seat) => (
-              <span key={seat.playerId}>
-                {seat.name}
-                {seat.playerId === session.playerId ? ' (you)' : ''}
-                {seat.host ? ' · host' : ''}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="hud hud-top-right">
         <div className="hud-row">
@@ -175,11 +142,6 @@ export function Hud({ loading }: { loading: boolean }) {
             </>
           ) : (
             <>
-              {LEVELS.map((l) => (
-                <button key={l} className={l === quality ? 'active' : ''} onClick={() => setQuality(l)}>
-                  {l}
-                </button>
-              ))}
               <FullscreenButton />
               <button type="button" onClick={() => setConfirmLeave(true)}>Menu</button>
             </>

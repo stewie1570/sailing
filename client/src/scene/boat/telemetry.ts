@@ -34,9 +34,14 @@ export function formatKnots(speed: number, sway: number) {
  */
 const DRIVE_ON = 0.02
 
+/** Screws or thrusters are out of the stop notch. */
+export function enginesRunning(port: number, starboard: number, bow: number, stern: number) {
+  return [port, starboard, bow, stern].some((value) => Number.isFinite(value) && Math.abs(value) > DRIVE_ON)
+}
+
 /** Engine, sail, both, or neither. The chart hover uses this wording. */
 export function propulsionLabel(port: number, starboard: number, bow: number, stern: number, hoist: number, jibHoist: number) {
-  const powered = [port, starboard, bow, stern].some((value) => Number.isFinite(value) && Math.abs(value) > DRIVE_ON)
+  const powered = enginesRunning(port, starboard, bow, stern)
   const sailing = [hoist, jibHoist].some((value) => Number.isFinite(value) && value > DRIVE_ON)
   if (powered && sailing) return 'Engine and sail'
   if (powered) return 'Under engine'

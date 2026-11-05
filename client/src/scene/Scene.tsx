@@ -10,16 +10,16 @@ import { chaseOffset, spawnPose } from './boat/physics'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
-import { MAX_FPS, perf, QUALITY_PRESETS, getQuality, setQuality, useQuality } from './quality'
+import { MAX_FPS, perf, QUALITY_PRESETS, useQuality } from './quality'
 import { Sky } from './Sky'
 import { Terrain } from './Terrain'
 import { Trees } from './Trees'
 import { Water } from './Water'
 
-/** Samples frame time and renderer stats for the HUD; steps quality down if the device cannot keep up. */
+/** Samples frame time and renderer stats for the HUD. */
 function PerfMonitor() {
   const { gl } = useThree()
-  const acc = useMemo(() => ({ frames: 0, time: 0, slowSeconds: 0 }), [])
+  const acc = useMemo(() => ({ frames: 0, time: 0 }), [])
   useFrame((_, delta) => {
     acc.frames++
     acc.time += delta
@@ -28,14 +28,6 @@ function PerfMonitor() {
       perf.frameMs = (acc.time / acc.frames) * 1000
       perf.drawCalls = gl.info.render.calls
       perf.triangles = gl.info.render.triangles
-      // Sustained < 24 fps for ~4 s drops one quality level (never below low).
-      acc.slowSeconds = perf.fps < 24 ? acc.slowSeconds + acc.time : 0
-      if (acc.slowSeconds > 4) {
-        acc.slowSeconds = 0
-        const q = getQuality()
-        if (q === 'high') setQuality('medium')
-        else if (q === 'medium') setQuality('low')
-      }
       acc.frames = 0
       acc.time = 0
     }
