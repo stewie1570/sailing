@@ -64,9 +64,15 @@ export function WheelSlider() {
       x = Math.min(vw - half - 10, Math.max(half + 10, x))
       y = Math.min(vh - 28, Math.max(28, y))
       if (compact) {
-        const obstacles = ['.throttles', '.navmap']
-          .map((sel) => document.querySelector(sel)?.getBoundingClientRect())
-          .filter((rect): rect is DOMRect => !!rect && rect.width > 2 && rect.height > 2)
+        const rectOf = (sel: string) => {
+          const rect = document.querySelector(sel)?.getBoundingClientRect()
+          return rect && rect.width > 2 && rect.height > 2 ? rect : null
+        }
+        const obstacles = ['.throttles', '.navmap'].map(rectOf).filter((rect): rect is DOMRect => !!rect)
+        // Phone speed sits over the wheel. Dodge it here, and only here, so a tablet keeps its wheel.
+        const phone = vw <= 500 || (vh <= 500 && vw <= 950)
+        const speed = phone ? rectOf('.hud-speed') : null
+        const blocked = speed ? [...obstacles, speed] : obstacles
         const hits = (cx: number, cy: number, rect: DOMRect) => {
           const top = cy - 22
           const bottom = top + 48
@@ -74,13 +80,14 @@ export function WheelSlider() {
           const right = cx + half
           return right > rect.left + 2 && left < rect.right - 2 && bottom > rect.top + 2 && top < rect.bottom - 2
         }
-        const hitsAny = (cx: number, cy: number) => obstacles.some((rect) => hits(cx, cy, rect))
+        const hitsAny = (cx: number, cy: number) => blocked.some((rect) => hits(cx, cy, rect))
         const clamp = (cx: number, cy: number) => ({
           x: Math.min(vw - half - 8, Math.max(half + 8, cx)),
           y: Math.min(vh - 28, Math.max(36, cy)),
         })
         if (hitsAny(x, y)) {
           const spots: [number, number][] = []
+          if (speed) spots.push([x, speed.top - 28], [speed.left - 8 - half, y], [speed.right + 8 + half, y])
           for (const rect of obstacles) {
             spots.push([rect.left - 8 - half, y], [rect.right + 8 + half, y], [x, rect.top - 28])
             spots.push([rect.left - 8 - half, rect.top - 28], [rect.right + 8 + half, rect.top - 28])
