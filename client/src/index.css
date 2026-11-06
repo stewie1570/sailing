@@ -54,16 +54,27 @@ html:-webkit-full-screen {
   line-height: 1.4;
 }
 
-.hud-top-left {
+.hud-stack {
+  position: absolute;
+  z-index: 5;
   top: max(12px, env(safe-area-inset-top));
   left: max(12px, env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   max-width: min(420px, calc(100vw - 24px));
+  pointer-events: none;
 }
-.hud-top-right {
-  top: max(12px, env(safe-area-inset-top));
-  right: max(12px, env(safe-area-inset-right));
-  text-align: right;
+.hud-stack > .hud {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  max-width: 100%;
 }
+.hud-status { text-align: left; }
+.hud-status .hud-row { justify-content: flex-start; }
 .hud-bottom {
   bottom: max(12px, env(safe-area-inset-bottom));
   left: 50%;
@@ -893,8 +904,10 @@ html:-webkit-full-screen {
   .sheet-knob::after { left: 6px; right: 6px; top: 7px; }
 }
 @media (max-height: 520px) {
-  .throttles {
-    --lever: 112px;
+  .throttles { --lever: 112px; }
+  /* Sheets sit beside the furlers here. That wider box is the sailing tab only,
+     so the engine levers stay on the compact panel. */
+  .throttles.mode-sailing {
     width: min(420px, calc(100vw - 184px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   }
   .navmap canvas { height: 96px; }
@@ -922,7 +935,7 @@ html:-webkit-full-screen {
 /* Phones only. A tablet (short side 744+) and a desktop keep the panel, the scale, and the backing.
    The status card (link and frame rate) goes away; Full and Menu stay as buttons. */
 @media (max-width: 500px), (max-height: 500px) and (max-width: 950px) {
-  .hud-top-right {
+  .hud-status {
     background: none;
     border: 0;
     border-radius: 0;
@@ -931,9 +944,9 @@ html:-webkit-full-screen {
     -webkit-backdrop-filter: none;
     padding: 0;
   }
-  .hud-top-right .hud-row:not(.quality) { display: none; }
-  .hud-top-right .quality { margin-top: 0; }
-  .hud-top-right .quality button {
+  .hud-status .hud-row:not(.quality) { display: none; }
+  .hud-status .quality { margin-top: 0; }
+  .hud-status .quality button {
     background: rgba(8, 18, 30, 0.72);
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
   }
@@ -941,7 +954,6 @@ html:-webkit-full-screen {
     --lever: 96px;
     --slot: 36px;
     --gap: 6px;
-    width: max-content;
     max-width: calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right));
     padding: 0;
     overflow: visible;
@@ -1002,7 +1014,8 @@ html:-webkit-full-screen {
   .sail-panel .sheet-row { margin-top: 6px; }
 }
 @media (max-width: 500px) {
-  .throttles {
+  .throttles.mode-engine,
+  .throttles.mode-sailing {
     width: min(168px, calc(100vw - 184px - env(safe-area-inset-left) - env(safe-area-inset-right)));
   }
   .hud-speed {
@@ -1015,13 +1028,15 @@ html:-webkit-full-screen {
     top: max(12px, env(safe-area-inset-top));
     bottom: auto;
   }
-  .throttles { max-width: calc(100vw - 184px - env(safe-area-inset-left) - env(safe-area-inset-right)); }
+  .throttles.mode-sailing {
+    width: max-content;
+    max-width: calc(100vw - 184px - env(safe-area-inset-left) - env(safe-area-inset-right));
+  }
   .sail-panel {
     width: max-content;
     grid-template-columns: auto max-content;
   }
   .furler { flex: 0 0 96px; width: 96px; min-width: 96px; }
-  .thruster-track { flex: 0 0 148px; width: 148px; min-width: 148px; }
   .sheet-col { min-width: 40px; }
   .sheet-track { height: 84px; }
 }

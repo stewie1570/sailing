@@ -27,7 +27,7 @@ export function HelmDock() {
   useControllerLoop()
 
   return (
-    <div className="hud throttles">
+    <div className={`hud throttles mode-${helmMode}`}>
       <div className="helm-tabs">
         <div className="helm-tablist" role="tablist" aria-label="Boat controls">
           <button
