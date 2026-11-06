@@ -109,44 +109,46 @@ export function Hud({ loading }: { loading: boolean }) {
 
   return (
     <>
-      {inRoom && (
-        <div className="hud hud-top-left">
-          <RoomChip />
-          {session.roster.length > 0 && (
-            <div className="room-names">
-              {session.roster.map((seat) => (
-                <span key={seat.playerId}>
-                  {seat.name}
-                  {seat.playerId === session.playerId ? ' (you)' : ''}
-                  {seat.host ? ' · host' : ''}
-                </span>
-              ))}
-            </div>
-          )}
+      <div className="hud-stack">
+        <div className="hud hud-status">
+          <div className="hud-row">
+            <span className={`dot ${linkDot(session)}`} />
+            <span className="hud-label">{linkLabel(session)}</span>
+          </div>
+          <div className="hud-row hud-dim">
+            {stats.fps > 0 ? `${stats.fps.toFixed(0)} fps` : '— fps'} · {stats.drawCalls} draws · {(stats.triangles / 1000).toFixed(0)}k tris
+          </div>
+          <div className="hud-row quality">
+            {confirmLeave ? (
+              <>
+                <button type="button" onClick={() => void leaveGame()}>Leave</button>
+                <button type="button" onClick={() => setConfirmLeave(false)}>Stay</button>
+              </>
+            ) : (
+              <>
+                <FullscreenButton />
+                <button type="button" onClick={() => setConfirmLeave(true)}>Menu</button>
+              </>
+            )}
+          </div>
         </div>
-      )}
 
-      <div className="hud hud-top-right">
-        <div className="hud-row">
-          <span className={`dot ${linkDot(session)}`} />
-          <span className="hud-label">{linkLabel(session)}</span>
-        </div>
-        <div className="hud-row hud-dim">
-          {stats.fps > 0 ? `${stats.fps.toFixed(0)} fps` : '— fps'} · {stats.drawCalls} draws · {(stats.triangles / 1000).toFixed(0)}k tris
-        </div>
-        <div className="hud-row quality">
-          {confirmLeave ? (
-            <>
-              <button type="button" onClick={() => void leaveGame()}>Leave</button>
-              <button type="button" onClick={() => setConfirmLeave(false)}>Stay</button>
-            </>
-          ) : (
-            <>
-              <FullscreenButton />
-              <button type="button" onClick={() => setConfirmLeave(true)}>Menu</button>
-            </>
-          )}
-        </div>
+        {inRoom && (
+          <div className="hud hud-room">
+            <RoomChip />
+            {session.roster.length > 0 && (
+              <div className="room-names">
+                {session.roster.map((seat) => (
+                  <span key={seat.playerId}>
+                    {seat.name}
+                    {seat.playerId === session.playerId ? ' (you)' : ''}
+                    {seat.host ? ' · host' : ''}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <BoatSpeed />
