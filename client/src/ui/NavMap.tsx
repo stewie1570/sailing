@@ -532,7 +532,7 @@ function placeTip(
   const { ship } = other
   nameNode.textContent = ship.name || 'Sailor'
   speedNode.textContent = formatKnots(ship.speed, ship.sway)
-  driveNode.textContent = propulsionLabel(ship.port, ship.starboard, ship.bow, ship.stern, ship.hoist, ship.jibHoist)
+  driveNode.textContent = propulsionLabel(ship.port, ship.starboard, ship.bow, ship.stern, ship.hoist, ship.jibHoist, ship.spinHoist)
   tip.hidden = false
   const parentW = canvas.parentElement?.clientWidth ?? canvas.clientWidth
   const left = canvas.offsetLeft + other.x

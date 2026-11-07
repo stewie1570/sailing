@@ -1,5 +1,6 @@
 /**
- * Sails for the 14 m sloop: a mainsail on the boom, and a jib on the forestay.
+ * Sails for the 14 m sloop: a mainsail on the boom, a jib on the forestay,
+ * and an asymmetric spinnaker.
  *
  * The halyard and the jib furler are sliders. However far each is out is how
  * much cloth the wind has to push on. A sheet does not
@@ -32,6 +33,11 @@
  * the slot and the main drives harder than it would alone. A jib sheeted
  * across the main, or stalled onto it, dirties that air and the main loses
  * drive. The rig is not the sum of two separate sails.
+ *
+ * The spinnaker is the other headsail. It is larger than the jib, it fills
+ * from a reach through a run, and it collapses when the wind is ahead. It
+ * uses the same two sheets. Paying it out furls the jib, and paying the jib
+ * out furls it. The main is a third sail and can stay set with either.
  */
 
 export const SHEET_MAX = (85 * Math.PI) / 180
@@ -41,6 +47,10 @@ export const JIB_SHEET_MAX = (78 * Math.PI) / 180
 export const SAIL_AREA = 86
 /** Working jib. Smaller than the main, and part of its value is the slot. */
 export const JIB_AREA = 46
+/** Asymmetric spinnaker. Larger than the main, and only useful off the wind. */
+export const SPIN_AREA = 120
+/** Full spinnaker clew travel. A kite is flown further out than the jib. */
+export const SPIN_SHEET_MAX = (105 * Math.PI) / 180
 const AIR_RHO = 1.225
 /**
  * How hard the apparent wind is allowed to push on the cloth. The areas above
@@ -52,10 +62,14 @@ export const WIND_ON_SAIL = 1.12
 const BOOM_TAU = 0.45
 /** The jib clew is lighter than the boom, so it follows a little quicker. */
 const JIB_TAU = 0.32
+/** The spinnaker is more cloth than the jib, so the clew follows a little slower. */
+const SPIN_TAU = 0.4
 /** Bare mast and a furled sail, as a fraction of the full main. */
 export const FURL_FRACTION = 0.012
 /** A furled jib is a thin roll on the stay. */
 const JIB_FURL_FRACTION = 0.008
+/** A furled spinnaker is a sock at the bow. */
+const SPIN_FURL_FRACTION = 0.006
 
 export interface SailCommand {
   /** 0 furled into the boom, 1 fully hoisted. The halyard slider sets this. */
@@ -67,6 +81,8 @@ export interface SailCommand {
   /** 0 eased, 1 tight. Port plus starboard is at most 1. Hauling one pulls the clew to that side. */
   jibPort: number
   jibStarboard: number
+  /** 0 rolled up, 1 fully set. The spinnaker furler. Mutually exclusive with the jib. */
+  spinHoist: number
 }
 
 export interface Air {
@@ -102,9 +118,11 @@ let boom = 0
 /** Which side the boom is on. Held through dead astern so ±π does not gybe every frame. */
 let boomSide = 1
 let jibHoist = 0
+let spinHoist = 0
 /** Radians. Positive swings the clew to starboard, same sense as the boom. */
 let clew = 0
 let jibSide = 1
+let spinSide = 1
 
 export function getHoist() {
   return hoist
@@ -118,17 +136,23 @@ export function getJibHoist() {
   return jibHoist
 }
 
+export function getSpinHoist() {
+  return spinHoist
+}
+
 export function getClew() {
   return clew
 }
 
-export function resetSail(nextHoist = 0, nextBoom = 0, nextJib = 0, nextClew = 0) {
+export function resetSail(nextHoist = 0, nextBoom = 0, nextJib = 0, nextClew = 0, nextSpin = 0) {
   hoist = nextHoist
   boom = nextBoom
   boomSide = nextBoom === 0 ? 1 : Math.sign(nextBoom)
   jibHoist = nextJib
+  spinHoist = nextSpin
   clew = nextClew
   jibSide = nextClew === 0 ? 1 : Math.sign(nextClew)
+  spinSide = nextClew === 0 ? 1 : Math.sign(nextClew)
 }
 
 /** The halyard slider is the cloth. More out is more of the main in the wind. */
@@ -141,6 +165,12 @@ export function stepHoist(command: number, dt: number) {
 export function stepJibHoist(command: number, dt: number) {
   if (dt < 0) return
   jibHoist = Math.min(1, Math.max(0, command))
+}
+
+/** The spinnaker furler is the cloth, the same way the jib furler is. */
+export function stepSpinHoist(command: number, dt: number) {
+  if (dt < 0) return
+  spinHoist = Math.min(1, Math.max(0, command))
 }
 
 /** Apparent wind in the hull frame. `awa` is where the wind comes from. */
@@ -274,6 +304,14 @@ export const JIB_LUFF_AOA = (12 * Math.PI) / 180
 export const JIB_NO_GO = (32 * Math.PI) / 180
 /** Past this, the jib is called stalled rather than drawing. */
 export const JIB_STALL = (50 * Math.PI) / 180
+/**
+ * A spinnaker stalls later than the jib. Squared on a run, a large angle
+ * is the sail working, not a stall.
+ */
+export const SPIN_STALL = (70 * Math.PI) / 180
+/** A spinnaker will not stay full much closer than a beam reach. */
+export const SPIN_LUFF_AOA = (18 * Math.PI) / 180
+export const SPIN_NO_GO = (68 * Math.PI) / 180
 /** Broad enough that the main blankets a jib left on the same side. */
 const RUN_AWA = (140 * Math.PI) / 180
 
@@ -299,6 +337,7 @@ export interface RigForce {
   slot: number
   main: SailForce
   jib: JibForce
+  spin: JibForce
 }
 
 /**
@@ -309,7 +348,7 @@ export interface RigForce {
  * does the same toward port. With both sheets eased the window is the whole
  * arc, and the wind sets the clew inside whatever play is left.
  */
-export function jibAllowances(portTight: number, stbdTight: number) {
+function sheetWindow(portTight: number, stbdTight: number, travel: number) {
   let port = Math.min(1, Math.max(0, portTight))
   let stbd = Math.min(1, Math.max(0, stbdTight))
   const sum = port + stbd
@@ -318,11 +357,15 @@ export function jibAllowances(portTight: number, stbdTight: number) {
     stbd /= sum
   }
   return {
-    /** Most portly angle. Rises to full starboard as that sheet is hauled. */
-    min: (2 * stbd - 1) * JIB_SHEET_MAX,
-    /** Most starboard angle. Falls to full port as the port sheet is hauled. */
-    max: (1 - 2 * port) * JIB_SHEET_MAX,
+    /** Most portly angle. Rises toward starboard as that sheet is hauled. */
+    min: (2 * stbd - 1) * travel,
+    /** Most starboard angle. Falls toward port as the port sheet is hauled. */
+    max: (1 - 2 * port) * travel,
   }
+}
+
+export function jibAllowances(portTight: number, stbdTight: number) {
+  return sheetWindow(portTight, stbdTight, JIB_SHEET_MAX)
 }
 
 /**
@@ -464,31 +507,101 @@ export function jibAddedDrive(mainFx: number, jibFx: number, slot: number) {
   return jibFx + mainFx * (slot - 1)
 }
 
-function stepJib(pose: BodyMotion, wind: Air, command: SailCommand, dt: number, mainBoom: number) {
-  const aw = apparentWind(pose, wind)
-  const target = jibTarget(aw.awa, command.jibPort, command.jibStarboard, command.jibHoist)
-  if (dt > 0) {
-    const k = 1 - Math.exp(-Math.min(dt, 0.5) / JIB_TAU)
-    clew += (target - clew) * k
+/**
+ * How much of a set spinnaker is actually flying.
+ * Ahead of a close reach the kite collapses. From a beam reach aft it fills.
+ */
+function spinFill(awa: number) {
+  const off = Math.abs(awa)
+  const gone = (48 * Math.PI) / 180
+  const full = (82 * Math.PI) / 180
+  if (off >= full) return 1
+  if (off <= gone) return 0.04
+  const t = (off - gone) / (full - gone)
+  return 0.04 + 0.96 * t * t
+}
+
+function spinTarget(awa: number, portTight: number, stbdTight: number, sailHoist: number) {
+  if (sailHoist < 0.05) return 0
+  const allow = sheetWindow(portTight, stbdTight, SPIN_SHEET_MAX)
+  const astern = Math.PI - Math.abs(awa)
+  let angle = awa
+  if (astern < 0.35) angle = spinSide * Math.abs(awa)
+  else if (Math.abs(awa) > 0.15) spinSide = Math.sign(awa) || spinSide
+  // A kite is squared earlier than the jib. Past a broad reach, a window
+  // hauled wholly across takes the clew to the clear side.
+  if (Math.abs(awa) > (100 * Math.PI) / 180) {
+    const side = wingedSide(allow, angle)
+    if (side !== 0) angle = side * Math.abs(awa)
   }
-  return evaluateJib(pose, wind, clew, command.jibHoist, mainBoom, command.hoist)
+  return Math.min(allow.max, Math.max(allow.min, angle))
 }
 
 /**
- * Main plus jib, with the slot applied to the main.
- * The returned main force is the sail on its own. `fx` is what the hull feels.
+ * The spinnaker's own drive. It sits forward of the mast, so the main does
+ * not blanket it. Upwind the cloth collapses and the force falls away.
+ */
+function evaluateSpin(pose: BodyMotion, wind: Air, clewAngle: number, sailHoist: number): JibForce {
+  const aw = apparentWind(pose, wind)
+  const set = Math.min(1, Math.max(0, sailHoist))
+  const exposed = SPIN_FURL_FRACTION + (1 - SPIN_FURL_FRACTION) * set
+  // More drag than lift. A kite pulls on a reach; it does not point.
+  const loads = aeroLoads(aw, clewAngle, SPIN_AREA, exposed, 34, 1.05)
+  const fill = spinFill(aw.awa)
+  const fx = loads.fx * fill
+  const fy = loads.fy * fill
+  const zCe = 4.6
+  const xCe = -Math.sin(clewAngle) * 0.7
+  const n = zCe * fy - xCe * fx
+  const luff = luffAmount(loads.aoa, aw.awa, sailHoist, SPIN_LUFF_AOA, SPIN_NO_GO)
+  return { hoist: sailHoist, clew: clewAngle, awa: aw.awa, aws: aw.aws, aoa: loads.aoa, luff, fx, fy, n }
+}
+
+/** One headsail at a time. An equal pair keeps the jib, matching the helm. */
+function resolveHeadsails(command: SailCommand) {
+  let jibH = Math.min(1, Math.max(0, command.jibHoist))
+  let spinH = Math.min(1, Math.max(0, command.spinHoist))
+  if (jibH > 0 && spinH > 0) {
+    if (spinH > jibH) jibH = 0
+    else spinH = 0
+  }
+  return { jibH, spinH }
+}
+
+function stepHeadsails(pose: BodyMotion, wind: Air, command: SailCommand, dt: number, mainBoom: number) {
+  const { jibH, spinH } = resolveHeadsails(command)
+  const aw = apparentWind(pose, wind)
+  const flyingSpin = spinH >= 0.05
+  const target = flyingSpin
+    ? spinTarget(aw.awa, command.jibPort, command.jibStarboard, spinH)
+    : jibTarget(aw.awa, command.jibPort, command.jibStarboard, jibH)
+  if (dt > 0) {
+    const k = 1 - Math.exp(-Math.min(dt, 0.5) / (flyingSpin ? SPIN_TAU : JIB_TAU))
+    clew += (target - clew) * k
+  }
+  return {
+    jib: evaluateJib(pose, wind, clew, jibH, mainBoom, command.hoist),
+    spin: evaluateSpin(pose, wind, clew, spinH),
+  }
+}
+
+/**
+ * Main plus the headsail that is set, with the jib's slot applied to the main.
+ * A spinnaker adds its own drive and does not change the slot. The returned
+ * main force is the sail on its own. `fx` is what the hull feels.
  */
 export function rigForce(pose: BodyMotion, wind: Air, command: SailCommand, dt: number): RigForce {
   const main = sailForce(pose, wind, command, dt)
-  const jib = stepJib(pose, wind, command, dt, main.boom)
-  const slot = slotFactor(main, jib)
+  const heads = stepHeadsails(pose, wind, command, dt, main.boom)
+  const slot = slotFactor(main, heads.jib)
   return {
-    fx: main.fx * slot + jib.fx,
-    fy: main.fy * slot + jib.fy,
-    n: main.n * slot + jib.n,
+    fx: main.fx * slot + heads.jib.fx + heads.spin.fx,
+    fy: main.fy * slot + heads.jib.fy + heads.spin.fy,
+    n: main.n * slot + heads.jib.n + heads.spin.n,
     slot,
     main,
-    jib,
+    jib: heads.jib,
+    spin: heads.spin,
   }
 }
 
@@ -496,13 +609,15 @@ export function rigForce(pose: BodyMotion, wind: Air, command: SailCommand, dt: 
 export function readRig(pose: BodyMotion, wind: Air): RigForce {
   const main = evaluateMain(pose, wind, boom, hoist)
   const jib = evaluateJib(pose, wind, clew, jibHoist, main.boom, main.hoist)
+  const spin = evaluateSpin(pose, wind, clew, spinHoist)
   const slot = slotFactor(main, jib)
   return {
-    fx: main.fx * slot + jib.fx,
-    fy: main.fy * slot + jib.fy,
-    n: main.n * slot + jib.n,
+    fx: main.fx * slot + jib.fx + spin.fx,
+    fy: main.fy * slot + jib.fy + spin.fy,
+    n: main.n * slot + jib.n + spin.n,
     slot,
     main,
     jib,
+    spin,
   }
 }

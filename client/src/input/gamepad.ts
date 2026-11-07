@@ -40,10 +40,12 @@ export const ACTIONS = [
   { id: 'halyardDown', label: 'Drop the main', group: 'Sails' },
   { id: 'jibOut', label: 'Unfurl the jib', group: 'Sails' },
   { id: 'jibIn', label: 'Furl the jib', group: 'Sails' },
-  { id: 'jibPortHaul', label: 'Haul the port jib sheet', group: 'Sails' },
-  { id: 'jibPortEase', label: 'Ease the port jib sheet', group: 'Sails' },
-  { id: 'jibStbdHaul', label: 'Haul the starboard jib sheet', group: 'Sails' },
-  { id: 'jibStbdEase', label: 'Ease the starboard jib sheet', group: 'Sails' },
+  { id: 'spinOut', label: 'Unfurl the spinnaker', group: 'Sails' },
+  { id: 'spinIn', label: 'Furl the spinnaker', group: 'Sails' },
+  { id: 'jibPortHaul', label: 'Haul the port sheet', group: 'Sails' },
+  { id: 'jibPortEase', label: 'Ease the port sheet', group: 'Sails' },
+  { id: 'jibStbdHaul', label: 'Haul the starboard sheet', group: 'Sails' },
+  { id: 'jibStbdEase', label: 'Ease the starboard sheet', group: 'Sails' },
 ] as const
 
 export type ActionId = (typeof ACTIONS)[number]['id']

@@ -187,11 +187,15 @@ export function stepMotion(
     fy += rig.fy
     // Keep the main's weather helm. Swap the jib's geometric yaw for the
     // share the hull will take up at this flow.
-    n += rig.n - rig.jib.n + jibHelmMoment(rig.jib.n, pose.speed, pose.sway, wash)
+    // The main's weather helm stays. Each headsail's geometric yaw is swapped
+    // for the share the hull will take up. Only one headsail is set at a time.
+    const headsailN = rig.jib.n + rig.spin.n
+    n += rig.n - headsailN + jibHelmMoment(headsailN, pose.speed, pose.sway, wash)
   }
   // The extra low-speed drag and the stop-notch brake exist so a motorboat
   // settles in a slip. A set sail is propulsion, so they stay out of the way.
-  const sailing = (air?.sail.hoist ?? 0) > 0.18 || (air?.sail.jibHoist ?? 0) > 0.18
+  const sailing =
+    (air?.sail.hoist ?? 0) > 0.18 || (air?.sail.jibHoist ?? 0) > 0.18 || (air?.sail.spinHoist ?? 0) > 0.18
 
   // Outward-turning screws walk the stern inward when they run astern.
   const walkFy = (port < 0 ? port * HULL.walk : 0) + (stbd < 0 ? -stbd * HULL.walk : 0)

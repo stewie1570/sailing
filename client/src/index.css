@@ -341,6 +341,9 @@ html:-webkit-full-screen {
   background: rgba(61, 220, 132, 0.38);
   pointer-events: none;
 }
+.furler-spin .furler-fill {
+  background: rgba(232, 96, 48, 0.5);
+}
 .furler-knob {
   position: absolute;
   top: 50%;
@@ -918,6 +921,7 @@ html:-webkit-full-screen {
     grid-template-areas:
       "sheets wind"
       "sheets jib"
+      "sheets spin"
       "sheets main";
     column-gap: 8px;
     row-gap: 3px;
@@ -925,6 +929,7 @@ html:-webkit-full-screen {
   }
   .sail-panel .wind-row { grid-area: wind; }
   .sail-panel .furler-jib { grid-area: jib; margin-top: 0; }
+  .sail-panel .furler-spin { grid-area: spin; margin-top: 0; }
   .sail-panel .furler-main { grid-area: main; margin-top: 0; }
   .sail-panel .sheet-row {
     grid-area: sheets;
@@ -1020,7 +1025,7 @@ html:-webkit-full-screen {
   }
   .hud-speed {
     top: auto;
-    bottom: calc(292px + env(safe-area-inset-bottom));
+    bottom: calc(348px + env(safe-area-inset-bottom));
   }
 }
 @media (max-height: 500px) and (max-width: 950px) and (min-width: 501px) {

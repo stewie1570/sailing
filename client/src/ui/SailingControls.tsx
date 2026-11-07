@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useCancelSliderTouch } from './sliderTouch'
 import { jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
-import { JIB_STALL, luffAmount, readRig } from '../scene/boat/sail'
+import { JIB_STALL, SPIN_STALL, luffAmount, readRig } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
 import { compassPoint, getWind, useWindDisplay } from '../scene/boat/wind'
 
@@ -193,13 +193,18 @@ function trimWords(hoist: number, aoa: number, awa: number) {
   return `${amount}Drawing`
 }
 
+/** The sheets keep the jib names until the spinnaker furler leaves the furled stop. */
+const SPIN_SET = 0.04
+
 export function SailingControls() {
   const helm = useHelm()
+  const spinSet = helm.spin >= SPIN_SET
   const wind = useWindDisplay()
   const arrow = useRef<HTMLDivElement>(null)
   const detail = useRef<HTMLDivElement>(null)
   const trim = useRef<HTMLDivElement>(null)
   const jibTrim = useRef<HTMLDivElement>(null)
+  const spinTrim = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let raf = 0
@@ -216,6 +221,7 @@ export function SailingControls() {
         trim.current.textContent = `${boom} · ${trimWords(sail.hoist, sail.aoa, sail.awa)}`
       }
       if (jibTrim.current) jibTrim.current.textContent = jibLine(rig)
+      if (spinTrim.current) spinTrim.current.textContent = spinLine(rig)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -250,6 +256,16 @@ export function SailingControls() {
         <ClothFurler label="Jib furler" value={helm.jib} control="jib" onValue={(jib) => updateHelm({ jib })} />
       </div>
 
+      <div className="furler-block furler-spin">
+        <div className="furler-head">
+          <span className="sail-toggle-name">Spin</span>
+          <span className="sail-toggle-state" ref={spinTrim}>
+            Furled
+          </span>
+        </div>
+        <ClothFurler label="Spinnaker furler" value={helm.spin} control="spin" onValue={(spin) => updateHelm({ spin })} />
+      </div>
+
       <div className="furler-block furler-main">
         <div className="furler-head">
           <span className="sail-toggle-name">Main</span>
@@ -262,8 +278,8 @@ export function SailingControls() {
 
       <div className="sheet-row">
         <SheetColumn
-          title="Port jib"
-          aria="Port jib sheet"
+          title={spinSet ? 'Port spin' : 'Port jib'}
+          aria={spinSet ? 'Port spinnaker sheet' : 'Port jib sheet'}
           tightness={helm.jibPort}
           max={jibSheetRoom(helm.jibStarboard)}
           knob="port"
@@ -278,8 +294,8 @@ export function SailingControls() {
           onTightness={(tight) => updateHelm({ sheet: 1 - tight })}
         />
         <SheetColumn
-          title="Stbd jib"
-          aria="Starboard jib sheet"
+          title={spinSet ? 'Stbd spin' : 'Stbd jib'}
+          aria={spinSet ? 'Starboard spinnaker sheet' : 'Starboard jib sheet'}
           tightness={helm.jibStarboard}
           max={jibSheetRoom(helm.jibPort)}
           knob="starboard"
@@ -291,14 +307,31 @@ export function SailingControls() {
   )
 }
 
-function jibLine(rig: ReturnType<typeof readRig>) {
-  const jib = rig.jib
-  if (jib.hoist < 0.04) return 'Furled'
-  const deg = Math.abs(jib.clew) * (180 / Math.PI)
-  const side = jib.clew > 0.04 ? 'stbd' : jib.clew < -0.04 ? 'port' : ''
+function clothLine(hoist: number, clew: number, luff: number, aoa: number, stall: number) {
+  if (hoist < 0.04) return 'Furled'
+  const deg = Math.abs(clew) * (180 / Math.PI)
+  const side = clew > 0.04 ? 'stbd' : clew < -0.04 ? 'port' : ''
   const where = deg < 2 ? 'Amidships' : `${deg.toFixed(0)}° ${side}`.trim()
   let state = 'Drawing'
-  if (jib.luff > 0.35) state = 'Luffing'
-  else if (jib.aoa > JIB_STALL) state = 'Stalled'
+  if (luff > 0.35) state = 'Luffing'
+  else if (aoa > stall) state = 'Stalled'
+  return `${where} · ${state}`
+}
+
+function jibLine(rig: ReturnType<typeof readRig>) {
+  const jib = rig.jib
+  return clothLine(jib.hoist, jib.clew, jib.luff, jib.aoa, JIB_STALL)
+}
+
+function spinLine(rig: ReturnType<typeof readRig>) {
+  const spin = rig.spin
+  if (spin.hoist < 0.04) return 'Furled'
+  const deg = Math.abs(spin.clew) * (180 / Math.PI)
+  const side = spin.clew > 0.04 ? 'stbd' : spin.clew < -0.04 ? 'port' : ''
+  const where = deg < 2 ? 'Amidships' : `${deg.toFixed(0)}° ${side}`.trim()
+  let state = 'Drawing'
+  if (spin.luff > 0.35) state = 'Luffing'
+  // Squared on a run, a large angle is the kite pulling, not a stall.
+  else if (Math.abs(spin.awa) < (140 * Math.PI) / 180 && spin.aoa > SPIN_STALL) state = 'Stalled'
   return `${where} · ${state}`
 }
