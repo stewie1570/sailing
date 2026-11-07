@@ -50,11 +50,6 @@ export function relativeWind(windFrom: number, heading: number) {
   return wrap(windFrom - heading)
 }
 
-/** Full opacity until the loop is about to jump, then a short fade. */
-export function loopFade(time: number, duration: number, edge = 0.32) {
-  return clamp((duration - time) / edge, 0, 1)
-}
-
 export type SailLook = {
   aoa: number
   luff: number

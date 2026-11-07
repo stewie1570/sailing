@@ -14,6 +14,25 @@ export function useReducedMotion() {
   return reduced
 }
 
+/** The latest cue whose time is at or before `time`. */
+export function cueAt<T extends { t: number }>(cues: readonly T[], time: number): T {
+  let current = cues[0]
+  for (const cue of cues) {
+    if (current == null || time >= cue.t) current = cue
+  }
+  return current as T
+}
+
+/** Lesson time. It moves only when the slider says so. */
+export function useLesson() {
+  const reduced = useReducedMotion()
+  const [time, setTime] = useState(0)
+  const seek = useCallback((next: number) => {
+    setTime(Math.max(0, next))
+  }, [])
+  return { time, reduced, seek }
+}
+
 /** Seconds since the slide started. Pauses without rewinding. `seek` jumps the clock. */
 export function useSeconds(running: boolean) {
   const reduced = useReducedMotion()
