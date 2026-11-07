@@ -1,8 +1,3 @@
-export type SlideProps = {
-  playing: boolean
-  onHold: () => void
-}
-
 export function FigureCopy({
   reduced,
   caption,

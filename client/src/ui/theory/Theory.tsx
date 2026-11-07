@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CourseSlide } from './CourseSlide'
 import { GybeSlide } from './GybeSlide'
+import { HeadsailSlide } from './HeadsailSlide'
 import { SheetSlide } from './SheetSlide'
 import { TrimSlide } from './TrimSlide'
-import { useReducedMotion } from './useSeconds'
-import type { SlideProps } from './widgets'
 import './theory.css'
 
-const SLIDES: { title: string; lead: string; View: (props: SlideProps) => ReactNode }[] = [
+const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
   {
     title: 'The main sheet',
     lead: 'The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',
     View: SheetSlide,
+  },
+  {
+    title: 'Jib and spinnaker',
+    lead: 'Same idea as the main. Two sheets, one on each side.',
+    View: HeadsailSlide,
   },
   {
     title: 'Tack or gybe',
@@ -31,9 +35,7 @@ const SLIDES: { title: string; lead: string; View: (props: SlideProps) => ReactN
 ]
 
 export function Theory({ onBack }: { onBack: () => void }) {
-  const reduced = useReducedMotion()
   const [index, setIndex] = useState(0)
-  const [playing, setPlaying] = useState(true)
   const rootRef = useRef<HTMLDivElement>(null)
   const swipe = useRef<{ x: number; y: number } | null>(null)
   const slide = SLIDES[index] ?? SLIDES[0]
@@ -45,7 +47,6 @@ export function Theory({ onBack }: { onBack: () => void }) {
 
   const go = (next: number) => {
     setIndex(Math.min(last, Math.max(0, next)))
-    setPlaying(true)
   }
 
   useEffect(() => {
@@ -55,19 +56,14 @@ export function Theory({ onBack }: { onBack: () => void }) {
       if (event.key === 'ArrowRight') {
         event.preventDefault()
         setIndex((value) => Math.min(last, value + 1))
-        setPlaying(true)
       } else if (event.key === 'ArrowLeft') {
         event.preventDefault()
         setIndex((value) => Math.max(0, value - 1))
-        setPlaying(true)
-      } else if (event.key === ' ' && !reduced) {
-        event.preventDefault()
-        setPlaying((value) => !value)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [last, reduced])
+  }, [last])
 
   if (!slide) return null
   const View = slide.View
@@ -99,6 +95,7 @@ export function Theory({ onBack }: { onBack: () => void }) {
             <p className="theory-kicker">
               Sailing theory · {index + 1} of {SLIDES.length}
             </p>
+            <p className="theory-prompt">Drag the slider through the lesson.</p>
             <h1>{slide.title}</h1>
             <p className="theory-lead">{slide.lead}</p>
           </div>
@@ -107,7 +104,7 @@ export function Theory({ onBack }: { onBack: () => void }) {
           </button>
         </header>
         <div className="theory-body" key={index}>
-          <View playing={playing && !reduced} onHold={() => setPlaying(false)} />
+          <View />
         </div>
         <nav className="theory-nav" aria-label="Slides">
           <button type="button" onClick={() => go(index - 1)} disabled={index === 0}>
@@ -134,30 +131,8 @@ export function Theory({ onBack }: { onBack: () => void }) {
               Next
             </button>
           )}
-          {!reduced && (
-            <button type="button" className="theory-toggle" aria-pressed={playing} onClick={() => setPlaying((value) => !value)}>
-              {playing ? <PauseIcon /> : <PlayIcon />}
-              <span>{playing ? 'Pause' : 'Play'}</span>
-            </button>
-          )}
         </nav>
       </div>
     </div>
-  )
-}
-
-function PauseIcon() {
-  return (
-    <svg className="theory-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path fill="currentColor" d="M3.4 2.2h3.2v11.6H3.4zm5.9 0h3.2v11.6H9.3z" />
-    </svg>
-  )
-}
-
-function PlayIcon() {
-  return (
-    <svg className="theory-ico" viewBox="0 0 16 16" aria-hidden="true">
-      <path fill="currentColor" d="M4.2 2.3v11.4L13.6 8z" />
-    </svg>
   )
 }

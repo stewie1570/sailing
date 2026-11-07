@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Boat, Stage } from './diagram'
-import { knotsOf, lerp, loopFade, sailLook, track } from './math'
-import { useSeconds } from './useSeconds'
-import { FigureCopy, SheetRange, type SlideProps } from './widgets'
+import { clamp, knotsOf, lerp, sailLook, track } from './math'
+import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { FigureCopy, SheetRange } from './widgets'
 
 const DUR = 17.2
 const HEADING = 1.02
@@ -10,6 +10,16 @@ const EASED = 1.02
 const QUIET = 0.56
 const TIGHT = 0.04
 const SWEET = (EASED - QUIET) / (EASED - TIGHT)
+
+const CUES = [
+  { t: 0, text: 'Over-eased. The sail is luffing: the cloth flaps because the sheet lets it line up with the wind.' },
+  { t: 3.2, text: 'Sheet in. The luff should die away, from the leech back toward the mast, until the whole sail is quiet.' },
+  { t: 5.8, text: 'Just enough. It does not luff anywhere on the sail, and the boat is up to speed.' },
+  { t: 8.4, text: 'Keep hauling and you over-trim it. The sail stays quiet, but it stops pulling.' },
+  { t: 10.8, text: 'Over-trimmed. You are not getting much speed. The sail is stalled.' },
+  { t: 12.6, text: 'Ease back until the sail is just short of luffing. That is the trim.' },
+  { t: 15, text: 'Leave it here: quiet everywhere, and driving.' },
+]
 
 const BEATS = [
   'Over-eased, the sail luffs: the cloth flaps because it is lined up with the wind.',
@@ -19,7 +29,7 @@ const BEATS = [
 ]
 
 function boomAt(time: number) {
-  const t = time % DUR
+  const t = clamp(time, 0, DUR)
   return {
     t,
     boom: track(t, [
@@ -67,33 +77,18 @@ function words(luff: number, stall: number, speed: number, telling: boolean) {
   return telling ? 'Close. Ease a touch if it is tight, or sheet in if any cloth is still luffing.' : 'Trimming'
 }
 
-function beat(t: number) {
-  if (t < 3.2) return 'Over-eased. The sail is luffing: the cloth flaps because the sheet lets it line up with the wind.'
-  if (t < 5.8) return 'Sheet in. The luff should die away, from the leech back toward the mast, until the whole sail is quiet.'
-  if (t < 8.4) return 'Just enough. It does not luff anywhere on the sail, and the boat is up to speed.'
-  if (t < 10.8) return 'Keep hauling and you over-trim it. The sail stays quiet, but it stops pulling.'
-  if (t < 12.6) return 'Over-trimmed. You are not getting much speed. The sail is stalled.'
-  if (t < 15) return 'Ease back until the sail is just short of luffing. That is the trim.'
-  return 'Leave it here: quiet everywhere, and driving.'
-}
-
-export function TrimSlide({ playing, onHold }: SlideProps) {
-  const { time, reduced, seek, hold } = useSeconds(playing)
+export function TrimSlide() {
+  const { time, reduced, seek } = useLesson()
   const { time: flutter } = useSeconds(!reduced)
   const [sheet, setSheet] = useState<number | null>(null)
-  const [wasPlaying, setWasPlaying] = useState(playing)
-  if (playing !== wasPlaying) {
-    setWasPlaying(playing)
-    if (playing) setSheet(null)
-  }
 
-  const handsOn = reduced || (!playing && sheet != null)
-  const animated = boomAt(handsOn ? 0 : time)
-  const boom = handsOn ? boomOf(sheet ?? 0) : animated.boom
+  const handsOn = sheet != null
+  const animated = boomAt(time)
+  const boom = handsOn ? boomOf(sheet) : animated.boom
   const look = sailLook(-HEADING, boom)
-  const slider = handsOn ? (sheet ?? 0) : sheetOf(boom)
+  const slider = handsOn ? sheet : sheetOf(boom)
   const note = words(look.luff, look.stall, look.speed, false)
-  const caption = handsOn ? words(look.luff, look.stall, look.speed, true) : beat(animated.t)
+  const caption = handsOn ? words(look.luff, look.stall, look.speed, true) : cueAt(CUES, animated.t).text
 
   return (
     <>
@@ -101,7 +96,16 @@ export function TrimSlide({ playing, onHold }: SlideProps) {
         time={flutter}
         windFrom={0}
         speed={{ knots: knotsOf(look.speed), note }}
-        progress={handsOn ? null : { time: animated.t, duration: DUR, onSeek: seek, onScrub: hold }}
+        progress={{
+          time: animated.t,
+          duration: DUR,
+          marks: CUES.map((cue) => cue.t),
+          caption,
+          onSeek: (next) => {
+            setSheet(null)
+            seek(next)
+          },
+        }}
       >
         <Boat
           heading={HEADING}
@@ -110,7 +114,7 @@ export function TrimSlide({ playing, onHold }: SlideProps) {
           luff={look.luff}
           stall={look.stall}
           speed={look.speed}
-          opacity={handsOn ? 1 : loopFade(animated.t, DUR)}
+          opacity={1}
           windFrom={0}
         />
       </Stage>
@@ -119,10 +123,7 @@ export function TrimSlide({ playing, onHold }: SlideProps) {
         value={slider}
         sweet={SWEET}
         status={note}
-        onChange={(value) => {
-          onHold()
-          setSheet(value)
-        }}
+        onChange={(value) => setSheet(value)}
       />
     </>
   )

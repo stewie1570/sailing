@@ -1,7 +1,7 @@
 import { Boat, Stage, type BadgeTone } from './diagram'
-import { BEAM, clamp, lerp, loopFade, relativeWind, rudderFrom, sailLook, snap, track } from './math'
-import { useSeconds } from './useSeconds'
-import { FigureCopy, type SlideProps } from './widgets'
+import { BEAM, clamp, lerp, relativeWind, rudderFrom, sailLook, snap, track } from './math'
+import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { FigureCopy } from './widgets'
 
 const DUR = 17.6
 
@@ -17,6 +17,15 @@ const HEADING = [
   { t: 15.6, v: -4.05 },
   { t: DUR, v: -4.05 },
 ] as const
+
+const CUES = [
+  { t: 0, text: 'Going into the wind. To change sides you tack: the bow turns through the wind.' },
+  { t: 2, text: 'The bow is turning through the wind. The sail luffs as it crosses, then fills on the new side. That is a tack.' },
+  { t: 5.6, text: 'The wind is on the side of the boat. Coming about from here is still a tack.' },
+  { t: 10.2, text: 'The wind is off to the side and behind you. A turn that brings the stern through the wind is a gybe.' },
+  { t: 13.1, text: 'The wind is behind you. The stern turns through it, and the sail flips across. That is a gybe.' },
+  { t: 15.9, text: 'Behind you, or on the quarter: gybe. Ahead of you, or on the side: tack.' },
+]
 
 const BEATS = [
   'Going into the wind: you tack. The bow turns through the wind.',
@@ -49,17 +58,8 @@ function phrase(off: number) {
   return 'Wind behind you'
 }
 
-function captionFor(t: number) {
-  if (t < 2) return 'Going into the wind. To change sides you tack: the bow turns through the wind.'
-  if (t < 5.6) return 'The bow is turning through the wind. The sail luffs as it crosses, then fills on the new side. That is a tack.'
-  if (t < 10.2) return 'The wind is on the side of the boat. Coming about from here is still a tack.'
-  if (t < 13.1) return 'The wind is off to the side and behind you. A turn that brings the stern through the wind is a gybe.'
-  if (t < 15.9) return 'The wind is behind you. The stern turns through it, and the sail flips across. That is a gybe.'
-  return 'Behind you, or on the quarter: gybe. Ahead of you, or on the side: tack.'
-}
-
 function frame(time: number) {
-  const t = ((time % DUR) + DUR) % DUR
+  const t = clamp(time, 0, DUR)
   const heading = headingOf(t)
   const rel = relativeWind(0, heading)
   const off = Math.abs(rel)
@@ -72,39 +72,35 @@ function frame(time: number) {
     off,
     tack,
     rudder: rudderFrom(headingOf, t),
-    opacity: loopFade(t, DUR),
-    caption: captionFor(t),
+    opacity: 1,
+    caption: cueAt(CUES, t).text,
   }
 }
 
-export function CourseSlide({ playing }: SlideProps) {
-  const { time, reduced, seek, hold } = useSeconds(playing)
-  const pose = reduced
-    ? {
-        t: 0,
-        heading: 0.82,
-        boom: boomOf(0.82),
-        off: 0.82,
-        tack: true,
-        rudder: 0,
-        opacity: 1,
-        caption: 'Into the wind or on the side, you tack. Behind you, or behind and to the side, you gybe.',
-      }
-    : frame(time)
+export function CourseSlide() {
+  const { time, reduced, seek } = useLesson()
+  const { time: flutter } = useSeconds(!reduced)
+  const pose = frame(time)
   const tone: BadgeTone = pose.tack ? 'tack' : 'gybe'
   const look = sailLook(relativeWind(0, pose.heading), pose.boom)
   return (
     <>
       <Stage
-        time={reduced ? 0 : time}
+        time={flutter}
         windFrom={0}
         badge={{ tone, title: pose.tack ? 'Tack' : 'Gybe', detail: phrase(pose.off) }}
-        progress={reduced ? null : { time: pose.t, duration: DUR, onSeek: seek, onScrub: hold }}
+        progress={{
+          time: pose.t,
+          duration: DUR,
+          marks: CUES.map((cue) => cue.t),
+          caption: pose.caption,
+          onSeek: seek,
+        }}
       >
         <Boat
           heading={pose.heading}
           boom={pose.boom}
-          time={reduced ? 0 : time}
+          time={flutter}
           rudder={pose.rudder}
           showTurn
           showZone

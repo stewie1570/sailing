@@ -1,14 +1,22 @@
 import { useState } from 'react'
 import { Boat, Stage } from './diagram'
-import { lerp, loopFade, sailLook, track } from './math'
-import { useSeconds } from './useSeconds'
-import { FigureCopy, SheetRange, type SlideProps } from './widgets'
+import { clamp, lerp, sailLook, track } from './math'
+import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { FigureCopy, SheetRange } from './widgets'
 
 const DUR = 13.6
 const HEADING = 0.72
 const EASED = 0.72
 const HAULED = 0.28
 const RULE = 'The sheet is the rope that controls the sail.'
+
+const CUES = [
+  { t: 0, text: 'The wind is in front of the boat. With the sheet eased, the sail swings out and the cloth flaps.' },
+  { t: 2.8, text: 'Haul the sheet. The rope pulls the sail in against the wind.' },
+  { t: 5.6, text: 'Sheeted in, the cloth holds still and the boat starts to move.' },
+  { t: 8.4, text: 'Ease the sheet and the sail falls back out. The cloth flaps again.' },
+  { t: 11.2, text: 'The rope is the limit. The wind does the pushing.' },
+]
 
 const BEATS = [
   'The wind is in front of the boat. Ease the sheet and the sail swings out. The cloth flaps.',
@@ -21,7 +29,7 @@ function sliderOf(boom: number) {
 }
 
 function poseAt(time: number) {
-  const t = time % DUR
+  const t = clamp(time, 0, DUR)
   const boom = track(t, [
     { t: 0, v: EASED },
     { t: 2.6, v: EASED },
@@ -30,12 +38,7 @@ function poseAt(time: number) {
     { t: 10.6, v: EASED },
     { t: DUR, v: EASED },
   ])
-  let caption = 'The rope is the limit. The wind does the pushing.'
-  if (t < 2.8) caption = 'The wind is in front of the boat. With the sheet eased, the sail swings out and the cloth flaps.'
-  else if (t < 5.6) caption = 'Haul the sheet. The rope pulls the sail in against the wind.'
-  else if (t < 8.4) caption = 'Sheeted in, the cloth holds still and the boat starts to move.'
-  else if (t < 11.2) caption = 'Ease the sheet and the sail falls back out. The cloth flaps again.'
-  return { t, boom, caption, opacity: loopFade(t, DUR) }
+  return { t, boom, caption: cueAt(CUES, t).text, opacity: 1 }
 }
 
 function poseFromSheet(sheet: number) {
@@ -52,31 +55,31 @@ function statusFor(sheet: number) {
   return 'Sheet partly in'
 }
 
-export function SheetSlide({ playing, onHold }: SlideProps) {
-  const { time, reduced, seek, hold } = useSeconds(playing)
+export function SheetSlide() {
+  const { time, reduced, seek } = useLesson()
   const { time: flutter } = useSeconds(!reduced)
   const [sheet, setSheet] = useState<number | null>(null)
-  const [wasPlaying, setWasPlaying] = useState(playing)
-  if (playing !== wasPlaying) {
-    setWasPlaying(playing)
-    if (playing) setSheet(null)
-  }
 
-  const handsOn = reduced || (!playing && sheet != null)
-  const pose = handsOn ? poseFromSheet(sheet ?? 0) : poseAt(time)
+  const handsOn = sheet != null
+  const pose = handsOn ? poseFromSheet(sheet) : poseAt(time)
   const look = sailLook(-HEADING, pose.boom)
-  const slider = handsOn ? (sheet ?? 0) : sliderOf(pose.boom)
+  const slider = handsOn ? sheet : sliderOf(pose.boom)
 
   return (
     <>
       <Stage
         time={flutter}
         windFrom={0}
-        progress={
-          handsOn
-            ? null
-            : { time: pose.t, duration: DUR, onSeek: seek, onScrub: hold }
-        }
+        progress={{
+          time: clamp(time, 0, DUR),
+          duration: DUR,
+          marks: CUES.map((cue) => cue.t),
+          caption: pose.caption,
+          onSeek: (next) => {
+            setSheet(null)
+            seek(next)
+          },
+        }}
       >
         <Boat
           heading={HEADING}
@@ -95,10 +98,7 @@ export function SheetSlide({ playing, onHold }: SlideProps) {
       <SheetRange
         value={slider}
         status={statusFor(slider)}
-        onChange={(value) => {
-          onHold()
-          setSheet(value)
-        }}
+        onChange={(value) => setSheet(value)}
       />
     </>
   )

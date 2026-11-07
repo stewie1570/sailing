@@ -55,6 +55,24 @@ export type BoatProps = {
   ghosts?: readonly number[]
   ghostArc?: boolean
   showTurn?: boolean
+  /** 'follow' draws the small jib on the main's boom. 'sheets' draws a jib and a spinnaker, each with a sheet on both sides. */
+  headsail?: 'follow' | 'sheets'
+  /** 0 hidden, 1 fully set. Used when headsail is 'sheets'. */
+  jibSet?: number
+  spinSet?: number
+  /** Jib clew, radians off the centreline. Positive is starboard. */
+  clew?: number
+  /** Spinnaker belly, radians. Positive is starboard. */
+  spinCenter?: number
+  /** How far the spinnaker reaches each side of its belly, radians. */
+  spinHalf?: number
+  /** 0 eased, 1 hauled. */
+  jibPort?: number
+  jibStbd?: number
+  spinPort?: number
+  spinStbd?: number
+  /** 0 quiet, 1 flapping. The headsail, separate from the main. */
+  headsailLuff?: number
 }
 
 function boomPoint(angle: number, radius: number): [number, number] {
@@ -171,6 +189,95 @@ function SailShape({
         strokeWidth={faint ? 2 : 3.5}
         strokeLinecap="round"
       />
+    </g>
+  )
+}
+
+const PORT_LEAD: [number, number] = [-26, 22]
+const STBD_LEAD: [number, number] = [26, 22]
+
+function jibClewPoint(angle: number, time: number, luff: number): [number, number] {
+  const side = angle >= 0 ? 1 : -1
+  const flutter = Math.sin(time * 28) * luff * 4
+  return [Math.sin(angle) * 48 + side * flutter, -36]
+}
+
+/** A rope from a clew back to a lead on one side of the boat. Slack bows outboard. */
+function SideSheet({ from, to, tight }: { from: [number, number]; to: [number, number]; tight: number }) {
+  const slack = 1 - clamp(tight, 0, 1)
+  const side = to[0] >= 0 ? 1 : -1
+  const mx = (from[0] + to[0]) / 2 + side * 16 * slack
+  const my = (from[1] + to[1]) / 2 + 8 * slack
+  const hot = tight > 0.62
+  return (
+    <g>
+      <path
+        d={`M${from[0].toFixed(1)} ${from[1].toFixed(1)} Q${mx.toFixed(1)} ${my.toFixed(1)} ${to[0]} ${to[1]}`}
+        fill="none"
+        stroke={hot ? '#f0c24d' : '#e6c48a'}
+        strokeWidth={hot ? 2.6 : 1.6}
+        strokeLinecap="round"
+        opacity={0.4 + clamp(tight, 0, 1) * 0.6}
+      />
+      <circle cx={to[0]} cy={to[1]} r="3.2" fill={hot ? '#f0c24d' : '#8d6a3d'} stroke="#2a2118" strokeWidth="1" />
+    </g>
+  )
+}
+
+function HeadsailJib({ angle, time, luff }: { angle: number; time: number; luff: number }) {
+  const tack: [number, number] = [0, -76]
+  const head: [number, number] = [0, -8]
+  const clew = jibClewPoint(angle, time, luff)
+  const side = angle >= 0 ? 1 : -1
+  const leech: [number, number] = [(head[0] + clew[0]) / 2 + side * 5, (head[1] + clew[1]) / 2]
+  const foot: [number, number] = [(tack[0] + clew[0]) / 2 + side * 3, (tack[1] + clew[1]) / 2]
+  const fill = luff > 0.45 ? '#e7eef3' : '#f7f4ec'
+  const stroke = luff > 0.45 ? '#9eb0be' : '#e3dccf'
+  const d = `M${head[0]} ${head[1]} Q${leech[0].toFixed(1)} ${leech[1].toFixed(1)} ${clew[0].toFixed(1)} ${clew[1].toFixed(1)} Q${foot[0].toFixed(1)} ${foot[1].toFixed(1)} ${tack[0]} ${tack[1]} Z`
+  return (
+    <g>
+      <path d={d} fill={fill} stroke={stroke} strokeWidth="1" strokeLinejoin="round" />
+      <circle cx={clew[0]} cy={clew[1]} r="2.3" fill="#5c3b24" />
+    </g>
+  )
+}
+
+/** Symmetric kite ahead of the bow. The foot runs from a clew on each side. */
+function spinOutline(center: number, half: number, time: number, luff: number) {
+  const head: [number, number] = [0, -16]
+  const wag = Math.sin(time * 14) * (1.5 + luff * 7)
+  const foot: [number, number][] = []
+  const steps = 10
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps
+    const ang = center - half + 2 * half * u
+    const reach = 68 + 30 * Math.sin(Math.PI * u)
+    const p = bowPoint(ang, reach)
+    foot.push([p[0] + wag * Math.sin(Math.PI * u), p[1]])
+  }
+  return { head, foot }
+}
+
+function SpinCloth({ center, half, time, luff }: { center: number; half: number; time: number; luff: number }) {
+  const { head, foot } = spinOutline(center, half, time, luff)
+  const nose = foot[Math.floor(foot.length / 2)] ?? head
+  const fill = luff > 0.45 ? '#f3c2b8' : '#e23b32'
+  const stroke = luff > 0.45 ? '#c46a5c' : '#8d1c16'
+  return (
+    <g>
+      <path d={poly([head, ...foot], true)} fill={fill} stroke={stroke} strokeWidth="1.4" strokeLinejoin="round" />
+      <path
+        d={`M${head[0]} ${head[1]} L${nose[0].toFixed(1)} ${nose[1].toFixed(1)}`}
+        fill="none"
+        stroke="#f0a040"
+        strokeWidth="3"
+        strokeLinecap="round"
+        opacity="0.9"
+      />
+      {foot[0] && <circle cx={foot[0][0]} cy={foot[0][1]} r="2.4" fill="#5c3b24" />}
+      {foot[foot.length - 1] && (
+        <circle cx={foot[foot.length - 1][0]} cy={foot[foot.length - 1][1]} r="2.4" fill="#5c3b24" />
+      )}
     </g>
   )
 }
@@ -375,8 +482,23 @@ export function Boat(props: BoatProps) {
     ghosts = [],
     ghostArc = false,
     showTurn = false,
+    headsail = 'follow',
+    jibSet = 0,
+    spinSet = 0,
+    clew = 0,
+    spinCenter = 0,
+    spinHalf = 1,
+    jibPort = 0,
+    jibStbd = 0,
+    spinPort = 0,
+    spinStbd = 0,
+    headsailLuff = 0,
   } = props
   const deg = (heading * 180) / PI
+  const sheets = headsail === 'sheets'
+  const spin = sheets ? spinOutline(spinCenter, spinHalf, time, headsailLuff) : null
+  const spinPortClew = spin?.foot[0]
+  const spinStbdClew = spin?.foot[spin.foot.length - 1]
   const labelSide = boom >= 0 ? -1 : 1
   return (
     <g opacity={opacity}>
@@ -400,8 +522,35 @@ export function Boat(props: BoatProps) {
         ))}
         <Sheet boom={boom} lock={lock} />
         <Hull />
-        <Jib boom={boom} time={time} luff={luff} />
+        {sheets ? (
+          <>
+            {jibSet > 0.02 && (
+              <g opacity={jibSet}>
+                <HeadsailJib angle={clew} time={time} luff={headsailLuff} />
+              </g>
+            )}
+            {spinSet > 0.02 && (
+              <g opacity={spinSet}>
+                <SpinCloth center={spinCenter} half={spinHalf} time={time} luff={headsailLuff} />
+              </g>
+            )}
+          </>
+        ) : (
+          <Jib boom={boom} time={time} luff={luff} />
+        )}
         <SailShape boom={boom} time={time} luff={luff} stall={stall} />
+        {sheets && jibSet > 0.02 && (
+          <g opacity={jibSet}>
+            <SideSheet from={jibClewPoint(clew, time, headsailLuff)} to={PORT_LEAD} tight={jibPort} />
+            <SideSheet from={jibClewPoint(clew, time, headsailLuff)} to={STBD_LEAD} tight={jibStbd} />
+          </g>
+        )}
+        {sheets && spinSet > 0.02 && spinPortClew && spinStbdClew && (
+          <g opacity={spinSet}>
+            <SideSheet from={spinPortClew} to={PORT_LEAD} tight={spinPort} />
+            <SideSheet from={spinStbdClew} to={STBD_LEAD} tight={spinStbd} />
+          </g>
+        )}
         <StallMarks boom={boom} stall={stall} time={time} />
         <circle cx="0" cy="0" r="3.4" fill="#e7ebf0" stroke="#6d767f" strokeWidth="1" />
         <Rudder rudder={rudder} />
@@ -492,43 +641,41 @@ function WindVane({ windFrom, time }: { windFrom: number; time: number }) {
 function LessonBar({
   time,
   duration,
+  marks,
+  caption,
   onSeek,
-  onScrub,
 }: {
   time: number
   duration: number
-  onSeek?: (time: number) => void
-  onScrub?: (down: boolean) => void
+  marks: readonly number[]
+  caption: string
+  onSeek: (time: number) => void
 }) {
-  const span = duration > 0 ? ((time % duration) + duration) % duration : 0
+  const span = duration > 0 ? Math.min(Math.max(time, 0), duration) : 0
   const step = 0.05
   const max = Math.max(step, duration - step)
   const shown = Math.min(span, max)
   const fraction = duration > 0 ? shown / duration : 0
-  const release = () => onScrub?.(false)
   return (
     <label className="theory-progress">
       <span className="theory-progress-track" aria-hidden="true">
         <span className="theory-progress-fill" style={{ width: `${fraction * 100}%` }} />
+        {duration > 0 &&
+          marks.map((mark) => (
+            <span key={mark} className="theory-progress-mark" style={{ left: `${(mark / duration) * 100}%` }} />
+          ))}
+        <span className="theory-progress-knob" style={{ left: `${fraction * 100}%` }} />
       </span>
-      {onSeek && (
-        <input
-          type="range"
-          min={0}
-          max={max}
-          step={step}
-          value={shown}
-          aria-label="Lesson progress"
-          aria-valuetext={`${Math.round(fraction * 100)} percent. Drag to rewind.`}
-          onChange={(event) => onSeek(Number(event.target.value))}
-          onPointerDown={() => onScrub?.(true)}
-          onPointerUp={release}
-          onPointerCancel={release}
-          onKeyDown={() => onScrub?.(true)}
-          onKeyUp={release}
-          onBlur={release}
-        />
-      )}
+      <input
+        type="range"
+        min={0}
+        max={max}
+        step={step}
+        value={shown}
+        aria-label="Lesson slider"
+        aria-valuetext={caption}
+        onChange={(event) => onSeek(Number(event.target.value))}
+      />
     </label>
   )
 }
@@ -547,7 +694,13 @@ export function Stage({
   children: ReactNode
   badge?: { tone: BadgeTone; title: string; detail?: string } | null
   speed?: { knots: number; note: string } | null
-  progress?: { time: number; duration: number; onSeek?: (time: number) => void; onScrub?: (down: boolean) => void } | null
+  progress?: {
+    time: number
+    duration: number
+    marks: readonly number[]
+    caption: string
+    onSeek: (time: number) => void
+  } | null
   alert?: boolean
 }) {
   const uid = useId().replace(/:/g, '')
@@ -575,7 +728,13 @@ export function Stage({
         </div>
       )}
       {progress && (
-        <LessonBar time={progress.time} duration={progress.duration} onSeek={progress.onSeek} onScrub={progress.onScrub} />
+        <LessonBar
+          time={progress.time}
+          duration={progress.duration}
+          marks={progress.marks}
+          caption={progress.caption}
+          onSeek={progress.onSeek}
+        />
       )}
     </div>
   )
