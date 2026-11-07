@@ -118,7 +118,7 @@ function PeerMotion({ peerId }: { peerId: string }) {
       const speed = node.firstElementChild
       const drive = node.lastElementChild
       if (speed) speed.textContent = formatKnots(ship.speed, ship.sway)
-      if (drive) drive.textContent = propulsionLabel(ship.port, ship.starboard, ship.bow, ship.stern, ship.hoist, ship.jibHoist)
+      if (drive) drive.textContent = propulsionLabel(ship.port, ship.starboard, ship.bow, ship.stern, ship.hoist, ship.jibHoist, ship.spinHoist)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)

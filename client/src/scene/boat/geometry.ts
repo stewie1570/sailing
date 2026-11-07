@@ -5,7 +5,7 @@ import * as THREE from 'three'
  * width, so it fits a slip with room to spare and still reads next to the dock.
  * Local space: +z bow, +x port (the starboard screw is the −x mirror), y = 0 at
  * the waterline. The mast and standing rigging live on this mesh. The boom,
- * mainsail, jib and masthead vane are separate so the sheets and furlers can move them.
+ * mainsail, jib, spinnaker and masthead vane are separate so the sheets and furlers can move them.
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
  * and the triangle count stays in the low thousands. Collision uses the same
@@ -43,6 +43,9 @@ const BRONZE: RGB = [0.68, 0.48, 0.28]
 const WOOD: RGB = [0.34, 0.22, 0.14]
 const SAIL: RGB = [0.97, 0.95, 0.9]
 const SAIL_BAND: RGB = [0.9, 0.88, 0.82]
+/** A cruising asymmetric. Red cloth with a gold panel, so it reads against the white jib. */
+const SPIN: RGB = [0.86, 0.13, 0.1]
+const SPIN_BAND: RGB = [0.95, 0.62, 0.16]
 const VANE: RGB = [0.95, 0.42, 0.12]
 
 type RGB = readonly [number, number, number]
@@ -639,6 +642,21 @@ export function jibFrame(): JibFrame {
   }
 }
 
+/**
+ * Symmetric spinnaker. The head is at the masthead and the tack is the stem,
+ * which poseSpin uses as the reach of an eased clew. The sail is a balloon,
+ * not a flat triangle: poseSpin holds a clew out to each side.
+ */
+export function spinFrame(): JibFrame {
+  const deckY = hullPoint(0.7, 1).y
+  const bow = hullPoint(0.985, 1)
+  return {
+    tack: new THREE.Vector3(0, bow.y + 0.62, bow.z - 0.12),
+    head: new THREE.Vector3(0, deckY + MAST_H - 0.2, MAST_Z + 0.02),
+    clew: new THREE.Vector3(0, deckY + 0.95, MAST_Z + 0.15),
+  }
+}
+
 interface ClothVert {
   u: number
   v: number
@@ -648,15 +666,15 @@ interface ClothVert {
 const JIB_NU = 5
 const JIB_NV = 7
 
-/** Jib cloth in boat space. poseJib moves the clew and rolls the sail onto the stay. */
-export function buildJib(): THREE.Mesh {
+/** Headsail cloth in boat space. poseJib moves the clew and rolls the sail onto the luff. */
+function buildHeadsail(name: string, clothColor: RGB, band: RGB, emissive: RGB): THREE.Mesh {
   const g: Geo = { pos: [], col: [], idx: [] }
   const cloth: ClothVert[] = []
   const skins = [1, -1]
   for (const skin of skins) {
     for (let j = 0; j <= JIB_NV; j++) {
       for (let i = 0; i <= JIB_NU; i++) {
-        const color = (i + j) % 2 === 0 ? SAIL : SAIL_BAND
+        const color = (i + j) % 2 === 0 ? clothColor : band
         vert(g, 0, 0, 0, color)
         cloth.push({ u: i / JIB_NU, v: j / JIB_NV, skin })
       }
@@ -676,11 +694,24 @@ export function buildJib(): THREE.Mesh {
       }
     }
   }
-  const mesh = toMesh(g, 'jib', false)
+  const mesh = toMesh(g, name, false)
   const material = mesh.material as THREE.MeshLambertMaterial
-  material.emissive = new THREE.Color(0.55, 0.52, 0.46)
+  material.emissive = new THREE.Color(emissive[0], emissive[1], emissive[2])
   mesh.userData.cloth = cloth
   return mesh
+}
+
+/** Jib cloth in boat space. poseJib moves the clew and rolls the sail onto the stay. */
+export function buildJib(): THREE.Mesh {
+  return buildHeadsail('jib', SAIL, SAIL_BAND, [0.55, 0.52, 0.46])
+}
+
+/**
+ * Spinnaker cloth. poseSpin blows it up into a balloon across the bow.
+ * The emissive is red rather than cream, or the kite washes out to the same colour as the jib.
+ */
+export function buildSpin(): THREE.Mesh {
+  return buildHeadsail('spinnaker', SPIN, SPIN_BAND, [0.2, 0.045, 0.035])
 }
 
 const jibTack = new THREE.Vector3()
@@ -695,8 +726,9 @@ const jibLeech = new THREE.Vector3()
 const jibRel = new THREE.Vector3()
 
 /**
- * Lay the jib on the forestay. `angle` is radians, positive to starboard.
- * `hoist` rolls the cloth out from the stay. `flap` slats the leech when the sail is luffing.
+ * Lay a headsail on its luff. `angle` is radians, positive to starboard.
+ * `hoist` rolls the cloth out from the luff. `flap` slats the leech when the sail is luffing.
+ * `camber` is the belly in metres. The jib is a flat working sail.
  */
 export function poseJib(
   mesh: THREE.Mesh,
@@ -705,6 +737,7 @@ export function poseJib(
   hoist: number,
   flap: number,
   time: number,
+  camber = 0.32,
 ) {
   const h = Math.min(1, Math.max(0, hoist))
   mesh.visible = h > 0.02
@@ -732,10 +765,66 @@ export function poseJib(
     jibLuff.lerpVectors(jibTack, jibHead, vv)
     jibLeech.lerpVectors(jibClew, jibHead, vv)
     jibPoint.lerpVectors(jibLuff, jibLeech, u * h)
-    const draft = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * 0.32 * h
+    const draft = Math.sin(Math.PI * u) * Math.sin(Math.PI * v) * camber * h
     const wag = flap * u * h * (Math.sin(time * 9.2 + v * 4.1) * 0.16 + Math.sin(time * 17.4 + v * 2) * 0.07)
     jibPoint.addScaledVector(jibBelly, draft + skin * 0.012 + wag)
     pos.setXYZ(k, jibPoint.x, jibPoint.y, jibPoint.z)
+  }
+  pos.needsUpdate = true
+  mesh.geometry.computeVertexNormals()
+}
+
+const spinHead = new THREE.Vector3()
+const spinPort = new THREE.Vector3()
+const spinStbd = new THREE.Vector3()
+const spinLeft = new THREE.Vector3()
+const spinRight = new THREE.Vector3()
+
+/**
+ * Blow the spinnaker up ahead of the boat.
+ * `center` is the belly, radians, positive to starboard. `half` is how far
+ * the foot reaches each side of that belly, so a centred sail with a wide
+ * half covers port and starboard together. Hauling a sheet moves `center`
+ * and shrinks `half` until the whole kite is on one side.
+ */
+export function poseSpin(
+  mesh: THREE.Mesh,
+  frame: JibFrame,
+  center: number,
+  half: number,
+  hoist: number,
+  flap: number,
+  time: number,
+) {
+  const h = Math.min(1, Math.max(0, hoist))
+  mesh.visible = h > 0.02
+  if (h <= 0.02) return
+  const cloth = mesh.userData.cloth as ClothVert[]
+  spinHead.copy(frame.head)
+  const reach = Math.max(2.4, frame.tack.z - frame.head.z) * (0.2 + 0.8 * h)
+  const footY = frame.clew.y + (frame.head.y - frame.clew.y) * (1 - h)
+  const place = (angle: number, out: THREE.Vector3) => {
+    out.set(spinHead.x - Math.sin(angle) * reach, footY, spinHead.z + Math.cos(angle) * reach)
+  }
+  place(center - half, spinPort)
+  place(center + half, spinStbd)
+  const fullness = (1.15 + Math.min(Math.abs(half), 1.15) * 1.25) * h
+  const bx = -Math.sin(center)
+  const bz = Math.cos(center)
+
+  const pos = mesh.geometry.attributes.position as THREE.BufferAttribute
+  for (let k = 0; k < cloth.length; k++) {
+    const { u, v, skin } = cloth[k]
+    const vv = v * 0.97
+    spinLeft.lerpVectors(spinPort, spinHead, vv)
+    spinRight.lerpVectors(spinStbd, spinHead, vv)
+    spinLeft.lerpVectors(spinLeft, spinRight, u)
+    const belly = Math.sin(Math.PI * u) * Math.sin(Math.PI * vv)
+    const wag = flap * belly * (Math.sin(time * 6.4 + v * 3.2) * 0.22 + Math.sin(time * 13.5 + u * 4) * 0.08)
+    spinLeft.x += bx * (belly * fullness + wag) + skin * bx * 0.015
+    spinLeft.y -= belly * 0.42 * h
+    spinLeft.z += bz * (belly * fullness + wag) + skin * bz * 0.015
+    pos.setXYZ(k, spinLeft.x, spinLeft.y, spinLeft.z)
   }
   pos.needsUpdate = true
   mesh.geometry.computeVertexNormals()

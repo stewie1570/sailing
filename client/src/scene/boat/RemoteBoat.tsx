@@ -7,6 +7,7 @@ import {
   buildBoom,
   buildJib,
   buildMainsail,
+  buildSpin,
   buildPropeller,
   buildPropStrut,
   buildRudder,
@@ -16,9 +17,12 @@ import {
   helmHardware,
   jibFrame,
   poseJib,
+  poseSpin,
   rigFrame,
+  spinFrame,
 } from './geometry'
 import { swell } from './physics'
+import { spinHalfFromCenter } from './sail'
 
 /**
  * Someone else's hull, posed from the snapshot they publish. The local boat
@@ -30,9 +34,11 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
   const boomMesh = useMemo(() => buildBoom(), [])
   const sailMesh = useMemo(() => buildMainsail(), [])
   const jibMesh = useMemo(() => buildJib(), [])
+  const spinMesh = useMemo(() => buildSpin(), [])
   const vaneMesh = useMemo(() => buildVane(), [])
   const rig = useMemo(() => rigFrame(), [])
   const jibRig = useMemo(() => jibFrame(), [])
+  const spinRig = useMemo(() => spinFrame(), [])
   const rudderMesh = useMemo(() => buildRudder(), [])
   const portProp = useMemo(() => buildPropeller(), [])
   const stbdProp = useMemo(() => buildPropeller(), [])
@@ -45,6 +51,7 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
   const boomRef = useRef<THREE.Group>(null)
   const sailRef = useRef<THREE.Group>(null)
   const jibRef = useRef<THREE.Group>(null)
+  const spinSailRef = useRef<THREE.Group>(null)
   const vaneRef = useRef<THREE.Group>(null)
   const rudderRef = useRef<THREE.Group>(null)
   const portSpinRef = useRef<THREE.Group>(null)
@@ -55,14 +62,14 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, wheel, boomMesh, sailMesh, jibMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) {
+      for (const mesh of [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) {
         disposeMesh(mesh)
       }
       const material = nameTag.material as THREE.SpriteMaterial
       material.map?.dispose()
       material.dispose()
     }
-  }, [hull, wheel, boomMesh, sailMesh, jibMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, nameTag])
+  }, [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, nameTag])
 
   useFrame((state, delta) => {
     const ship = remoteShip(playerId)
@@ -115,6 +122,11 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
       poseJib(jibMesh, jibRig, ship.clew, ship.jibHoist, ship.jibLuff, time)
       jibRef.current.visible = ship.jibHoist > 0.02
     }
+    if (spinSailRef.current) {
+      const spinHoist = ship.spinHoist || 0
+      poseSpin(spinMesh, spinRig, ship.clew, spinHalfFromCenter(ship.clew), spinHoist, ship.spinLuff || 0, time)
+      spinSailRef.current.visible = spinHoist > 0.02
+    }
     if (vaneRef.current) vaneRef.current.rotation.y = ship.vane
     if (portSpinRef.current) portSpinRef.current.rotation.z += ship.port * 16 * spin
     if (stbdSpinRef.current) stbdSpinRef.current.rotation.z -= ship.starboard * 16 * spin
@@ -137,6 +149,9 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
       </group>
       <group ref={jibRef} visible={false}>
         <primitive object={jibMesh} />
+      </group>
+      <group ref={spinSailRef} visible={false}>
+        <primitive object={spinMesh} />
       </group>
       <group ref={vaneRef} position={[0, rig.vaneY, rig.vaneZ]}>
         <primitive object={vaneMesh} />

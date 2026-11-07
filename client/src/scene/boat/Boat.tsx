@@ -9,6 +9,7 @@ import {
   buildBoom,
   buildJib,
   buildMainsail,
+  buildSpin,
   buildPropeller,
   buildPropStrut,
   buildRudder,
@@ -18,7 +19,9 @@ import {
   helmHardware,
   jibFrame,
   poseJib,
+  poseSpin,
   rigFrame,
+  spinFrame,
   WHEEL_RADIUS,
 } from './geometry'
 import { getHelm, updateHelm } from './helm'
@@ -33,7 +36,7 @@ import {
   type Pose,
 } from './physics'
 import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
-import { getBoom, getClew, getHoist, getJibHoist, luffAmount, readRig, stepHoist, stepJibHoist } from './sail'
+import { getBoom, getClew, getHoist, getJibHoist, getSpinHalf, getSpinHoist, luffAmount, readRig, stepHoist, stepJibHoist, stepSpinHoist } from './sail'
 import { getWind, getWindDebug, stepWind } from './wind'
 import { MAX_SAILORS } from '../../net/protocol'
 import { eachFreshShip, noteLocalShip } from '../../net/session'
@@ -49,8 +52,8 @@ function disposeMesh(mesh: THREE.Mesh) {
 }
 
 /**
- * The player's sloop. Twin screws and a rudder, a main on the boom, and a jib
- * on the forestay. The wheel and the blade turn with the helm. Each sail swings
+ * The player's sloop. Twin screws and a rudder, a main on the boom, a jib
+ * on the forestay, and an asymmetric spinnaker. The wheel and the blade turn with the helm. Each sail swings
  * only as far as its sheet allows, and the wind pushes it out. The hull stops when it
  * meets the shore, a dock, or any other solid mesh. The camera rides along
  * and chases the heading about a second behind, finishing at the same angle
@@ -62,9 +65,11 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const boomMesh = useMemo(() => buildBoom(), [])
   const sailMesh = useMemo(() => buildMainsail(), [])
   const jibMesh = useMemo(() => buildJib(), [])
+  const spinMesh = useMemo(() => buildSpin(), [])
   const vaneMesh = useMemo(() => buildVane(), [])
   const rig = useMemo(() => rigFrame(), [])
   const jibRig = useMemo(() => jibFrame(), [])
+  const spinRig = useMemo(() => spinFrame(), [])
   const rudderMesh = useMemo(() => buildRudder(), [])
   const portProp = useMemo(() => buildPropeller(), [])
   const stbdProp = useMemo(() => buildPropeller(), [])
@@ -86,6 +91,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const boomRef = useRef<THREE.Group>(null)
   const sailRef = useRef<THREE.Group>(null)
   const jibRef = useRef<THREE.Group>(null)
+  const spinSailRef = useRef<THREE.Group>(null)
   const vaneRef = useRef<THREE.Group>(null)
   const camberSide = useRef(1)
   const rudderRef = useRef<THREE.Group>(null)
@@ -102,9 +108,9 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, wheel, boomMesh, sailMesh, jibMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
+      for (const mesh of [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
     }
-  }, [hull, wheel, boomMesh, sailMesh, jibMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
+  }, [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -125,9 +131,11 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       get hoist() { return getHoist() },
       get boom() { return getBoom() },
       get jib() { return getHelm().jib },
+      get spin() { return getHelm().spin },
       get jibPort() { return getHelm().jibPort },
       get jibStarboard() { return getHelm().jibStarboard },
       get jibHoist() { return getJibHoist() },
+      get spinHoist() { return getSpinHoist() },
       get clew() { return getClew() },
       drive(port: number, starboard: number, rudder: number) {
         updateHelm({ port, starboard, rudder })
@@ -137,6 +145,9 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       },
       setJib(jib: number, jibPort: number, jibStarboard: number) {
         updateHelm({ jib, jibPort, jibStarboard })
+      },
+      setSpin(spin: number) {
+        updateHelm({ spin })
       },
       place(x: number, z: number, yaw?: number) {
         const dx = x - pose.x
@@ -178,6 +189,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     stepWind(frame)
     stepHoist(drive.halyard, frame)
     stepJibHoist(drive.jib, frame)
+    stepSpinHoist(drive.spin, frame)
     const wind = getWind()
     // Other sailors are the authority for their own boats. This hull stops against
     // the pose they published, the way it stops against a dock. If a late packet
@@ -221,6 +233,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
         jibHoist: getJibHoist(),
         jibPort: drive.jibPort,
         jibStarboard: drive.jibStarboard,
+        spinHoist: getSpinHoist(),
       },
     })
     publishTelemetry(pose)
@@ -246,6 +259,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       trim.main.awa,
       flap,
       trim.jib.luff,
+      getSpinHoist(),
+      trim.spin.luff,
       pose.speed,
       pose.sway,
       drive.bow,
@@ -268,6 +283,10 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     if (jibRef.current) {
       poseJib(jibMesh, jibRig, getClew(), getJibHoist(), trim.jib.luff, time)
       jibRef.current.visible = getJibHoist() > 0.02
+    }
+    if (spinSailRef.current) {
+      poseSpin(spinMesh, spinRig, getClew(), getSpinHalf(), getSpinHoist(), trim.spin.luff, time)
+      spinSailRef.current.visible = getSpinHoist() > 0.02
     }
     if (vaneRef.current) vaneRef.current.rotation.y = trim.main.awa
     if (portSpinRef.current) portSpinRef.current.rotation.z += drive.port * 16 * spin
@@ -341,6 +360,9 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       </group>
       <group ref={jibRef} visible={false}>
         <primitive object={jibMesh} />
+      </group>
+      <group ref={spinSailRef} visible={false}>
+        <primitive object={spinMesh} />
       </group>
       <group ref={vaneRef} position={[0, rig.vaneY, rig.vaneZ]}>
         <primitive object={vaneMesh} />
