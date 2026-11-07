@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { nudgeCamera } from '../scene/cameraDrive'
-import { controlDrag, getHelm, updateHelm, type Helm, type HelmMode } from '../scene/boat/helm'
+import { controlDrag, getHelm, NEUTRAL_GRAB, NEUTRAL_RELEASE, updateHelm, type Helm, type HelmMode } from '../scene/boat/helm'
 import {
   actionsFor,
   axisLever,
@@ -8,12 +8,14 @@ import {
   captureInput,
   isActionId,
   isBinding,
+  notchStep,
   padFor,
   rateStep,
   sameBinding,
   scopeOf,
   type ActionId,
   type Binding,
+  type CenterNotch,
   type PadSample,
 } from './gamepad'
 
@@ -254,7 +256,7 @@ function rising(id: ActionId, pads: readonly PadSample[], prev: Map<ActionId, nu
   return was < 0.5 && value >= 0.5
 }
 
-function apply(pads: readonly PadSample[], dt: number) {
+function apply(pads: readonly PadSample[], dt: number, notches: { bow: CenterNotch; stern: CenterNotch }) {
   const helm = getHelm()
   const patch: Partial<Helm> = {}
   const mode = state.helmMode
@@ -275,6 +277,22 @@ function apply(pads: readonly PadSample[], dt: number) {
     return rateStep(current, readAction(ahead, pads) - readAction(astern, pads), rate, dt, min, max)
   }
 
+  const thruster = (
+    current: number,
+    ahead: ActionId,
+    astern: ActionId,
+    drag: 'bow' | 'stern',
+    notch: CenterNotch,
+  ) => {
+    if (controlDrag(drag)) {
+      notch.held = false
+      notch.travel = 0
+      return current
+    }
+    const input = readAction(ahead, pads) - readAction(astern, pads)
+    return notchStep(current, input, RATE.thruster, dt, notch, NEUTRAL_GRAB, NEUTRAL_RELEASE)
+  }
+
   // The rudder is shared, so the wheel still steers after the mode button.
   patch.rudder = lever(helm.rudder, 'rudderStbd', 'rudderPort', RATE.rudder, 'rudder', -1, 1, null)
   if (mode === 'engine') {
@@ -282,9 +300,23 @@ function apply(pads: readonly PadSample[], dt: number) {
     const stbdPosition = active ? activeLever('stbdAhead', 'stbdAstern', pads) : null
     patch.port = lever(helm.port, 'portAhead', 'portAstern', RATE.throttle, 'port', -1, 1, portPosition)
     patch.starboard = lever(helm.starboard, 'stbdAhead', 'stbdAstern', RATE.throttle, 'starboard', -1, 1, stbdPosition)
-    patch.bow = lever(helm.bow, 'bowStbd', 'bowPort', RATE.thruster, 'bow', -1, 1, null)
-    patch.stern = lever(helm.stern, 'sternStbd', 'sternPort', RATE.thruster, 'stern', -1, 1, null)
+    // The pointer drops a thruster into the stop notch. A stick does too,
+    // so a slider that reads off is not still pushing.
+    patch.bow = thruster(helm.bow, 'bowStbd', 'bowPort', 'bow', notches.bow)
+    patch.stern = thruster(helm.stern, 'sternStbd', 'sternPort', 'stern', notches.stern)
   } else {
+    // Leaving the engine levers is a release. A thruster still inside the
+    // stop notch goes to off instead of keeping the fraction that lights the tab.
+    if (!controlDrag('bow') && Math.abs(helm.bow) <= NEUTRAL_RELEASE) {
+      notches.bow.held = false
+      notches.bow.travel = 0
+      patch.bow = 0
+    }
+    if (!controlDrag('stern') && Math.abs(helm.stern) <= NEUTRAL_RELEASE) {
+      notches.stern.held = false
+      notches.stern.travel = 0
+      patch.stern = 0
+    }
     patch.sheet = lever(helm.sheet, 'sheetOut', 'sheetIn', RATE.sheet, 'sheet', 0, 1, null)
     patch.halyard = lever(helm.halyard, 'halyardUp', 'halyardDown', RATE.furler, 'halyard', 0, 1, null)
     patch.jib = lever(helm.jib, 'jibOut', 'jibIn', RATE.furler, 'jib', 0, 1, null)
@@ -310,6 +342,10 @@ export function useControllerLoop() {
   useEffect(() => {
     const seen = new Map<number, PadSample>()
     const held = new Map<ActionId, number>()
+    const notches = {
+      bow: { held: false, travel: 0 },
+      stern: { held: false, travel: 0 },
+    }
     let last = performance.now()
     let raf = 0
     const tick = (now: number) => {
@@ -344,7 +380,7 @@ export function useControllerLoop() {
       seen.clear()
       if (helmEdge) setHelmMode(state.helmMode === 'engine' ? 'sailing' : 'engine')
       if (state.helmMode === 'engine' && activeEdge) setActiveThrottles(!state.activeThrottles)
-      apply(pads, dt)
+      apply(pads, dt, notches)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
