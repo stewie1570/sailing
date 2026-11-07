@@ -65,6 +65,10 @@ function update(patch: Partial<SessionState>) {
   listeners.forEach((listener) => listener())
 }
 
+export function myPlayerId(): string {
+  return state.playerId
+}
+
 export function useSession(): SessionState {
   return useSyncExternalStore(
     (cb) => {
@@ -134,6 +138,8 @@ const localShip: ShipVisual & { fresh: boolean } = {
   spinLuff: 0,
   speed: 0,
   sway: 0,
+  sink: 0,
+  ram: '',
 }
 
 /** Written every sim frame. The network loop copies it; the sim does not wait on the socket. */
@@ -157,6 +163,8 @@ export function noteLocalShip(
   sway: number,
   bow: number,
   stern: number,
+  sink: number,
+  ram: string,
 ) {
   localShip.x = x
   localShip.z = z
@@ -177,6 +185,8 @@ export function noteLocalShip(
   localShip.sway = sway
   localShip.bow = bow
   localShip.stern = stern
+  localShip.sink = sink
+  localShip.ram = ram
   localShip.fresh = true
 }
 
@@ -242,10 +252,17 @@ function rememberShip(ship: ShipMessage) {
     known.sway = ship.sway
     known.bow = ship.bow
     known.stern = ship.stern
+    known.sink = Number.isFinite(ship.sink) ? ship.sink : 0
+    known.ram = typeof ship.ram === 'string' ? ship.ram : ''
     known.at = performance.now()
     return
   }
-  ships.set(ship.playerId, { ...ship, at: performance.now() })
+  ships.set(ship.playerId, {
+    ...ship,
+    sink: Number.isFinite(ship.sink) ? ship.sink : 0,
+    ram: typeof ship.ram === 'string' ? ship.ram : '',
+    at: performance.now(),
+  })
   shipOrder = [...ships.keys()]
   shipListeners.forEach((listener) => listener())
 }
@@ -424,6 +441,8 @@ async function sendShip() {
     sway: round(localShip.sway, 2),
     bow: round(localShip.bow, 3),
     stern: round(localShip.stern, 3),
+    sink: round(localShip.sink, 2),
+    ram: localShip.ram,
   }
   try {
     await conn.invoke('Ship', message)

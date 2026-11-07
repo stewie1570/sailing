@@ -114,7 +114,9 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         var sailor = SailorName;
         if (id is null || room is null || sailor is null) return Task.CompletedTask;
         if (!Plausible(ship)) return Task.CompletedTask;
-        var stamped = ship with { PlayerId = id, Name = sailor };
+        var ram = ship.Ram ?? "";
+        if (ram.Length > 0 && NormalizeId(ram) is null) ram = "";
+        var stamped = ship with { PlayerId = id, Name = sailor, Ram = ram };
         return Clients.OthersInGroup(Group(room)).Ship(stamped);
     }
 
@@ -223,7 +225,8 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         && Finite(ship.SpinHoist, -0.1, 1.1)
         && Finite(ship.SpinLuff, -0.1, 1.1)
         && Finite(ship.Speed, -40, 40)
-        && Finite(ship.Sway, -40, 40);
+        && Finite(ship.Sway, -40, 40)
+        && Finite(ship.Sink, -1, 80);
 
     private static bool Finite(double value, double min, double max)
         => double.IsFinite(value) && value >= min && value <= max;
@@ -322,6 +325,8 @@ public sealed record ShipRelay(
     double Bow,
     double Stern,
     double SpinHoist = 0,
-    double SpinLuff = 0);
+    double SpinLuff = 0,
+    double Sink = 0,
+    string? Ram = "");
 
 public sealed record PongMessage(long ClientSentAt, long ServerTime);

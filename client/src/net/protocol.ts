@@ -52,6 +52,10 @@ export interface ShipVisual {
   speed: number
   /** Metres per second, lateral. */
   sway: number
+  /** Metres the hull is held under the swell. 0 is afloat. */
+  sink: number
+  /** Player id this helm is driving into, or empty when it claims nobody. */
+  ram: string
 }
 
 export interface ShipMessage extends ShipVisual {
