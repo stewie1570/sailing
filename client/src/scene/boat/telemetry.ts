@@ -40,9 +40,17 @@ export function enginesRunning(port: number, starboard: number, bow: number, ste
 }
 
 /** Engine, sail, both, or neither. The chart hover uses this wording. */
-export function propulsionLabel(port: number, starboard: number, bow: number, stern: number, hoist: number, jibHoist: number) {
+export function propulsionLabel(
+  port: number,
+  starboard: number,
+  bow: number,
+  stern: number,
+  hoist: number,
+  jibHoist: number,
+  spinHoist = 0,
+) {
   const powered = enginesRunning(port, starboard, bow, stern)
-  const sailing = [hoist, jibHoist].some((value) => Number.isFinite(value) && value > DRIVE_ON)
+  const sailing = [hoist, jibHoist, spinHoist].some((value) => Number.isFinite(value) && value > DRIVE_ON)
   if (powered && sailing) return 'Engine and sail'
   if (powered) return 'Under engine'
   if (sailing) return 'Under sail'

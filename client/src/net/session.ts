@@ -130,6 +130,8 @@ const localShip: ShipVisual & { fresh: boolean } = {
   vane: 0,
   luff: 0,
   jibLuff: 0,
+  spinHoist: 0,
+  spinLuff: 0,
   speed: 0,
   sway: 0,
 }
@@ -149,6 +151,8 @@ export function noteLocalShip(
   vane: number,
   luff: number,
   jibLuff: number,
+  spinHoist: number,
+  spinLuff: number,
   speed: number,
   sway: number,
   bow: number,
@@ -167,6 +171,8 @@ export function noteLocalShip(
   localShip.vane = vane
   localShip.luff = luff
   localShip.jibLuff = jibLuff
+  localShip.spinHoist = spinHoist
+  localShip.spinLuff = spinLuff
   localShip.speed = speed
   localShip.sway = sway
   localShip.bow = bow
@@ -230,6 +236,8 @@ function rememberShip(ship: ShipMessage) {
     known.vane = ship.vane
     known.luff = ship.luff
     known.jibLuff = ship.jibLuff
+    known.spinHoist = ship.spinHoist || 0
+    known.spinLuff = ship.spinLuff || 0
     known.speed = ship.speed
     known.sway = ship.sway
     known.bow = ship.bow
@@ -410,6 +418,8 @@ async function sendShip() {
     vane: round(localShip.vane, 4),
     luff: round(localShip.luff, 3),
     jibLuff: round(localShip.jibLuff, 3),
+    spinHoist: round(localShip.spinHoist, 3),
+    spinLuff: round(localShip.spinLuff, 3),
     speed: round(localShip.speed, 2),
     sway: round(localShip.sway, 2),
     bow: round(localShip.bow, 3),

@@ -16,16 +16,25 @@ export interface Helm {
   /** Jib furler. 0 is rolled onto the forestay, 1 is fully out. */
   jib: number
   /**
-   * Jib sheet tightness, 0 fully eased and 1 hauled hard.
-   * The two sheets share one haul: their sum never exceeds 1, so 70% tight
-   * on port leaves at most 30% for starboard. Hauling a sheet pulls the
-   * clew to that side, and a hard haul carries it all the way across.
+   * Spinnaker furler. 0 is rolled up, 1 is fully out.
+   * The jib and the spinnaker are the two headsails, and only one can be
+   * set: paying either out furls the other. The main is separate and can
+   * stay set with whichever headsail is flying.
+   */
+  spin: number
+  /**
+   * Headsail sheet tightness, 0 fully eased and 1 hauled hard.
+   * Port and starboard share one haul: their sum never exceeds 1, so 70%
+   * tight on port leaves at most 30% for starboard. Hauling a sheet pulls
+   * the clew to that side, and a hard haul carries it all the way across.
+   * The same two sheets trim the jib, or the spinnaker once that is the
+   * sail set.
    */
   jibPort: number
   jibStarboard: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'jibPort' | 'jibStarboard' | 'halyard' | 'bow' | 'stern'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'spin' | 'jibPort' | 'jibStarboard' | 'halyard' | 'bow' | 'stern'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -43,6 +52,7 @@ const ZERO: Helm = {
   stern: 0,
   sheet: 0.5,
   jib: 0,
+  spin: 0,
   jibPort: 0,
   jibStarboard: 0,
 }
@@ -54,6 +64,7 @@ const drag: Record<Control, boolean> = {
   rudder: false,
   sheet: false,
   jib: false,
+  spin: false,
   jibPort: false,
   jibStarboard: false,
   halyard: false,
@@ -100,9 +111,33 @@ export function limitJibSheets(
   return { jibPort: port * scale, jibStarboard: starboard * scale }
 }
 
-/** How tight this jib sheet may go, given the other sheet. */
+/** How tight this headsail sheet may go, given the other sheet. */
 export function jibSheetRoom(other: number) {
   return Math.min(1, Math.max(0, 1 - other))
+}
+
+/**
+ * The jib and the spinnaker cannot both draw. Paying one out furls the other
+ * completely. Furling either sail leaves the other where it was, and the main
+ * is not part of this choice. If both furlers move out in one update, the
+ * larger step is the sail being set; an equal step keeps the jib.
+ */
+export function exclusiveHeadsails(
+  prevJib: number,
+  prevSpin: number,
+  jib: number,
+  spin: number,
+): { jib: number; spin: number } {
+  jib = clamp01(jib)
+  spin = clamp01(spin)
+  if (jib <= 0 || spin <= 0) return { jib, spin }
+  const jibOut = jib > prevJib
+  const spinOut = spin > prevSpin
+  if (spinOut && !jibOut) return { jib: 0, spin }
+  if (jibOut && !spinOut) return { jib, spin: 0 }
+  if (spinOut && jibOut && spin - prevSpin > jib - prevJib) return { jib: 0, spin }
+  if (!spinOut && !jibOut && prevSpin > prevJib) return { jib: 0, spin }
+  return { jib, spin: 0 }
 }
 
 export function updateHelm(patch: Partial<Helm>) {
@@ -112,6 +147,7 @@ export function updateHelm(patch: Partial<Helm>) {
     patch.jibPort != null,
     patch.jibStarboard != null,
   )
+  const heads = exclusiveHeadsails(helm.jib, helm.spin, patch.jib ?? helm.jib, patch.spin ?? helm.spin)
   const next: Helm = {
     port: clamp(patch.port ?? helm.port),
     starboard: clamp(patch.starboard ?? helm.starboard),
@@ -120,7 +156,8 @@ export function updateHelm(patch: Partial<Helm>) {
     bow: clamp(patch.bow ?? helm.bow),
     stern: clamp(patch.stern ?? helm.stern),
     sheet: clamp01(patch.sheet ?? helm.sheet),
-    jib: clamp01(patch.jib ?? helm.jib),
+    jib: heads.jib,
+    spin: heads.spin,
     jibPort: sheets.jibPort,
     jibStarboard: sheets.jibStarboard,
   }
@@ -133,6 +170,7 @@ export function updateHelm(patch: Partial<Helm>) {
     next.stern === helm.stern &&
     next.sheet === helm.sheet &&
     next.jib === helm.jib &&
+    next.spin === helm.spin &&
     next.jibPort === helm.jibPort &&
     next.jibStarboard === helm.jibStarboard
   ) {

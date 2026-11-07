@@ -45,6 +45,9 @@ export interface ShipVisual {
   vane: number
   luff: number
   jibLuff: number
+  /** 0 rolled up, 1 the spinnaker fully set. The jib is furled while this is out. */
+  spinHoist: number
+  spinLuff: number
   /** Metres per second along the bow. Negative is astern. */
   speed: number
   /** Metres per second, lateral. */

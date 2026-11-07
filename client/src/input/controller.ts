@@ -233,6 +233,7 @@ const dragName = {
   sheet: () => controlDrag('sheet'),
   halyard: () => controlDrag('halyard'),
   jib: () => controlDrag('jib'),
+  spin: () => controlDrag('spin'),
   jibPort: () => controlDrag('jibPort'),
   jibStarboard: () => controlDrag('jibStarboard'),
 }
@@ -320,6 +321,7 @@ function apply(pads: readonly PadSample[], dt: number, notches: { bow: CenterNot
     patch.sheet = lever(helm.sheet, 'sheetOut', 'sheetIn', RATE.sheet, 'sheet', 0, 1, null)
     patch.halyard = lever(helm.halyard, 'halyardUp', 'halyardDown', RATE.furler, 'halyard', 0, 1, null)
     patch.jib = lever(helm.jib, 'jibOut', 'jibIn', RATE.furler, 'jib', 0, 1, null)
+    patch.spin = lever(helm.spin, 'spinOut', 'spinIn', RATE.furler, 'spin', 0, 1, null)
     patch.jibPort = lever(helm.jibPort, 'jibPortHaul', 'jibPortEase', RATE.sheet, 'jibPort', 0, 1, null)
     patch.jibStarboard = lever(helm.jibStarboard, 'jibStbdHaul', 'jibStbdEase', RATE.sheet, 'jibStarboard', 0, 1, null)
   }

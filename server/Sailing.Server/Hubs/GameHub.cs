@@ -220,6 +220,8 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         && Finite(ship.Vane, -8, 8)
         && Finite(ship.Luff, -0.1, 1.1)
         && Finite(ship.JibLuff, -0.1, 1.1)
+        && Finite(ship.SpinHoist, -0.1, 1.1)
+        && Finite(ship.SpinLuff, -0.1, 1.1)
         && Finite(ship.Speed, -40, 40)
         && Finite(ship.Sway, -40, 40);
 
@@ -318,6 +320,8 @@ public sealed record ShipRelay(
     double Speed,
     double Sway,
     double Bow,
-    double Stern);
+    double Stern,
+    double SpinHoist = 0,
+    double SpinLuff = 0);
 
 public sealed record PongMessage(long ClientSentAt, long ServerTime);
