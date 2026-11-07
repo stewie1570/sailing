@@ -28,7 +28,8 @@ export interface Helm {
    * tight on port leaves at most 30% for starboard. Hauling a sheet pulls
    * the clew to that side, and a hard haul carries it all the way across.
    * The same two sheets trim the jib, or the spinnaker once that is the
-   * sail set.
+   * sail set. Eased, the spinnaker stays open across both sides. Hauling
+   * one sheet pulls the balloon toward that side.
    */
   jibPort: number
   jibStarboard: number

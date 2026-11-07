@@ -19,6 +19,7 @@ import {
   helmHardware,
   jibFrame,
   poseJib,
+  poseSpin,
   rigFrame,
   spinFrame,
   WHEEL_RADIUS,
@@ -35,7 +36,7 @@ import {
   type Pose,
 } from './physics'
 import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
-import { getBoom, getClew, getHoist, getJibHoist, getSpinHoist, luffAmount, readRig, stepHoist, stepJibHoist, stepSpinHoist } from './sail'
+import { getBoom, getClew, getHoist, getJibHoist, getSpinHalf, getSpinHoist, luffAmount, readRig, stepHoist, stepJibHoist, stepSpinHoist } from './sail'
 import { getWind, getWindDebug, stepWind } from './wind'
 import { MAX_SAILORS } from '../../net/protocol'
 import { eachFreshShip, noteLocalShip } from '../../net/session'
@@ -284,7 +285,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       jibRef.current.visible = getJibHoist() > 0.02
     }
     if (spinSailRef.current) {
-      poseJib(spinMesh, spinRig, getClew(), getSpinHoist(), trim.spin.luff, time, 1.15)
+      poseSpin(spinMesh, spinRig, getClew(), getSpinHalf(), getSpinHoist(), trim.spin.luff, time)
       spinSailRef.current.visible = getSpinHoist() > 0.02
     }
     if (vaneRef.current) vaneRef.current.rotation.y = trim.main.awa

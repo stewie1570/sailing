@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useCancelSliderTouch } from './sliderTouch'
-import { jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
-import { JIB_STALL, SPIN_STALL, luffAmount, readRig } from '../scene/boat/sail'
+import { getHelm, jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
+import { JIB_STALL, luffAmount, readRig, spinTrim as kiteTrim } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
 import { compassPoint, getWind, useWindDisplay } from '../scene/boat/wind'
 
@@ -326,12 +326,16 @@ function jibLine(rig: ReturnType<typeof readRig>) {
 function spinLine(rig: ReturnType<typeof readRig>) {
   const spin = rig.spin
   if (spin.hoist < 0.04) return 'Furled'
-  const deg = Math.abs(spin.clew) * (180 / Math.PI)
-  const side = spin.clew > 0.04 ? 'stbd' : spin.clew < -0.04 ? 'port' : ''
-  const where = deg < 2 ? 'Amidships' : `${deg.toFixed(0)}° ${side}`.trim()
-  let state = 'Drawing'
-  if (spin.luff > 0.35) state = 'Luffing'
-  // Squared on a run, a large angle is the kite pulling, not a stall.
-  else if (Math.abs(spin.awa) < (140 * Math.PI) / 180 && spin.aoa > SPIN_STALL) state = 'Stalled'
+  const helm = getHelm()
+  const set = kiteTrim(helm.jibPort, helm.jibStarboard)
+  const center = spin.clew
+  const portEdge = center - set.half
+  const stbdEdge = center + set.half
+  const both = portEdge < -0.15 && stbdEdge > 0.15
+  let where = 'Both sides'
+  if (!both) where = center >= 0 ? 'Stbd' : 'Port'
+  else if (center > 0.22) where = 'Both, favoring stbd'
+  else if (center < -0.22) where = 'Both, favoring port'
+  const state = spin.luff > 0.6 ? 'Luffing' : 'Drawing'
   return `${where} · ${state}`
 }

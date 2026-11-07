@@ -17,10 +17,12 @@ import {
   helmHardware,
   jibFrame,
   poseJib,
+  poseSpin,
   rigFrame,
   spinFrame,
 } from './geometry'
 import { swell } from './physics'
+import { spinHalfFromCenter } from './sail'
 
 /**
  * Someone else's hull, posed from the snapshot they publish. The local boat
@@ -122,7 +124,7 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
     }
     if (spinSailRef.current) {
       const spinHoist = ship.spinHoist || 0
-      poseJib(spinMesh, spinRig, ship.clew, spinHoist, ship.spinLuff || 0, time, 1.15)
+      poseSpin(spinMesh, spinRig, ship.clew, spinHalfFromCenter(ship.clew), spinHoist, ship.spinLuff || 0, time)
       spinSailRef.current.visible = spinHoist > 0.02
     }
     if (vaneRef.current) vaneRef.current.rotation.y = ship.vane
