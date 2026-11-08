@@ -5,22 +5,24 @@ import { useSyncExternalStore } from 'react'
  *
  * Direction uses the hull's yaw sense: 0 blows toward +z (south). Meteorologists
  * name the opposite heading — where the air comes from — and that is what the
- * dial shows. Speed is drawn again on each update, anywhere from 6 to 30 knots:
- * light air through a near gale, enough to move a heavy cruiser.
+ * dial shows. Speed stays between 6 and 30 knots: light air through a near
+ * gale, enough to move a heavy cruiser.
  *
  * How long the breeze holds, which way it turns, and how hard it blows are
- * each chosen on their own. The hold is anywhere from thirty seconds to two
- * minutes. The veer is the tight one: at most twenty-five degrees, either
- * way, and often less. The new speed is then eased in over several seconds.
- * The breeze does not jump.
+ * each chosen on their own. The hold is anywhere from two minutes to six.
+ * The veer is at most twelve degrees, either way, and often less. The speed
+ * changes by at most five knots, either way. That new breeze then eases in
+ * over several seconds. It does not jump.
  */
 
 /** Seconds the breeze may hold before the next update. */
-export const WIND_HOLD_MIN_S = 30
-export const WIND_HOLD_MAX_S = 120
+export const WIND_HOLD_MIN_S = 120
+export const WIND_HOLD_MAX_S = 360
 export const WIND_SHIFT_S = 8
 /** Longest veer on one update, either way. */
-export const WIND_VEER_MAX_DEG = 25
+export const WIND_VEER_MAX_DEG = 12
+/** Longest speed change on one update, either way. */
+export const WIND_SPEED_STEP_MAX_KN = 5
 export const MS_TO_KN = 1.943844
 /** Metres per second. 6 knots. */
 export const WIND_SPEED_MIN = 6 / MS_TO_KN
@@ -123,15 +125,21 @@ function smoothstep(t: number) {
   return x * x * (3 - 2 * x)
 }
 
+function nextSpeed(fromSpeed: number) {
+  const maxStep = WIND_SPEED_STEP_MAX_KN / MS_TO_KN
+  const step = random() * maxStep
+  const sign = random() < 0.5 ? -1 : 1
+  let speed = fromSpeed + sign * step
+  if (speed > WIND_SPEED_MAX || speed < WIND_SPEED_MIN) speed = fromSpeed - sign * step
+  if (speed > WIND_SPEED_MAX) speed = WIND_SPEED_MAX
+  if (speed < WIND_SPEED_MIN) speed = WIND_SPEED_MIN
+  return speed
+}
+
 function nextBreeze(fromYaw: number, fromSpeed: number) {
   const swing = (random() * WIND_VEER_MAX_DEG * Math.PI) / 180
   const sign = random() < 0.5 ? -1 : 1
-  let speed = WIND_SPEED_MIN + random() * (WIND_SPEED_MAX - WIND_SPEED_MIN)
-  if (Math.abs(speed - fromSpeed) < 0.8) {
-    const bump = speed >= fromSpeed ? 1.4 : -1.4
-    speed = Math.min(WIND_SPEED_MAX, Math.max(WIND_SPEED_MIN, fromSpeed + bump))
-  }
-  return { toYaw: fromYaw + sign * swing, toSpeed: speed }
+  return { toYaw: fromYaw + sign * swing, toSpeed: nextSpeed(fromSpeed) }
 }
 
 export function getWind(): Wind {

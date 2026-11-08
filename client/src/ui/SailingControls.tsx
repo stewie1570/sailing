@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useCancelSliderTouch } from './sliderTouch'
-import { getHelm, jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
+import { HEADSAIL_OUT, getHelm, jibSheetRoom, setControlDrag, updateHelm, useHelm, type Control } from '../scene/boat/helm'
 import { JIB_STALL, luffAmount, readRig, spinTrim as kiteTrim } from '../scene/boat/sail'
 import { telemetry } from '../scene/boat/telemetry'
 import { compassPoint, getWind, useWindDisplay } from '../scene/boat/wind'
@@ -32,20 +32,26 @@ function ClothFurler({
   label,
   value,
   control,
+  disabled = false,
+  lockedText,
   onValue,
 }: {
   label: string
   value: number
   control: Control
+  disabled?: boolean
+  lockedText?: string
   onValue: (value: number) => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState(false)
   useCancelSliderTouch(trackRef)
   const at = `calc(14px + ${value} * (100% - 28px))`
+  const shownDragging = dragging && !disabled
 
   const apply = (el: HTMLElement, clientX: number) => onValue(furlerFromX(el, clientX))
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabled) return
     e.preventDefault()
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -54,11 +60,16 @@ function ClothFurler({
     apply(e.currentTarget, e.clientX)
   }
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return
+    if (disabled || !e.currentTarget.hasPointerCapture(e.pointerId)) return
     e.preventDefault()
     apply(e.currentTarget, e.clientX)
   }
   const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (disabled) {
+      setDragging(false)
+      setControlDrag(control, false)
+      return
+    }
     if (!e.currentTarget.hasPointerCapture(e.pointerId) && !dragging) return
     apply(e.currentTarget, e.clientX)
     setDragging(false)
@@ -70,14 +81,15 @@ function ClothFurler({
       <span className="furler-end">In</span>
       <div
         ref={trackRef}
-        className={`furler${dragging ? ' dragging' : ''}`}
+        className={`furler${shownDragging ? ' dragging' : ''}${disabled ? ' locked' : ''}`}
         role="slider"
         aria-orientation="horizontal"
         aria-label={label}
+        aria-disabled={disabled}
         aria-valuemin={0}
         aria-valuemax={1}
         aria-valuenow={Number(value.toFixed(2))}
-        aria-valuetext={furlerReadout(value)}
+        aria-valuetext={disabled && lockedText ? lockedText : furlerReadout(value)}
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
@@ -194,10 +206,14 @@ function trimWords(hoist: number, aoa: number, awa: number) {
 }
 
 /** The sheets keep the jib names until the spinnaker furler leaves the furled stop. */
-const SPIN_SET = 0.04
+const SPIN_SET = HEADSAIL_OUT
 
 export function SailingControls() {
   const helm = useHelm()
+  const jibOut = helm.jib >= HEADSAIL_OUT
+  const spinOut = helm.spin >= HEADSAIL_OUT
+  const jibLocked = spinOut && !jibOut
+  const spinLocked = jibOut && !spinOut
   const spinSet = helm.spin >= SPIN_SET
   const wind = useWindDisplay()
   const arrow = useRef<HTMLDivElement>(null)
@@ -220,8 +236,11 @@ export function SailingControls() {
         const boom = boomDeg < 2 ? 'Boom amidships' : `Boom ${boomDeg.toFixed(0)}° off`
         trim.current.textContent = `${boom} · ${trimWords(sail.hoist, sail.aoa, sail.awa)}`
       }
-      if (jibTrim.current) jibTrim.current.textContent = jibLine(rig)
-      if (spinTrim.current) spinTrim.current.textContent = spinLine(rig)
+      const now = getHelm()
+      const jibIsOut = now.jib >= HEADSAIL_OUT
+      const spinIsOut = now.spin >= HEADSAIL_OUT
+      if (jibTrim.current) jibTrim.current.textContent = spinIsOut && !jibIsOut ? 'Furl the spin' : jibLine(rig)
+      if (spinTrim.current) spinTrim.current.textContent = jibIsOut && !spinIsOut ? 'Furl the jib' : spinLine(rig)
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
@@ -246,24 +265,38 @@ export function SailingControls() {
         </div>
       </div>
 
-      <div className="furler-block furler-jib">
+      <div className={`furler-block furler-jib${jibLocked ? ' locked' : ''}`}>
         <div className="furler-head">
           <span className="sail-toggle-name">Jib</span>
           <span className="sail-toggle-state" ref={jibTrim}>
             Furled
           </span>
         </div>
-        <ClothFurler label="Jib furler" value={helm.jib} control="jib" onValue={(jib) => updateHelm({ jib })} />
+        <ClothFurler
+          label="Jib furler"
+          value={helm.jib}
+          control="jib"
+          disabled={jibLocked}
+          lockedText="Furl the spin"
+          onValue={(jib) => updateHelm({ jib })}
+        />
       </div>
 
-      <div className="furler-block furler-spin">
+      <div className={`furler-block furler-spin${spinLocked ? ' locked' : ''}`}>
         <div className="furler-head">
           <span className="sail-toggle-name">Spin</span>
           <span className="sail-toggle-state" ref={spinTrim}>
             Furled
           </span>
         </div>
-        <ClothFurler label="Spinnaker furler" value={helm.spin} control="spin" onValue={(spin) => updateHelm({ spin })} />
+        <ClothFurler
+          label="Spinnaker furler"
+          value={helm.spin}
+          control="spin"
+          disabled={spinLocked}
+          lockedText="Furl the jib"
+          onValue={(spin) => updateHelm({ spin })}
+        />
       </div>
 
       <div className="furler-block furler-main">

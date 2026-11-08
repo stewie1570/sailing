@@ -39,8 +39,8 @@
  * eased it stands open across the bow, cloth to port and to starboard at
  * once. Hauling the port sheet pulls that balloon toward port, hauling the
  * starboard sheet pulls it toward starboard, and a hard haul takes the whole
- * sail onto that one side. Paying it out furls the jib, and paying the jib
- * out furls it. The main can stay set with either.
+ * sail onto that one side. While either headsail is out, the other furler
+ * stays locked. The main can stay set with either.
  *
  * Downwind the kite is a parachute. Squared on a run, or rotated to leeward
  * on a broad reach, the wind blows into the belly and the drive is mostly
@@ -690,7 +690,7 @@ function evaluateSpin(pose: BodyMotion, wind: Air, center: number, sailHoist: nu
   return { hoist: sailHoist, clew: center, awa: aw.awa, aws: aw.aws, aoa, luff, fx, fy, n }
 }
 
-/** One headsail at a time. An equal pair keeps the jib, matching the helm. */
+/** One headsail at a time. If both commands arrive, the larger hoist wins and an equal pair keeps the jib. */
 function resolveHeadsails(command: SailCommand) {
   let jibH = Math.min(1, Math.max(0, command.jibHoist))
   let spinH = Math.min(1, Math.max(0, command.spinHoist))
