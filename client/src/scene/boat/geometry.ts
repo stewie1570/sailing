@@ -305,13 +305,15 @@ function addCabin(g: Geo) {
     vert(g, x, y1, slope, CABIN), vert(g, -x, y1, slope, CABIN),
   ]
   quad(g, rf[0], rf[3], rf[2], rf[1])
-  // Windshield slope
-  const ws = [
-    vert(g, -x, y1, slope, CABIN), vert(g, x, y1, slope, CABIN),
-    vert(g, x * 0.72, y0 + 0.15, zFront + 0.05, CABIN), vert(g, -x * 0.72, y0 + 0.15, zFront + 0.05, CABIN),
-  ]
-  // Faces forward and up, toward anyone standing on the foredeck.
-  quad(g, ws[0], ws[1], ws[2], ws[3])
+  // Bow wall, the sloped face under the mast. It has to face the foredeck.
+  const lip = y0 + 0.15
+  const nose = zFront + 0.05
+  const topStbd = vert(g, -x, y1, slope, CABIN)
+  const topPort = vert(g, x, y1, slope, CABIN)
+  const botPort = vert(g, x * 0.72, lip, nose, CABIN)
+  const botStbd = vert(g, -x * 0.72, lip, nose, CABIN)
+  quad(g, topStbd, botStbd, botPort, topPort)
+  addCabinFrontWindows(g, x, y1, slope, lip, nose)
   // Aft face, with a companionway cut suggested by a darker door
   const af = [
     vert(g, -x, y0, zBack, CABIN), vert(g, x, y0, zBack, CABIN),
@@ -320,14 +322,46 @@ function addCabin(g: Geo) {
   quad(g, af[1], af[0], af[3], af[2])
   addBox(g, 0, y0 + 0.42, zBack + 0.02, 0.62, 0.78, 0.06, WOOD)
 
-  // Side windows and the dark windshield band.
+  // Side windows. The bow wall carries its own panes.
   for (const s of [1, -1]) {
     for (let k = 0; k < 3; k++) {
       const zc = zBack + 0.7 + k * 0.85
       addBox(g, s * (x + 0.012), y0 + 0.62, zc, 0.03, 0.32, 0.55, WINDOW)
     }
   }
-  addBox(g, 0, y0 + 0.72, slope + 0.28, 1.7, 0.08, 0.5, WINDOW)
+}
+
+/** Three panes on the cabin's bow wall, sitting just proud of the slope. */
+function addCabinFrontWindows(g: Geo, x: number, y1: number, slope: number, lip: number, nose: number) {
+  const at = (t: number, v: number) => new THREE.Vector3(
+    (-x + 2 * x * t) * (1 - v) + (-x * 0.72 + 2 * x * 0.72 * t) * v,
+    y1 * (1 - v) + lip * v,
+    slope * (1 - v) + nose * v,
+  )
+  const outward = new THREE.Vector3().crossVectors(at(0, 1).sub(at(0, 0)), at(1, 0).sub(at(0, 0))).normalize()
+  const margin = 0.08
+  const gap = 0.05
+  const pane = (1 - margin * 2 - gap * 2) / 3
+  const v0 = 0.22
+  const v1 = 0.7
+  for (let i = 0; i < 3; i++) {
+    const t0 = margin + i * (pane + gap)
+    const t1 = t0 + pane
+    addRaisedFace(g, [at(t0, v0), at(t0, v1), at(t1, v1), at(t1, v0)], outward, 0.02, 0.016, WINDOW)
+  }
+}
+
+/** A quad lifted along `outward`, with a thin rim so the face reads from the side. */
+function addRaisedFace(g: Geo, corners: THREE.Vector3[], outward: THREE.Vector3, lift: number, depth: number, color: RGB) {
+  const proud = outward.clone().multiplyScalar(lift)
+  const sunk = outward.clone().multiplyScalar(lift - depth)
+  const outer = corners.map((p) => vert(g, p.x + proud.x, p.y + proud.y, p.z + proud.z, color))
+  const inner = corners.map((p) => vert(g, p.x + sunk.x, p.y + sunk.y, p.z + sunk.z, color))
+  quad(g, outer[0], outer[1], outer[2], outer[3])
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4
+    quad(g, outer[i], inner[i], inner[j], outer[j])
+  }
 }
 
 function addCockpit(g: Geo) {
