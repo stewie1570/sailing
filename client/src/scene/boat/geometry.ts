@@ -9,7 +9,7 @@ import * as THREE from 'three'
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
  * and the triangle count stays in the low thousands. Collision uses the same
- * loft (see boatShape), not a box around it.
+ * loft and the keel (see boatShape), not a box around it.
  */
 const MAST_Z = 2.15
 const MAST_H = 16.4
@@ -350,21 +350,34 @@ function addCockpit(g: Geo) {
   addBox(g, 0, y0 + 0.55, z0 + 0.85, 0.16, 0.7, 0.16, METAL_DARK)
 }
 
+/** Fin and bulb under the midship section. The mesh and the shore samples share this solid. */
+const KEEL_FIN = {
+  top: -0.62,
+  topHalf: 0.07,
+  fore: 1.15,
+  aft: -1.35,
+  foot: -1.85,
+  footHalf: 0.05,
+  footFore: 0.55,
+  footAft: -0.85,
+}
+const KEEL_BULB = { y: -2.02, z: -0.15, width: 0.42, height: 0.28, length: 1.7 }
+
 function addKeel(g: Geo) {
-  // Fin keel with a small bulb, under the midship section.
-  const top = -0.62
-  const fin = [
-    vert(g, -0.07, top, 1.15, KEEL), vert(g, 0.07, top, 1.15, KEEL),
-    vert(g, 0.07, top, -1.35, KEEL), vert(g, -0.07, top, -1.35, KEEL),
-    vert(g, -0.05, -1.85, 0.55, KEEL), vert(g, 0.05, -1.85, 0.55, KEEL),
-    vert(g, 0.05, -1.85, -0.85, KEEL), vert(g, -0.05, -1.85, -0.85, KEEL),
+  const fin = KEEL_FIN
+  const v = [
+    vert(g, -fin.topHalf, fin.top, fin.fore, KEEL), vert(g, fin.topHalf, fin.top, fin.fore, KEEL),
+    vert(g, fin.topHalf, fin.top, fin.aft, KEEL), vert(g, -fin.topHalf, fin.top, fin.aft, KEEL),
+    vert(g, -fin.footHalf, fin.foot, fin.footFore, KEEL), vert(g, fin.footHalf, fin.foot, fin.footFore, KEEL),
+    vert(g, fin.footHalf, fin.foot, fin.footAft, KEEL), vert(g, -fin.footHalf, fin.foot, fin.footAft, KEEL),
   ]
-  quad(g, fin[0], fin[1], fin[5], fin[4])
-  quad(g, fin[3], fin[7], fin[6], fin[2])
-  quad(g, fin[1], fin[2], fin[6], fin[5])
-  quad(g, fin[3], fin[0], fin[4], fin[7])
-  quad(g, fin[4], fin[5], fin[6], fin[7])
-  addBox(g, 0, -2.02, -0.15, 0.42, 0.28, 1.7, KEEL)
+  quad(g, v[0], v[1], v[5], v[4])
+  quad(g, v[3], v[7], v[6], v[2])
+  quad(g, v[1], v[2], v[6], v[5])
+  quad(g, v[3], v[0], v[4], v[7])
+  quad(g, v[4], v[5], v[6], v[7])
+  const bulb = KEEL_BULB
+  addBox(g, 0, bulb.y, bulb.z, bulb.width, bulb.height, bulb.length, KEEL)
 }
 
 function addRig(g: Geo) {
@@ -882,7 +895,7 @@ export interface HullSlice {
  */
 export interface BoatShape {
   slices: HullSlice[]
-  /** Above-water skin samples, local xyz. The keel stays below the surface. */
+  /** Shore samples, local xyz. Topsides, plus the keel so the fin cannot pass through the bottom. */
   skin: Float32Array
   skinMinY: number
   /** Farthest solid point from the origin, in the xz plane. */
@@ -898,6 +911,53 @@ const SLICE_H = 0.25
 function pushSkin(pts: Pt[], x: number, y: number, z: number) {
   if (y < SKIN_Y) return
   pts.push({ x, y, z })
+}
+
+/**
+ * Samples of the fin and bulb. The sole is filled in, not just the corners, so a
+ * rising bottom cannot pass between two points on the keel.
+ */
+function keelPoints(): Pt[] {
+  const pts: Pt[] = []
+  const put = (x: number, y: number, z: number) => { pts.push({ x, y, z }) }
+  const fin = KEEL_FIN
+  const along = (z0: number, z1: number, y: number, half: number, n: number) => {
+    for (let i = 0; i <= n; i++) {
+      const z = z0 + ((z1 - z0) * i) / n
+      put(half, y, z)
+      put(-half, y, z)
+    }
+  }
+  along(fin.aft, fin.fore, fin.top, fin.topHalf, 5)
+  along(fin.footAft, fin.footFore, fin.foot, fin.footHalf, 4)
+  for (const [zTop, zFoot] of [[fin.fore, fin.footFore], [fin.aft, fin.footAft]] as const) {
+    for (let i = 1; i < 3; i++) {
+      const t = i / 3
+      const y = fin.top + (fin.foot - fin.top) * t
+      const z = zTop + (zFoot - zTop) * t
+      const half = fin.topHalf + (fin.footHalf - fin.topHalf) * t
+      put(half, y, z)
+      put(-half, y, z)
+    }
+  }
+  const bulb = KEEL_BULB
+  const sole = bulb.y - bulb.height / 2
+  const crown = bulb.y + bulb.height / 2
+  const hx = bulb.width / 2
+  const hz = bulb.length / 2
+  const z0 = bulb.z - hz
+  const z1 = bulb.z + hz
+  for (let i = 0; i <= 6; i++) {
+    const z = z0 + ((z1 - z0) * i) / 6
+    for (const x of [-hx, 0, hx]) put(x, sole, z)
+  }
+  for (const y of [sole, crown]) {
+    for (const x of [-hx, hx]) {
+      put(x, y, z0)
+      put(x, y, z1)
+    }
+  }
+  return pts
 }
 
 /** Above-water samples of the solid boat. Mirrors the loft, cabin and rails. */
@@ -980,18 +1040,21 @@ let cachedShape: BoatShape | null = null
 export function boatShape(): BoatShape {
   if (cachedShape) return cachedShape
   const pts = solidPoints()
+  const keel = keelPoints()
   let minY = Infinity
   let maxY = -Infinity
   let radius = 0
-  const skin = new Float32Array(pts.length * 3)
-  pts.forEach((p, i) => {
+  const skin = new Float32Array((pts.length + keel.length) * 3)
+  const write = (p: Pt, i: number) => {
     skin[i * 3] = p.x
     skin[i * 3 + 1] = p.y
     skin[i * 3 + 2] = p.z
     if (p.y < minY) minY = p.y
     if (p.y > maxY) maxY = p.y
     radius = Math.max(radius, Math.hypot(p.x, p.z))
-  })
+  }
+  pts.forEach(write)
+  keel.forEach((p, i) => write(p, pts.length + i))
   const slices: HullSlice[] = []
   const yStart = SKIN_Y
   for (let y = yStart; y < maxY + 1e-3; y += SLICE_H) {

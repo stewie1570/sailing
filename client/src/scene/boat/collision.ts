@@ -25,10 +25,12 @@ import { boatShape, type BoatShape, type HullSlice, type Spar } from './geometry
 
 /**
  * The hull stops when its skin meets another mesh, not when a loose box around it
- * does. Docks, beacons, buoys, buildings and trees use the same dimensions as the
- * draw calls. The shore is the terrain mesh that is actually on screen (the coarse
- * grid), sampled only while the boat is near land. Open water is a handful of
- * height lookups; props are distance-rejected, and trees sit in a grid.
+ * does. That skin includes the keel, so a rising bottom stops the fin the same way
+ * the shore stops the topsides. Docks, beacons, buoys, buildings and trees use the
+ * above-water slices and the same dimensions as the draw calls. The shore is the
+ * terrain mesh that is actually on screen (the coarse grid), sampled only while the
+ * boat is near land. Open water is a handful of height lookups; props are
+ * distance-rejected, and trees sit in a grid.
  */
 
 interface Terrain {
@@ -246,7 +248,7 @@ function terrainMax(t: Terrain, x0: number, z0: number, x1: number, z1: number):
 function hitsTerrain(t: Terrain, shape: BoatShape, x: number, z: number, yaw: number, heave: number): boolean {
   const r = shape.radius
   // A triangle's max is at a vertex. If every vertex under the boat is below the
-  // lowest skin sample, the shore mesh cannot be touching the hull.
+  // lowest skin sample, keel included, the shore mesh cannot be touching.
   if (terrainMax(t, x - r, z - r, x + r, z + r) < shape.skinMinY + heave) return false
   const c = Math.cos(yaw)
   const s = Math.sin(yaw)
