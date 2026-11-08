@@ -585,6 +585,51 @@ export function hullPenetration(
   return worst
 }
 
+/**
+ * Metres of open water between two hull outlines. Zero when the outlines overlap.
+ * Infinity when one hull has dropped out of the other's horizontal bands, or the
+ * boats are too far apart to meet. A rammer stops just short of the skin, so the
+ * helm that was hit treats a small gap as the crash.
+ */
+export function hullClearance(
+  shape: BoatShape,
+  x: number,
+  z: number,
+  yaw: number,
+  heave: number,
+  ox: number,
+  oz: number,
+  oyaw: number,
+  oheave: number,
+): number {
+  const dx = ox - x
+  const dz = oz - z
+  const reach = shape.radius * 2 + 4
+  if (dx * dx + dz * dz > reach * reach) return Infinity
+  const c = Math.cos(yaw)
+  const s = Math.sin(yaw)
+  const oc = Math.cos(oyaw)
+  const os = Math.sin(oyaw)
+  let closest = Infinity
+  let compared = false
+  const slices = shape.slices
+  for (let i = 0; i < slices.length; i++) {
+    const a = slices[i]
+    const a0 = a.y0 + heave
+    const a1 = a.y1 + heave
+    for (let j = 0; j < slices.length; j++) {
+      const b = slices[j]
+      if (b.y1 + oheave < a0 || b.y0 + oheave > a1) continue
+      compared = true
+      const signed = convexSigned(a.xz, x, z, c, s, b.xz, ox, oz, oc, os)
+      if (signed > 0) return 0
+      const gap = -signed
+      if (gap < closest) closest = gap
+    }
+  }
+  return compared ? closest : Infinity
+}
+
 const spanA = new Float32Array(2)
 const spanB = new Float32Array(2)
 
@@ -616,13 +661,40 @@ function convexPenetration(
   bs: number,
 ): number {
   if (a.length < 6 || b.length < 6) return 0
-  const fromA = penetrationFromEdges(a, ax, az, ac, as, b, bx, bz, bc, bs)
+  const fromA = overlapFromEdges(a, ax, az, ac, as, b, bx, bz, bc, bs, false)
   if (fromA === 0) return 0
-  const fromB = penetrationFromEdges(b, bx, bz, bc, bs, a, ax, az, ac, as)
+  const fromB = overlapFromEdges(b, bx, bz, bc, bs, a, ax, az, ac, as, false)
   return Math.min(fromA, fromB)
 }
 
-function penetrationFromEdges(
+/**
+ * Positive when the outlines overlap, negative by the gap when an edge separates them.
+ * The gap is the greatest projected separation, which is the distance for two convex outlines.
+ */
+function convexSigned(
+  a: Float32Array,
+  ax: number,
+  az: number,
+  ac: number,
+  as: number,
+  b: Float32Array,
+  bx: number,
+  bz: number,
+  bc: number,
+  bs: number,
+): number {
+  if (a.length < 6 || b.length < 6) return 0
+  const fromA = overlapFromEdges(a, ax, az, ac, as, b, bx, bz, bc, bs, true)
+  const fromB = overlapFromEdges(b, bx, bz, bc, bs, a, ax, az, ac, as, true)
+  if (fromA < 0 || fromB < 0) {
+    const gapA = fromA < 0 ? -fromA : 0
+    const gapB = fromB < 0 ? -fromB : 0
+    return -(gapA > gapB ? gapA : gapB)
+  }
+  return Math.min(fromA, fromB)
+}
+
+function overlapFromEdges(
   edge: Float32Array,
   ex: number,
   ez: number,
@@ -633,8 +705,11 @@ function penetrationFromEdges(
   oz: number,
   oc: number,
   os: number,
+  wantGap: boolean,
 ): number {
   let min = Infinity
+  let maxGap = 0
+  let separated = false
   const n = edge.length
   for (let i = 0; i < n; i += 2) {
     const j = (i + 2) % n
@@ -651,8 +726,14 @@ function penetrationFromEdges(
     projectSpan(edge, ex, ez, ec, es, nx, nz, spanA)
     projectSpan(other, ox, oz, oc, os, nx, nz, spanB)
     const overlap = Math.min(spanA[1], spanB[1]) - Math.max(spanA[0], spanB[0])
-    if (overlap <= 0) return 0
+    if (overlap <= 0) {
+      if (!wantGap) return 0
+      separated = true
+      if (-overlap > maxGap) maxGap = -overlap
+      continue
+    }
     if (overlap < min) min = overlap
   }
+  if (separated) return -maxGap
   return min === Infinity ? 0 : min
 }

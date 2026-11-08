@@ -22,6 +22,7 @@ import {
   spinFrame,
 } from './geometry'
 import { swell } from './physics'
+import { sinkPitch } from './ram'
 import { spinHalfFromCenter } from './sail'
 
 /**
@@ -58,7 +59,7 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
   const stbdSpinRef = useRef<THREE.Group>(null)
   const camberSide = useRef(1)
   const titled = useRef('Sailor')
-  const view = useRef({ x: 0, z: 0, yaw: 0, ready: false })
+  const view = useRef({ x: 0, z: 0, yaw: 0, sink: 0, ready: false })
 
   useEffect(() => {
     return () => {
@@ -86,10 +87,14 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
 
     const step = Math.min(Math.max(delta, 0), 0.1)
     const pose = view.current
-    if (!pose.ready) {
+    const sink = ship.sink || 0
+    // A respawn jumps back to the berth. Lerping that would drag the hull across the lake.
+    const jump = Math.hypot(ship.x - pose.x, ship.z - pose.z)
+    if (!pose.ready || jump > 8) {
       pose.x = ship.x
       pose.z = ship.z
       pose.yaw = ship.yaw
+      pose.sink = sink
       pose.ready = true
     } else {
       const k = 1 - Math.exp(-step / 0.09)
@@ -97,10 +102,12 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
       pose.z += (ship.z - pose.z) * k
       const turn = Math.atan2(Math.sin(ship.yaw - pose.yaw), Math.cos(ship.yaw - pose.yaw))
       pose.yaw += turn * k
+      pose.sink += (sink - pose.sink) * k
     }
 
     const time = state.clock.elapsedTime
-    g.position.set(pose.x, swell(pose.x, pose.z, time), pose.z)
+    g.position.set(pose.x, swell(pose.x, pose.z, time) - pose.sink, pose.z)
+    g.rotation.x = sinkPitch(pose.sink)
     g.rotation.y = pose.yaw
 
     const spin = Math.min(step, 0.1)

@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { applyCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
-import { blocked, colliderWorld, hullPenetration } from './collision'
+import { blocked, colliderWorld, hullClearance, hullPenetration } from './collision'
 import {
   buildBoom,
   buildJib,
@@ -39,7 +39,22 @@ import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
 import { getBoom, getClew, getHoist, getJibHoist, getSpinHalf, getSpinHoist, luffAmount, readRig, stepHoist, stepJibHoist, stepSpinHoist } from './sail'
 import { getWind, getWindDebug, stepWind } from './wind'
 import { MAX_SAILORS } from '../../net/protocol'
-import { eachFreshShip, noteLocalShip } from '../../net/session'
+import { eachFreshShip, myPlayerId, noteLocalShip } from '../../net/session'
+import {
+  activeClaim,
+  beginSink,
+  clearWreck,
+  decideRam,
+  freshWreck,
+  holdStill,
+  noteClaim,
+  RAM_TOUCH,
+  RESPAWN_SAFE_MS,
+  resumeBerth,
+  sinkPitch,
+  stepWreck,
+  type RamContact,
+} from './ram'
 import { publishTelemetry, publishWheel } from './telemetry'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
@@ -55,7 +70,9 @@ function disposeMesh(mesh: THREE.Mesh) {
  * The player's sloop. Twin screws and a rudder, a main on the boom, a jib
  * on the forestay, and an asymmetric spinnaker. The wheel and the blade turn with the helm. Each sail swings
  * only as far as its sheet allows, and the wind pushes it out. The hull stops when it
- * meets the shore, a dock, or any other solid mesh. The camera rides along
+ * meets the shore, a dock, or any other solid mesh. Another sailor is solid too.
+ * The boat going forward into that hull wins, and the one it drove into sinks
+ * to the lakebed, then comes back at the berth it started on. The camera rides along
  * and chases the heading about a second behind, finishing at the same angle
  * relative to the hull.
  */
@@ -84,8 +101,21 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   )
   // The slot is the berth assigned when we entered. Later roster edits must not move the hull.
   const [berth] = useState(slot)
-  const pose = useMemo<Pose>(() => spawnPose(map, berth), [map, berth])
-  const fleetRef = useRef<{ x: number; z: number; yaw: number; heave: number; sunk: number }[] | null>(null)
+  const origin = useMemo(() => spawnPose(map, berth), [map, berth])
+  const pose = useMemo<Pose>(() => ({ ...origin }), [origin])
+  const wreckRef = useRef(freshWreck())
+  const fleetRef = useRef<{
+    id: string
+    x: number
+    z: number
+    yaw: number
+    speed: number
+    heave: number
+    sink: number
+    ram: string
+    sunk: number
+    pushed: boolean
+  }[] | null>(null)
   const group = useRef<THREE.Group>(null)
   const wheelRef = useRef<THREE.Group>(null)
   const boomRef = useRef<THREE.Group>(null)
@@ -158,6 +188,10 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
         pose.speed = 0
         pose.sway = 0
         pose.yawRate = 0
+        clearWreck(wreckRef.current)
+        wreckRef.current.safeUntil = 0
+        wreckRef.current.claimId = ''
+        wreckRef.current.claimUntil = 0
         camera.position.x += dx
         camera.position.z += dz
         follow.current.x = pose.x
@@ -191,51 +225,116 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     stepJibHoist(drive.jib, frame)
     stepSpinHoist(drive.spin, frame)
     const wind = getWind()
-    // Other sailors are the authority for their own boats. This hull stops against
-    // the pose they published, the way it stops against a dock. If a late packet
-    // left us inside them, a move that climbs back out is still allowed.
-    const fleet = fleetRef.current ??= Array.from({ length: MAX_SAILORS }, () => ({ x: 0, z: 0, yaw: 0, heave: 0, sunk: 0 }))
-    let fleetCount = 0
-    eachFreshShip((ship) => {
-      if (fleetCount >= fleet.length) return
-      const other = fleet[fleetCount++]
-      other.x = ship.x
-      other.z = ship.z
-      other.yaw = ship.yaw
-      other.heave = swell(ship.x, ship.z, time)
-    })
-    const started = swell(pose.x, pose.z, time)
-    for (let i = 0; i < fleetCount; i++) {
-      const other = fleet[i]
-      other.sunk = hullPenetration(
-        world.shape, pose.x, pose.z, pose.yaw, started,
-        other.x, other.z, other.yaw, other.heave,
-      )
-    }
-    integrate(pose, drive, delta, (x, z, yaw) => {
-      const heave = swell(x, z, time)
-      if (blocked(world, x, z, yaw, heave)) return true
+    const wreck = wreckRef.current
+    if (wreck.phase !== 'sail') {
+      if (stepWreck(wreck, delta)) {
+        resumeBerth(pose, origin)
+        clearWreck(wreck)
+        wreck.safeUntil = performance.now() + RESPAWN_SAFE_MS
+        follow.current.yaw = origin.yaw
+      }
+    } else {
+      // Other sailors are the authority for their own boats. This hull stops against
+      // the pose they published, the way it stops against a dock. If a late packet
+      // left us inside them, a move that climbs back out is still allowed. A bow
+      // that drives into them names them; the named hull sinks and respawns.
+      const fleet = fleetRef.current ??= Array.from({ length: MAX_SAILORS }, () => ({
+        id: '', x: 0, z: 0, yaw: 0, speed: 0, heave: 0, sink: 0, ram: '', sunk: 0, pushed: false,
+      }))
+      let fleetCount = 0
+      eachFreshShip((ship) => {
+        if (fleetCount >= fleet.length) return
+        const other = fleet[fleetCount++]
+        other.id = ship.playerId
+        other.x = ship.x
+        other.z = ship.z
+        other.yaw = ship.yaw
+        other.speed = ship.speed || 0
+        other.sink = ship.sink || 0
+        other.ram = ship.ram || ''
+        other.heave = swell(ship.x, ship.z, time) - other.sink
+        other.pushed = false
+      })
+      const started = swell(pose.x, pose.z, time)
       for (let i = 0; i < fleetCount; i++) {
         const other = fleet[i]
-        const pen = hullPenetration(
-          world.shape, x, z, yaw, heave,
+        other.sunk = hullPenetration(
+          world.shape, pose.x, pose.z, pose.yaw, started,
           other.x, other.z, other.yaw, other.heave,
-          Math.max(other.sunk, 1e-4),
         )
-        if (pen > 0 && pen > other.sunk - 0.001) return true
       }
-      return false
-    }, {
-      wind,
-      sail: {
-        hoist: getHoist(),
-        sheet: drive.sheet,
-        jibHoist: getJibHoist(),
-        jibPort: drive.jibPort,
-        jibStarboard: drive.jibStarboard,
-        spinHoist: getSpinHoist(),
-      },
-    })
+      let boatHit = false
+      let ramSpeed = pose.speed
+      integrate(pose, drive, delta, (x, z, yaw) => {
+        const heave = swell(x, z, time)
+        if (blocked(world, x, z, yaw, heave)) return true
+        for (let i = 0; i < fleetCount; i++) {
+          const other = fleet[i]
+          const pen = hullPenetration(
+            world.shape, x, z, yaw, heave,
+            other.x, other.z, other.yaw, other.heave,
+            Math.max(other.sunk, 1e-4),
+          )
+          if (pen > 0 && pen > other.sunk - 0.001) {
+            if (!boatHit) ramSpeed = pose.speed
+            boatHit = true
+            other.pushed = true
+            return true
+          }
+        }
+        return false
+      }, {
+        wind,
+        sail: {
+          hoist: getHoist(),
+          sheet: drive.sheet,
+          jibHoist: getJibHoist(),
+          jibPort: drive.jibPort,
+          jibStarboard: drive.jibStarboard,
+          spinHoist: getSpinHoist(),
+        },
+      })
+      const here = swell(pose.x, pose.z, time)
+      const reach = world.shape.radius * 2 + RAM_TOUCH + 1.5
+      const contacts: RamContact[] = []
+      for (let i = 0; i < fleetCount; i++) {
+        const other = fleet[i]
+        let gap = Infinity
+        if (!other.pushed) {
+          const dx = other.x - pose.x
+          const dz = other.z - pose.z
+          if (dx * dx + dz * dz <= reach * reach) {
+            gap = hullClearance(
+              world.shape, pose.x, pose.z, pose.yaw, here,
+              other.x, other.z, other.yaw, other.heave,
+            )
+          }
+        }
+        contacts.push({
+          id: other.id,
+          x: other.x,
+          z: other.z,
+          yaw: other.yaw,
+          speed: other.speed,
+          gap: other.pushed ? 0 : gap,
+          pushed: other.pushed,
+          ram: other.ram,
+          sinking: other.sink > 0.35,
+        })
+      }
+      const decision = decideRam(
+        myPlayerId(),
+        { x: pose.x, z: pose.z, yaw: pose.yaw, speed: boatHit ? ramSpeed : pose.speed },
+        contacts,
+        performance.now() < wreck.safeUntil,
+      )
+      if (decision.sink) {
+        beginSink(wreck, map.heightAt(pose.x, pose.z))
+        holdStill(pose)
+      } else if (decision.claim) {
+        noteClaim(wreck, decision.claim, performance.now())
+      }
+    }
     publishTelemetry(pose)
 
     const spin = Math.min(Math.max(delta, 0), 0.1)
@@ -265,6 +364,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       pose.sway,
       drive.bow,
       drive.stern,
+      wreck.depth,
+      activeClaim(wreck, performance.now()),
     )
     if (boomRef.current) boomRef.current.rotation.y = boomAngle
     if (sailRef.current) {
@@ -292,10 +393,11 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     if (portSpinRef.current) portSpinRef.current.rotation.z += drive.port * 16 * spin
     if (stbdSpinRef.current) stbdSpinRef.current.rotation.z -= drive.starboard * 16 * spin
 
-    const y = swell(pose.x, pose.z, time)
+    const y = swell(pose.x, pose.z, time) - wreck.depth
     const g = group.current
     if (g) {
       g.position.set(pose.x, y, pose.z)
+      g.rotation.x = sinkPitch(wreck.depth)
       g.rotation.y = pose.yaw
       g.updateWorldMatrix(true, false)
     }
