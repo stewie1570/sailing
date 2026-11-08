@@ -1,39 +1,9 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import type { MapData } from '../map/mapData'
 import { QUALITY_PRESETS, useQuality } from './quality'
-import { CANOPY, TRUNK, eachVisibleTree, treeFrame, treeOriginY } from './treeLayout'
-
-/**
- * Trunk + two stacked canopy cones, 28 triangles. Faces that can never be seen (trunk ends, the upper
- * cone's base inside the lower cone) are omitted. Vertex colours separate bark from foliage.
- */
-function buildTreeGeometry(): THREE.BufferGeometry {
-  const trunk = new THREE.CylinderGeometry(TRUNK.radiusTop, TRUNK.radiusBottom, TRUNK.height, 5, 1, true)
-  trunk.translate(0, TRUNK.height / 2, 0)
-  const cones = CANOPY.map((cone) => {
-    const height = cone.y1 - cone.y0
-    const geo = new THREE.ConeGeometry(cone.radius, height, 6, 1, cone.open)
-    geo.translate(0, (cone.y0 + cone.y1) / 2, 0)
-    return geo
-  })
-  const [lower, upper] = cones
-
-  const paint = (geo: THREE.BufferGeometry, color: THREE.Color) => {
-    const n = geo.attributes.position.count
-    const colors = new Float32Array(n * 3)
-    for (let i = 0; i < n; i++) colors.set([color.r, color.g, color.b], i * 3)
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-  }
-  paint(trunk, new THREE.Color(0.22, 0.14, 0.08))
-  paint(lower, new THREE.Color(0.9, 1.0, 0.9))
-  paint(upper, new THREE.Color(1.0, 1.0, 1.0))
-
-  const merged = mergeGeometries([trunk, lower, upper], false)!
-  merged.computeBoundingSphere()
-  return merged
-}
+import { buildTreeGeometry } from './treeGeometry'
+import { eachVisibleTree, treeFrame, treeOriginY } from './treeLayout'
 
 export function Trees({ map }: { map: MapData }) {
   const quality = useQuality()
@@ -41,7 +11,7 @@ export function Trees({ map }: { map: MapData }) {
 
   const mesh = useMemo(() => {
     const geometry = buildTreeGeometry()
-    const material = new THREE.MeshLambertMaterial({ vertexColors: true })
+    const material = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })
     const count = Math.floor(map.trees.length * fraction)
     const inst = new THREE.InstancedMesh(geometry, material, count)
     const m = new THREE.Matrix4()
@@ -58,9 +28,9 @@ export function Trees({ map }: { map: MapData }) {
       s.set(frame.sx, frame.sy, frame.sz)
       m.compose(p, q, s)
       inst.setMatrixAt(i, m)
-      // foliage variation: olive to deep green
+      // Brightness only. The hue is on the vertices, so bark stays tan and fronds stay green.
       const t = ((i * 48271) % 1000) / 1000
-      color.setRGB(0.10 + 0.14 * t, 0.26 + 0.16 * (1 - t), 0.07 + 0.05 * t)
+      color.setRGB(0.88 + 0.12 * t, 0.9 + 0.1 * (1 - t), 0.82 + 0.1 * t)
       inst.setColorAt(i, color)
     })
     inst.instanceMatrix.needsUpdate = true

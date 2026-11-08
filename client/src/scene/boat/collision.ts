@@ -13,7 +13,7 @@ import {
   type DockBox,
 } from '../harborLayout'
 import {
-  CANOPY,
+  CROWN,
   TRUNK,
   eachVisibleTree,
   maxFoliageRadius,
@@ -130,7 +130,7 @@ function buildTrees(map: MapData, fraction: number): TreeGrid {
       h: frame.h,
       sx: wide,
     }
-    maxR = Math.max(maxR, CANOPY[0].radius * wide)
+    maxR = Math.max(maxR, CROWN.radius * wide)
     const ix = Math.floor(x / CELL)
     const iz = Math.floor(z / CELL)
     const key = (ix + 4096) * 8192 + (iz + 4096)
@@ -480,7 +480,7 @@ function hitsDisc(d: Disc, shape: BoatShape, x: number, z: number, yaw: number, 
 function hitsTree(tree: TreeCol, shape: BoatShape, x: number, z: number, yaw: number, heave: number) {
   const dx = tree.x - x
   const dz = tree.z - z
-  const reach = shape.radius + CANOPY[0].radius * tree.sx
+  const reach = shape.radius + CROWN.radius * tree.sx
   if (dx * dx + dz * dz > reach * reach) return false
   const c = Math.cos(yaw)
   const s = Math.sin(yaw)
@@ -491,7 +491,7 @@ function hitsTree(tree: TreeCol, shape: BoatShape, x: number, z: number, yaw: nu
       const r = maxTrunkRadius(local(span[0]), local(span[1]), tree.sx)
       if (r > 0 && circleHitsSlice(slice, x, z, c, s, tree.x, tree.z, r)) return true
     }
-    const leaves = overlap(slice.y0 + heave, slice.y1 + heave, tree.y + CANOPY[0].y0 * tree.h, tree.y + CANOPY[1].y1 * tree.h)
+    const leaves = overlap(slice.y0 + heave, slice.y1 + heave, tree.y + CROWN.y0 * tree.h, tree.y + CROWN.y1 * tree.h)
     if (leaves) {
       const r = maxFoliageRadius(local(leaves[0]), local(leaves[1]), tree.sx)
       if (r > 0 && circleHitsSlice(slice, x, z, c, s, tree.x, tree.z, r)) return true
@@ -504,7 +504,7 @@ function hitsTree(tree: TreeCol, shape: BoatShape, x: number, z: number, yaw: nu
       const r = maxTrunkRadius(local(segT.y0), local(segT.y1), tree.sx) + spar.r
       if (r > spar.r && distPointSeg(tree.x, tree.z, segT.ax, segT.az, segT.bx, segT.bz) <= r) return true
     }
-    const segL = sparSegment(spar, x, z, c, s, heave, tree.y + CANOPY[0].y0 * tree.h, tree.y + CANOPY[1].y1 * tree.h)
+    const segL = sparSegment(spar, x, z, c, s, heave, tree.y + CROWN.y0 * tree.h, tree.y + CROWN.y1 * tree.h)
     if (segL) {
       const r = maxFoliageRadius(local(segL.y0), local(segL.y1), tree.sx) + spar.r
       if (r > spar.r && distPointSeg(tree.x, tree.z, segL.ax, segL.az, segL.bx, segL.bz) <= r) return true
