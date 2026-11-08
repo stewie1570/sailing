@@ -1056,7 +1056,7 @@ html:-webkit-full-screen {
   .sheet-col { min-width: 40px; }
   .sheet-track { height: 84px; }
 }
-/* A shared room can open the chart to half the width and half the height, a quarter of the screen. */
+/* Expand opens the chart to half the width and half the height, a quarter of the screen. */
 .navmap.wide {
   width: min(50vw, calc(100vw - max(12px, env(safe-area-inset-left)) - 12px));
   height: min(50vh, calc(100dvh - max(12px, env(safe-area-inset-bottom)) - 12px));
