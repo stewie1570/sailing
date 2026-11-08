@@ -214,8 +214,11 @@ html:-webkit-full-screen {
 }
 /* Stays lit while a screw or thruster is out of stop, including on the sailing tab. */
 .helm-tabs button.engines-on {
-  color: #9cf0c0;
-  text-shadow: 0 0 8px rgba(61, 220, 132, 0.95);
+  color: #ffe0a6;
+  background: rgba(255, 140, 24, 0.34);
+  border-color: rgba(255, 168, 48, 0.95);
+  text-shadow: 0 0 12px rgba(255, 140, 24, 1);
+  box-shadow: 0 0 16px rgba(255, 120, 16, 0.95), 0 0 4px rgba(255, 186, 64, 0.8);
 }
 .helm-tabs button.helm-gear {
   flex: 0 0 40px;
@@ -992,7 +995,7 @@ html:-webkit-full-screen {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.9);
   }
   .throttles .helm-tabs button.engines-on {
-    text-shadow: 0 0 8px rgba(61, 220, 132, 0.95);
+    text-shadow: 0 0 12px rgba(255, 140, 24, 1);
   }
   .tick:not(.tick-stop),
   .throttle-dir,
