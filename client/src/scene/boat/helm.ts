@@ -18,8 +18,8 @@ export interface Helm {
   /**
    * Spinnaker furler. 0 is rolled up, 1 is fully out.
    * The jib and the spinnaker are the two headsails, and only one can be
-   * set: paying either out furls the other. The main is separate and can
-   * stay set with whichever headsail is flying.
+   * out. While either is past the furled stop, the other furler is locked.
+   * The main is separate and can stay set with whichever headsail is flying.
    */
   spin: number
   /**
@@ -118,10 +118,17 @@ export function jibSheetRoom(other: number) {
 }
 
 /**
- * The jib and the spinnaker cannot both draw. Paying one out furls the other
- * completely. Furling either sail leaves the other where it was, and the main
- * is not part of this choice. If both furlers move out in one update, the
- * larger step is the sail being set; an equal step keeps the jib.
+ * Past this, that headsail has cloth out. The other furler stays locked
+ * until this one is rolled back to the stop.
+ */
+export const HEADSAIL_OUT = 0.04
+
+/**
+ * The jib and the spinnaker cannot both be out. While either furler is past
+ * the stop, the other cannot be paid out. Furling the sail that is out
+ * leaves the other where it was, and the main is not part of this choice.
+ * If both leave the stop in one update, the larger step is the sail being
+ * set; an equal step keeps the jib.
  */
 export function exclusiveHeadsails(
   prevJib: number,
@@ -131,13 +138,13 @@ export function exclusiveHeadsails(
 ): { jib: number; spin: number } {
   jib = clamp01(jib)
   spin = clamp01(spin)
-  if (jib <= 0 || spin <= 0) return { jib, spin }
-  const jibOut = jib > prevJib
-  const spinOut = spin > prevSpin
-  if (spinOut && !jibOut) return { jib: 0, spin }
-  if (jibOut && !spinOut) return { jib, spin: 0 }
-  if (spinOut && jibOut && spin - prevSpin > jib - prevJib) return { jib: 0, spin }
-  if (!spinOut && !jibOut && prevSpin > prevJib) return { jib: 0, spin }
+  const jibOut = prevJib >= HEADSAIL_OUT
+  const spinOut = prevSpin >= HEADSAIL_OUT
+  if (jibOut && spinOut) return { jib: Math.min(jib, prevJib), spin: Math.min(spin, prevSpin) }
+  if (jibOut) return { jib, spin: Math.min(spin, prevSpin) }
+  if (spinOut) return { jib: Math.min(jib, prevJib), spin }
+  if (jib <= HEADSAIL_OUT || spin <= HEADSAIL_OUT) return { jib, spin }
+  if (spin - prevSpin > jib - prevJib) return { jib: 0, spin }
   return { jib, spin: 0 }
 }
 

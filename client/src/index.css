@@ -359,6 +359,14 @@ html:-webkit-full-screen {
 }
 .furler.dragging .furler-knob,
 .furler.dragging .furler-fill { transition: none; }
+.furler-block.locked .furler,
+.furler-block.locked .furler-end {
+  opacity: 0.38;
+}
+.furler-block.locked .furler {
+  cursor: not-allowed;
+  pointer-events: none;
+}
 .sail-toggle-name {
   font-size: 12px;
   letter-spacing: 0.12em;
