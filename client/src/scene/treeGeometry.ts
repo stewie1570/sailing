@@ -19,7 +19,59 @@ const FROND_TIP = [0.62, 0.74, 0.24]
  * both sides, so each leaf is stored once.
  */
 export function buildTreeGeometry(): THREE.BufferGeometry {
-  const trunk = new THREE.CylinderGeometry(TRUNK.radiusTop, TRUNK.radiusBottom, TRUNK.height, TRUNK_SIDES, 1, true)
+  const merged = mergeGeometries([leaningTrunk(TRUNK_SIDES), trunkCap(), fronds()], false)!
+  merged.computeBoundingSphere()
+  return merged
+}
+
+/**
+ * The palm drawn past a few hundred metres. Same height and spread as the full
+ * one, with a plainer trunk and six straight fronds, so the outline stays put
+ * when the detail drops.
+ */
+export function buildFarTreeGeometry(): THREE.BufferGeometry {
+  const FAR_SIDES = 5
+  const FAR_FRONDS = 6
+  const trunk = leaningTrunk(FAR_SIDES)
+  const positions: number[] = []
+  const colors: number[] = []
+  const indices: number[] = []
+  for (let i = 0; i < FAR_FRONDS; i++) {
+    const angle = (i / FAR_FRONDS) * Math.PI * 2 + 0.4
+    const dirX = Math.cos(angle)
+    const dirZ = Math.sin(angle)
+    const sideX = -dirZ
+    const sideZ = dirX
+    const tipHalf = 0.3
+    const room = Math.sqrt(Math.max(0, CROWN.radius * CROWN.radius - tipHalf * tipHalf)) - LEAN
+    const reach = room * (0.9 + (i % 3) * 0.05)
+    const yTip = CROWN.y0 + (i % 3) * 0.35
+    const along = [0.06, reach]
+    const y = [CROWN.y, yTip]
+    const half = [0.36, tipHalf]
+    const tint = [FROND_BASE, FROND_TIP]
+    const v = positions.length / 3
+    for (let s = 0; s < 2; s++) {
+      const cx = LEAN + dirX * along[s]
+      const cz = dirZ * along[s]
+      positions.push(cx + sideX * half[s], y[s], cz + sideZ * half[s])
+      positions.push(cx - sideX * half[s], y[s], cz - sideZ * half[s])
+      colors.push(...tint[s], ...tint[s])
+    }
+    indices.push(v, v + 3, v + 1, v, v + 2, v + 3)
+  }
+  const leaves = new THREE.BufferGeometry()
+  leaves.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  leaves.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+  leaves.setIndex(indices)
+  leaves.computeVertexNormals()
+  const merged = mergeGeometries([trunk, leaves], false)!
+  merged.computeBoundingSphere()
+  return merged
+}
+
+function leaningTrunk(sides: number) {
+  const trunk = new THREE.CylinderGeometry(TRUNK.radiusTop, TRUNK.radiusBottom, TRUNK.height, sides, 1, true)
   trunk.translate(0, TRUNK.height / 2, 0)
   const pos = trunk.attributes.position
   for (let i = 0; i < pos.count; i++) {
@@ -29,10 +81,7 @@ export function buildTreeGeometry(): THREE.BufferGeometry {
   trunk.deleteAttribute('uv')
   trunk.computeVertexNormals()
   paintGradient(trunk, BARK_BASE, BARK_TOP)
-
-  const merged = mergeGeometries([trunk, trunkCap(), fronds()], false)!
-  merged.computeBoundingSphere()
-  return merged
+  return trunk
 }
 
 function paintGradient(geo: THREE.BufferGeometry, bottom: number[], top: number[]) {

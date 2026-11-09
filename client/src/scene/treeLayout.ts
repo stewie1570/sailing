@@ -7,6 +7,16 @@ import type { MapData } from '../map/mapData'
 export const TRUNK = { radiusBottom: 0.46, radiusTop: 0.22, height: 9 }
 export const CROWN = { radius: 4.6, y0: 4.8, y1: 9.45, y: 8.65 }
 
+/** Full crown inside this many metres. */
+export const TREE_LOD_NEAR = 650
+/** A full crown stays full out to here, so a tree on the line does not flicker. */
+export const TREE_LOD_FAR = 800
+
+/** True when this palm should use the full crown. */
+export function treeIsNear(distance: number, wasNear: boolean) {
+  return wasNear ? distance < TREE_LOD_FAR : distance < TREE_LOD_NEAR
+}
+
 export function visibleTreeCount(total: number, fraction: number) {
   return Math.floor(total * fraction)
 }
