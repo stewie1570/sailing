@@ -1059,11 +1059,11 @@ html:-webkit-full-screen {
   .sheet-col { min-width: 40px; }
   .sheet-track { height: 84px; }
 }
-/* Expand keeps half the width. Height is 7% under half the screen so the chart labels clear the rudder. */
+/* Expand is 10% under half the width and 7% under half the height, so the chart labels clear the rudder. */
 .navmap.wide {
-  width: min(50vw, calc(100vw - max(12px, env(safe-area-inset-left)) - 12px));
+  width: min(45vw, calc((100vw - max(12px, env(safe-area-inset-left)) - 12px) * 0.9));
   height: min(46.5vh, calc((100dvh - max(12px, env(safe-area-inset-bottom)) - 12px) * 0.93));
-  min-width: min(50vw, calc(100vw - 24px));
+  min-width: min(45vw, calc((100vw - 24px) * 0.9));
   min-height: min(46.5vh, calc((100dvh - 24px) * 0.93));
   display: flex;
   flex-direction: column;
