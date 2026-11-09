@@ -45,7 +45,8 @@ interface ChartShip {
  * North-up aerial chart. Lake shows the whole of Windermere. Mid and Near stay
  * centred on the boat; Mid is the scale step between the lake and the close shore.
  * A shared room also plots the other boats. Hover one for her speed and whether
- * she is under engine, sail, or both. Expand grows the chart to a quarter of the screen.
+ * she is under engine, sail, or both. Expand grows the chart to a little under
+ * half the screen in both width and height.
  */
 export function NavMap() {
   const session = useSession()
