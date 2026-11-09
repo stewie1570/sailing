@@ -9,7 +9,7 @@ import * as THREE from 'three'
  *
  * One Lambert mesh with vertex colours. The hull is a loft, not a stack of boxes,
  * and the triangle count stays in the low thousands. Collision uses the same
- * loft (see boatShape), not a box around it.
+ * loft and the keel (see boatShape), not a box around it.
  */
 const MAST_Z = 2.15
 const MAST_H = 16.4
@@ -305,13 +305,15 @@ function addCabin(g: Geo) {
     vert(g, x, y1, slope, CABIN), vert(g, -x, y1, slope, CABIN),
   ]
   quad(g, rf[0], rf[3], rf[2], rf[1])
-  // Windshield slope
-  const ws = [
-    vert(g, -x, y1, slope, CABIN), vert(g, x, y1, slope, CABIN),
-    vert(g, x * 0.72, y0 + 0.15, zFront + 0.05, CABIN), vert(g, -x * 0.72, y0 + 0.15, zFront + 0.05, CABIN),
-  ]
-  // Faces forward and up, toward anyone standing on the foredeck.
-  quad(g, ws[0], ws[1], ws[2], ws[3])
+  // Bow wall, the sloped face under the mast. It has to face the foredeck.
+  const lip = y0 + 0.15
+  const nose = zFront + 0.05
+  const topStbd = vert(g, -x, y1, slope, CABIN)
+  const topPort = vert(g, x, y1, slope, CABIN)
+  const botPort = vert(g, x * 0.72, lip, nose, CABIN)
+  const botStbd = vert(g, -x * 0.72, lip, nose, CABIN)
+  quad(g, topStbd, botStbd, botPort, topPort)
+  addCabinFrontWindows(g, x, y1, slope, lip, nose)
   // Aft face, with a companionway cut suggested by a darker door
   const af = [
     vert(g, -x, y0, zBack, CABIN), vert(g, x, y0, zBack, CABIN),
@@ -320,14 +322,46 @@ function addCabin(g: Geo) {
   quad(g, af[1], af[0], af[3], af[2])
   addBox(g, 0, y0 + 0.42, zBack + 0.02, 0.62, 0.78, 0.06, WOOD)
 
-  // Side windows and the dark windshield band.
+  // Side windows. The bow wall carries its own panes.
   for (const s of [1, -1]) {
     for (let k = 0; k < 3; k++) {
       const zc = zBack + 0.7 + k * 0.85
       addBox(g, s * (x + 0.012), y0 + 0.62, zc, 0.03, 0.32, 0.55, WINDOW)
     }
   }
-  addBox(g, 0, y0 + 0.72, slope + 0.28, 1.7, 0.08, 0.5, WINDOW)
+}
+
+/** Three panes on the cabin's bow wall, sitting just proud of the slope. */
+function addCabinFrontWindows(g: Geo, x: number, y1: number, slope: number, lip: number, nose: number) {
+  const at = (t: number, v: number) => new THREE.Vector3(
+    (-x + 2 * x * t) * (1 - v) + (-x * 0.72 + 2 * x * 0.72 * t) * v,
+    y1 * (1 - v) + lip * v,
+    slope * (1 - v) + nose * v,
+  )
+  const outward = new THREE.Vector3().crossVectors(at(0, 1).sub(at(0, 0)), at(1, 0).sub(at(0, 0))).normalize()
+  const margin = 0.08
+  const gap = 0.05
+  const pane = (1 - margin * 2 - gap * 2) / 3
+  const v0 = 0.22
+  const v1 = 0.7
+  for (let i = 0; i < 3; i++) {
+    const t0 = margin + i * (pane + gap)
+    const t1 = t0 + pane
+    addRaisedFace(g, [at(t0, v0), at(t0, v1), at(t1, v1), at(t1, v0)], outward, 0.02, 0.016, WINDOW)
+  }
+}
+
+/** A quad lifted along `outward`, with a thin rim so the face reads from the side. */
+function addRaisedFace(g: Geo, corners: THREE.Vector3[], outward: THREE.Vector3, lift: number, depth: number, color: RGB) {
+  const proud = outward.clone().multiplyScalar(lift)
+  const sunk = outward.clone().multiplyScalar(lift - depth)
+  const outer = corners.map((p) => vert(g, p.x + proud.x, p.y + proud.y, p.z + proud.z, color))
+  const inner = corners.map((p) => vert(g, p.x + sunk.x, p.y + sunk.y, p.z + sunk.z, color))
+  quad(g, outer[0], outer[1], outer[2], outer[3])
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4
+    quad(g, outer[i], inner[i], inner[j], outer[j])
+  }
 }
 
 function addCockpit(g: Geo) {
@@ -350,21 +384,34 @@ function addCockpit(g: Geo) {
   addBox(g, 0, y0 + 0.55, z0 + 0.85, 0.16, 0.7, 0.16, METAL_DARK)
 }
 
+/** Fin and bulb under the midship section. The mesh and the shore samples share this solid. */
+const KEEL_FIN = {
+  top: -0.62,
+  topHalf: 0.07,
+  fore: 1.15,
+  aft: -1.35,
+  foot: -1.85,
+  footHalf: 0.05,
+  footFore: 0.55,
+  footAft: -0.85,
+}
+const KEEL_BULB = { y: -2.02, z: -0.15, width: 0.42, height: 0.28, length: 1.7 }
+
 function addKeel(g: Geo) {
-  // Fin keel with a small bulb, under the midship section.
-  const top = -0.62
-  const fin = [
-    vert(g, -0.07, top, 1.15, KEEL), vert(g, 0.07, top, 1.15, KEEL),
-    vert(g, 0.07, top, -1.35, KEEL), vert(g, -0.07, top, -1.35, KEEL),
-    vert(g, -0.05, -1.85, 0.55, KEEL), vert(g, 0.05, -1.85, 0.55, KEEL),
-    vert(g, 0.05, -1.85, -0.85, KEEL), vert(g, -0.05, -1.85, -0.85, KEEL),
+  const fin = KEEL_FIN
+  const v = [
+    vert(g, -fin.topHalf, fin.top, fin.fore, KEEL), vert(g, fin.topHalf, fin.top, fin.fore, KEEL),
+    vert(g, fin.topHalf, fin.top, fin.aft, KEEL), vert(g, -fin.topHalf, fin.top, fin.aft, KEEL),
+    vert(g, -fin.footHalf, fin.foot, fin.footFore, KEEL), vert(g, fin.footHalf, fin.foot, fin.footFore, KEEL),
+    vert(g, fin.footHalf, fin.foot, fin.footAft, KEEL), vert(g, -fin.footHalf, fin.foot, fin.footAft, KEEL),
   ]
-  quad(g, fin[0], fin[1], fin[5], fin[4])
-  quad(g, fin[3], fin[7], fin[6], fin[2])
-  quad(g, fin[1], fin[2], fin[6], fin[5])
-  quad(g, fin[3], fin[0], fin[4], fin[7])
-  quad(g, fin[4], fin[5], fin[6], fin[7])
-  addBox(g, 0, -2.02, -0.15, 0.42, 0.28, 1.7, KEEL)
+  quad(g, v[0], v[1], v[5], v[4])
+  quad(g, v[3], v[7], v[6], v[2])
+  quad(g, v[1], v[2], v[6], v[5])
+  quad(g, v[3], v[0], v[4], v[7])
+  quad(g, v[4], v[5], v[6], v[7])
+  const bulb = KEEL_BULB
+  addBox(g, 0, bulb.y, bulb.z, bulb.width, bulb.height, bulb.length, KEEL)
 }
 
 function addRig(g: Geo) {
@@ -882,7 +929,7 @@ export interface HullSlice {
  */
 export interface BoatShape {
   slices: HullSlice[]
-  /** Above-water skin samples, local xyz. The keel stays below the surface. */
+  /** Shore samples, local xyz. Topsides, plus the keel so the fin cannot pass through the bottom. */
   skin: Float32Array
   skinMinY: number
   /** Farthest solid point from the origin, in the xz plane. */
@@ -898,6 +945,53 @@ const SLICE_H = 0.25
 function pushSkin(pts: Pt[], x: number, y: number, z: number) {
   if (y < SKIN_Y) return
   pts.push({ x, y, z })
+}
+
+/**
+ * Samples of the fin and bulb. The sole is filled in, not just the corners, so a
+ * rising bottom cannot pass between two points on the keel.
+ */
+function keelPoints(): Pt[] {
+  const pts: Pt[] = []
+  const put = (x: number, y: number, z: number) => { pts.push({ x, y, z }) }
+  const fin = KEEL_FIN
+  const along = (z0: number, z1: number, y: number, half: number, n: number) => {
+    for (let i = 0; i <= n; i++) {
+      const z = z0 + ((z1 - z0) * i) / n
+      put(half, y, z)
+      put(-half, y, z)
+    }
+  }
+  along(fin.aft, fin.fore, fin.top, fin.topHalf, 5)
+  along(fin.footAft, fin.footFore, fin.foot, fin.footHalf, 4)
+  for (const [zTop, zFoot] of [[fin.fore, fin.footFore], [fin.aft, fin.footAft]] as const) {
+    for (let i = 1; i < 3; i++) {
+      const t = i / 3
+      const y = fin.top + (fin.foot - fin.top) * t
+      const z = zTop + (zFoot - zTop) * t
+      const half = fin.topHalf + (fin.footHalf - fin.topHalf) * t
+      put(half, y, z)
+      put(-half, y, z)
+    }
+  }
+  const bulb = KEEL_BULB
+  const sole = bulb.y - bulb.height / 2
+  const crown = bulb.y + bulb.height / 2
+  const hx = bulb.width / 2
+  const hz = bulb.length / 2
+  const z0 = bulb.z - hz
+  const z1 = bulb.z + hz
+  for (let i = 0; i <= 6; i++) {
+    const z = z0 + ((z1 - z0) * i) / 6
+    for (const x of [-hx, 0, hx]) put(x, sole, z)
+  }
+  for (const y of [sole, crown]) {
+    for (const x of [-hx, hx]) {
+      put(x, y, z0)
+      put(x, y, z1)
+    }
+  }
+  return pts
 }
 
 /** Above-water samples of the solid boat. Mirrors the loft, cabin and rails. */
@@ -980,18 +1074,21 @@ let cachedShape: BoatShape | null = null
 export function boatShape(): BoatShape {
   if (cachedShape) return cachedShape
   const pts = solidPoints()
+  const keel = keelPoints()
   let minY = Infinity
   let maxY = -Infinity
   let radius = 0
-  const skin = new Float32Array(pts.length * 3)
-  pts.forEach((p, i) => {
+  const skin = new Float32Array((pts.length + keel.length) * 3)
+  const write = (p: Pt, i: number) => {
     skin[i * 3] = p.x
     skin[i * 3 + 1] = p.y
     skin[i * 3 + 2] = p.z
     if (p.y < minY) minY = p.y
     if (p.y > maxY) maxY = p.y
     radius = Math.max(radius, Math.hypot(p.x, p.z))
-  })
+  }
+  pts.forEach(write)
+  keel.forEach((p, i) => write(p, pts.length + i))
   const slices: HullSlice[] = []
   const yStart = SKIN_Y
   for (let y = yStart; y < maxY + 1e-3; y += SLICE_H) {

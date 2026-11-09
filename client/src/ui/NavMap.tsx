@@ -16,8 +16,21 @@ interface ChartMeta {
   harbors: { name: string; x: number; z: number }[]
 }
 
-/** Local chart window. A third of the old 1.8 km, matching the scaled lake. */
+/** Close chart window. A third of the old 1.8 km, matching the scaled lake. */
 const NEAR_METRES = 600
+
+type ChartSpan = 'lake' | 'mid' | 'near'
+
+/** Boat-centred width halfway in scale between the whole chart and Near. */
+function midMetres(worldW: number) {
+  return Math.sqrt(worldW * NEAR_METRES)
+}
+
+function buoyRadius(span: ChartSpan) {
+  if (span === 'near') return 3
+  if (span === 'mid') return 2.5
+  return 2
+}
 
 /** How close the pointer must be, in CSS pixels, to count as over another boat. */
 const SHIP_HIT = 18
@@ -29,8 +42,8 @@ interface ChartShip {
 }
 
 /**
- * North-up aerial chart. Lake shows the whole of Windermere; Near stays centred
- * on the boat so the shoreline you are following stays readable.
+ * North-up aerial chart. Lake shows the whole of Windermere. Mid and Near stay
+ * centred on the boat; Mid is the scale step between the lake and the close shore.
  * A shared room also plots the other boats. Hover one for her speed and whether
  * she is under engine, sail, or both. Expand grows the chart to a quarter of the screen.
  */
@@ -44,25 +57,24 @@ export function NavMap() {
   const tipNameRef = useRef<HTMLElement>(null)
   const tipSpeedRef = useRef<HTMLElement>(null)
   const tipDriveRef = useRef<HTMLElement>(null)
-  const [local, setLocal] = useState(false)
+  const [span, setSpan] = useState<ChartSpan>('lake')
   const [wide, setWide] = useState(false)
-  const localRef = useRef(false)
+  const spanRef = useRef<ChartSpan>('lake')
   const sharedRef = useRef(false)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const heldRef = useRef<ChartShip | null>(null)
   const stickRef = useRef(false)
-  const open = shared && wide
   const mail = useAisMail()
 
   useEffect(() => {
-    localRef.current = local
+    spanRef.current = span
     sharedRef.current = shared
-  }, [local, shared])
+  }, [span, shared])
 
   useEffect(() => {
-    setAisChartWide(open)
+    setAisChartWide(shared && wide)
     return () => setAisChartWide(false)
-  }, [open])
+  }, [shared, wide])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -114,8 +126,9 @@ export function NavMap() {
       let viewH = viewW / aspect
       let cx = 0
       let cz = 0
-      if (localRef.current && telemetry.ready) {
-        viewW = NEAR_METRES
+      const chartSpan = spanRef.current
+      if (chartSpan !== 'lake' && telemetry.ready) {
+        viewW = chartSpan === 'near' ? NEAR_METRES : midMetres(worldW)
         viewH = viewW / aspect
         cx = telemetry.x
         cz = telemetry.z
@@ -184,7 +197,7 @@ export function NavMap() {
         const p = toScreen(b.x, b.z)
         if (p.x < -4 || p.y < -4 || p.x > cssW + 4 || p.y > cssH + 4) continue
         ctx.beginPath()
-        ctx.arc(p.x, p.y, localRef.current ? 3 : 2, 0, Math.PI * 2)
+        ctx.arc(p.x, p.y, buoyRadius(chartSpan), 0, Math.PI * 2)
         ctx.fillStyle = b.type === 'port' ? '#e5484d' : '#3ddc84'
         ctx.fill()
       }
@@ -192,9 +205,9 @@ export function NavMap() {
       ctx.font = '600 11px Segoe UI, sans-serif'
       ctx.textAlign = 'center'
       ctx.lineWidth = 3
-      // Near mode already names the harbor in the title. On the lake, the name sits
+      // Near mode already names the harbor in the title. Lake and Mid keep the name
       // just above the basin so it does not cover the slips.
-      if (!localRef.current) {
+      if (chartSpan !== 'near') {
         HARBOR_BASINS.forEach((basin, index) => {
           const name = meta!.harbors[index]?.name
           if (!name) return
@@ -382,7 +395,7 @@ export function NavMap() {
   const banner = shared ? mail.banner : null
 
   return (
-    <div className={open ? 'hud navmap wide' : 'hud navmap'}>
+    <div className={wide ? 'hud navmap wide' : 'hud navmap'}>
       {banner && (
         <button
           type="button"
@@ -440,22 +453,23 @@ export function NavMap() {
         </button>
       </div>
       <div className="navmap-zoom">
-        <button type="button" className={local ? '' : 'active'} onClick={() => setLocal(false)}>
+        <button type="button" className={span === 'lake' ? 'active' : ''} aria-pressed={span === 'lake'} onClick={() => setSpan('lake')}>
           Lake
         </button>
-        <button type="button" className={local ? 'active' : ''} onClick={() => setLocal(true)}>
+        <button type="button" className={span === 'mid' ? 'active' : ''} aria-pressed={span === 'mid'} onClick={() => setSpan('mid')}>
+          Mid
+        </button>
+        <button type="button" className={span === 'near' ? 'active' : ''} aria-pressed={span === 'near'} onClick={() => setSpan('near')}>
           Near
         </button>
-        {shared && (
-          <button
-            type="button"
-            className={open ? 'active' : ''}
-            aria-pressed={open}
-            onClick={() => setWide((on) => !on)}
-          >
-            {open ? 'Shrink' : 'Expand'}
-          </button>
-        )}
+        <button
+          type="button"
+          className={wide ? 'active' : ''}
+          aria-pressed={wide}
+          onClick={() => setWide((on) => !on)}
+        >
+          {wide ? 'Shrink' : 'Expand'}
+        </button>
       </div>
     </div>
   )

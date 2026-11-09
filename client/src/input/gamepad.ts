@@ -82,6 +82,8 @@ export const CAPTURE_THRESHOLD = 0.62
 export interface PadSample {
   id: string
   index: number
+  /** "" when the browser has not remapped the pad to the standard layout. */
+  mapping: string
   buttons: number[]
   axes: number[]
 }
@@ -240,6 +242,37 @@ export function shortPadName(id: string) {
   return name || 'Controller'
 }
 
+/**
+ * Stable identity for a pad. Chrome and Firefox spell the same USB device differently,
+ * and a browser update can insert "Vendor:" into an id that used to be just the name.
+ */
+function padKey(id: string) {
+  const labeled = /vendor:\s*([0-9a-f]{4})[\s\S]*product:\s*([0-9a-f]{4})/i.exec(id)
+  if (labeled) return `${labeled[1].toLowerCase()}:${labeled[2].toLowerCase()}`
+  const dashed = /^([0-9a-f]{4})-([0-9a-f]{4})-/i.exec(id)
+  if (dashed) return `${dashed[1].toLowerCase()}:${dashed[2].toLowerCase()}`
+  return shortPadName(id).toLowerCase()
+}
+
+/**
+ * The pad a saved control belongs to. An exact id wins. Otherwise the same USB
+ * device, even when the browser rewrote the id. One controller plugged in still
+ * runs the saved map, so a USB pad does not go dead after that rewrite.
+ */
+function only(pads: readonly PadSample[]) {
+  return pads.length === 1 ? pads[0] : null
+}
+
 export function padFor(binding: Binding, pads: readonly PadSample[]) {
-  return pads.find((pad) => pad.id === binding.padId) ?? null
+  const exact = pads.find((pad) => pad.id === binding.padId)
+  if (exact) return exact
+  const key = padKey(binding.padId)
+  const same = pads.filter((pad) => padKey(pad.id) === key)
+  const byDevice = only(same) ?? same.find((pad) => pad.mapping === 'standard')
+  if (byDevice) return byDevice
+  const name = shortPadName(binding.padId).toLowerCase()
+  const named = pads.filter((pad) => shortPadName(pad.id).toLowerCase() === name)
+  const byName = only(named)
+  if (byName) return byName
+  return only(pads) ?? only(pads.filter((pad) => pad.mapping === 'standard'))
 }

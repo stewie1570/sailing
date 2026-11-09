@@ -57,7 +57,7 @@ Unity-WebGL because:
 | Terrain | One static mesh displaced on the CPU from a 16-bit heightmap; Lambert + hemisphere lighting; painted colour texture + tiling detail noise; slope-based rock tint | 1 draw, 100k–400k tris by quality |
 | Water | One plane with gentle vertex swell. Fragment: 3 scrolling normal-map taps + 2 directional sine waves, Schlick Fresnel, analytic sky reflection (no render target), sun glitter with distance-dependent roughness, depth-driven colour/transparency and shoreline foam from an 8-bit depth texture | 1 draw |
 | Sky | Analytic gradient dome shared with the water reflection + a 2-tap cloud layer | 1 draw |
-| Trees | Single `InstancedMesh`, 28 tris per tree, ~7k instances concentrated along shorelines | 1 draw |
+| Trees | Two instanced meshes, ~7k instances along shorelines. Full palm (58 tris) within 650 m, simple palm (22 tris) beyond it | 2 draws |
 | Buoys / harbours | Instanced primitives; buoys bob with the swell | 5 draws |
 
 Other decisions aimed at old hardware:

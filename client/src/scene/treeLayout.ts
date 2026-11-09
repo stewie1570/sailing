@@ -1,11 +1,21 @@
 import type { MapData } from '../map/mapData'
 
-/** Trunk and canopy in the tree's local space, before the instance scale. Shared with the mesh. */
-export const TRUNK = { radiusBottom: 0.5, radiusTop: 0.35, height: 3.2 }
-export const CANOPY = [
-  { radius: 3.6, y0: 2.7, y1: 9.7, open: false },
-  { radius: 2.4, y0: 7.5, y1: 13.5, open: true },
-] as const
+/**
+ * Palm trunk and crown in the tree's local space, before the instance scale.
+ * The mesh draws the fronds. Collision uses the crown envelope.
+ */
+export const TRUNK = { radiusBottom: 0.46, radiusTop: 0.22, height: 9 }
+export const CROWN = { radius: 4.6, y0: 4.8, y1: 9.45, y: 8.65 }
+
+/** Full crown inside this many metres. */
+export const TREE_LOD_NEAR = 650
+/** A full crown stays full out to here, so a tree on the line does not flicker. */
+export const TREE_LOD_FAR = 800
+
+/** True when this palm should use the full crown. */
+export function treeIsNear(distance: number, wasNear: boolean) {
+  return wasNear ? distance < TREE_LOD_FAR : distance < TREE_LOD_NEAR
+}
 
 export function visibleTreeCount(total: number, fraction: number) {
   return Math.floor(total * fraction)
@@ -27,27 +37,12 @@ export function treeOriginY(ground: number) {
   return Math.max(ground, 0) - 0.3
 }
 
-function coneRadius(localY: number, radius: number, y0: number, y1: number) {
-  if (localY < y0 || localY > y1) return 0
-  const t = (localY - y0) / (y1 - y0)
-  return radius * (1 - t)
-}
-
-/** Widest foliage in a local-y span. Each cone is fattest at its base. */
+/** Widest the crown gets. The fronds fill this radius between the drooping tips and the upright ones. */
 export function maxFoliageRadius(localY0: number, localY1: number, xzScale: number) {
   const y0 = Math.min(localY0, localY1)
   const y1 = Math.max(localY0, localY1)
-  let r = 0
-  const at = (y: number) => {
-    let m = 0
-    for (const cone of CANOPY) m = Math.max(m, coneRadius(y, cone.radius, cone.y0, cone.y1))
-    return m
-  }
-  r = Math.max(at(y0), at(y1))
-  for (const cone of CANOPY) {
-    if (cone.y0 > y0 && cone.y0 < y1) r = Math.max(r, cone.radius)
-  }
-  return r * xzScale
+  if (y1 < CROWN.y0 || y0 > CROWN.y1) return 0
+  return CROWN.radius * xzScale
 }
 
 /** Trunk tapers upward, so the overlap's low end is the widest. */

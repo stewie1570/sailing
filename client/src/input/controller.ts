@@ -175,17 +175,50 @@ export function bindAction(id: ActionId, binding: Binding) {
   replace({ bindings, listening: state.listening === id ? next : state.listening }, true)
 }
 
+function buttonValues(buttons: ArrayLike<GamepadButton> | null | undefined) {
+  const values: number[] = []
+  if (!buttons) return values
+  for (let i = 0; i < buttons.length; i++) values.push(buttons[i]?.value ?? 0)
+  return values
+}
+
+function axisValues(axes: ArrayLike<number> | null | undefined) {
+  const values: number[] = []
+  if (!axes) return values
+  for (let i = 0; i < axes.length; i++) {
+    const value = axes[i]
+    values.push(typeof value === 'number' && Number.isFinite(value) ? value : 0)
+  }
+  return values
+}
+
+/**
+ * Indexed on purpose. Chrome's older GamepadList is not iterable and its button
+ * list has no map, and a throw here used to be discarded, so the USB pad vanished.
+ */
 function readPads(): PadSample[] {
-  const list = navigator.getGamepads?.() ?? []
+  let list: ArrayLike<Gamepad | null> | null = null
+  try {
+    list = navigator.getGamepads?.() ?? null
+  } catch {
+    return []
+  }
+  if (!list) return []
   const pads: PadSample[] = []
-  for (const pad of list) {
-    if (!pad) continue
-    pads.push({
-      id: pad.id || `Controller ${pad.index + 1}`,
-      index: pad.index,
-      buttons: pad.buttons.map((button) => button.value),
-      axes: Array.from(pad.axes),
-    })
+  for (let i = 0; i < list.length; i++) {
+    const pad = list[i]
+    if (!pad || pad.connected === false) continue
+    try {
+      pads.push({
+        id: pad.id || `Controller ${pad.index + 1}`,
+        index: pad.index,
+        mapping: pad.mapping || '',
+        buttons: buttonValues(pad.buttons),
+        axes: axisValues(pad.axes),
+      })
+    } catch {
+      // One slot can fail as the device drops. The pad in the next slot still counts.
+    }
   }
   return pads
 }
@@ -384,7 +417,22 @@ export function useControllerLoop() {
       if (state.helmMode === 'engine' && activeEdge) setActiveThrottles(!state.activeThrottles)
       apply(pads, dt, notches)
     }
+    const onPadChange = () => {
+      try {
+        const pads = readPads()
+        if (padsChanged(pads)) replace({ pads }, false)
+      } catch {
+        // The next frame polls again.
+      }
+    }
+    // A listener keeps the browser sampling a pad that was already in the USB port.
+    window.addEventListener('gamepadconnected', onPadChange)
+    window.addEventListener('gamepaddisconnected', onPadChange)
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('gamepadconnected', onPadChange)
+      window.removeEventListener('gamepaddisconnected', onPadChange)
+    }
   }, [])
 }
