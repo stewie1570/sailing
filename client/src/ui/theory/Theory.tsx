@@ -11,7 +11,7 @@ import './theory.css'
 const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
   {
     title: 'Ends and sides',
-    lead: 'The bow is the front and the stern is the back. Forward is toward the bow, aft toward the stern. Face the bow: starboard is right, and port is left.',
+    lead: 'Drag the slider at the bottom of the illustration to go through the lesson.',
     View: PartsSlide,
   },
   {
@@ -67,7 +67,6 @@ export function Theory({ onBack }: { onBack: () => void }) {
             <p className="theory-kicker">
               Sailing theory · {index + 1} of {SLIDES.length}
             </p>
-            <p className="theory-prompt">Drag the slider through the lesson.</p>
             <h1>{slide.title}</h1>
             <p className="theory-lead">{slide.lead}</p>
           </div>
