@@ -25,16 +25,16 @@ const CUES: { t: number; text: string; title: string; detail: string; tone: Badg
   },
   {
     t: 3.45,
-    text: 'The wind gets behind the sail and it gybes at once. The boom swings all the way across.',
+    text: 'The sheet stays put. The wind flips the sail to the other side, and the boom swings all the way across. That is the danger.',
     title: 'Gybing',
-    detail: 'Boom swinging across',
+    detail: 'Sheet stays put',
     tone: 'warn',
   },
   {
     t: 5.7,
-    text: 'That full swing is what you are watching out for.',
+    text: 'The sheet never moved, so nothing stopped the boom. That full swing is what you are watching out for.',
     title: 'Watch out',
-    detail: 'All the way across',
+    detail: 'Nothing stopped it',
     tone: 'warn',
   },
   {
@@ -69,7 +69,7 @@ const CUES: { t: number; text: string; title: string; detail: string; tone: Badg
 
 const BEATS = [
   'Wind behind you, sail eased out. You turn toward the sail.',
-  'Watch out: the sail gybes at once and the boom swings all the way across.',
+  'Watch out: the sheet stays put and the wind flips the sail. The boom swings all the way across.',
   'Sheet the main all the way in first, so the boom is locked in the middle.',
   'The wind still flips the sail, but it only crosses the centerline. Then ease it out on the new side.',
 ]
@@ -140,6 +140,8 @@ function poseAt(time: number) {
     ghostArc: (danger && t >= 2.15) || (!danger && t >= 10.75 && t < 13.3),
     alert: danger && t >= 3.4 && t < 5.8,
     rudder: rudderFrom(headingAt, t),
+    // The eased sheet is cleated. The wind flips the sail inside that length, so the control does not travel.
+    sheet: danger ? 0 : mainTight(boom),
   }
 }
 
@@ -153,7 +155,7 @@ export function GybeSlide() {
       <Stage
         time={flutter}
         windFrom={PI}
-        controls={<ControlCallout highlight={['main']} main={mainTight(pose.boom)} />}
+        controls={<ControlCallout highlight={['main']} main={pose.sheet} />}
         alert={pose.alert}
         badge={{ tone: pose.tone, title: pose.title, detail: pose.detail }}
         progress={{
