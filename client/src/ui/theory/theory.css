@@ -565,6 +565,13 @@
   }
 }
 
+/* Six lessons: the 44px dot targets still fit a 320px screen when the gap closes. */
+@media (max-width: 360px) {
+  .theory-dots {
+    gap: 0;
+  }
+}
+
 @media (max-width: 720px) {
   .theory-caption {
     min-height: 0;

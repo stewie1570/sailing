@@ -73,6 +73,8 @@ export type BoatProps = {
   spinStbd?: number
   /** 0 quiet, 1 flapping. The headsail, separate from the main. */
   headsailLuff?: number
+  /** Drawn size. 1 is the close-up the other lessons use. */
+  scale?: number
 }
 
 function boomPoint(angle: number, radius: number): [number, number] {
@@ -493,6 +495,7 @@ export function Boat(props: BoatProps) {
     spinPort = 0,
     spinStbd = 0,
     headsailLuff = 0,
+    scale = 1,
   } = props
   const deg = (heading * 180) / PI
   const sheets = headsail === 'sheets'
@@ -502,7 +505,7 @@ export function Boat(props: BoatProps) {
   const labelSide = boom >= 0 ? -1 : 1
   return (
     <g opacity={opacity}>
-      <g transform={`translate(${x} ${y}) rotate(${deg})`}>
+      <g transform={`translate(${x} ${y}) scale(${scale}) rotate(${deg})`}>
         {showZone && <ZoneRing heading={heading} windFrom={windFrom} />}
         {showArc && <RangeArc allowed={allowed} mark={mark} />}
         {ghostArc && (

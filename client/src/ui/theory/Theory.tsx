@@ -4,9 +4,15 @@ import { GybeSlide } from './GybeSlide'
 import { HeadsailSlide } from './HeadsailSlide'
 import { SheetSlide } from './SheetSlide'
 import { TrimSlide } from './TrimSlide'
+import { UpwindSlide } from './UpwindSlide'
 import './theory.css'
 
 const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
+  {
+    title: 'Upwind and back',
+    lead: 'Point B is directly upwind of A. You zigzag there, tacking through the wind. Coming back, you run straight downwind.',
+    View: UpwindSlide,
+  },
   {
     title: 'The main sheet',
     lead: 'Scenario: The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',
