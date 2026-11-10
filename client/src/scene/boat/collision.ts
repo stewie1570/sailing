@@ -531,6 +531,41 @@ function hitsTrees(grid: TreeGrid, shape: BoatShape, x: number, z: number, yaw: 
   return false
 }
 
+/**
+ * How far the hull has entered a solid, split so a shoal kiss is not treated
+ * like a hull driven through the bank. `ground` is metres of skin below the
+ * terrain mesh. `prop` is a dock, buoy, beacon, building, or tree.
+ */
+export function hullOverlap(world: ColliderWorld, x: number, z: number, yaw: number, heave = 0) {
+  let ground = 0
+  const shape = world.shape
+  const t = world.terrain
+  if (terrainMax(t, x - shape.radius, z - shape.radius, x + shape.radius, z + shape.radius) >= shape.skinMinY + heave) {
+    const c = Math.cos(yaw)
+    const s = Math.sin(yaw)
+    const skin = shape.skin
+    for (let i = 0; i < skin.length; i += 3) {
+      const wx = x + skin[i] * c + skin[i + 2] * s
+      const wz = z - skin[i] * s + skin[i + 2] * c
+      const depth = terrainMeshHeight(t, wx, wz) - (skin[i + 1] + heave)
+      if (depth > ground) ground = depth
+    }
+  }
+  let prop = false
+  if (ground < 0.22) {
+    for (const box of world.boxes) {
+      if (hitsBox(box, shape, x, z, yaw, heave)) { prop = true; break }
+    }
+    if (!prop) {
+      for (const disc of world.discs) {
+        if (hitsDisc(disc, shape, x, z, yaw, heave)) { prop = true; break }
+      }
+    }
+    if (!prop) prop = hitsTrees(world.trees, shape, x, z, yaw, heave)
+  }
+  return { ground, prop }
+}
+
 /** True when the sailboat mesh touches the shore, a dock, or any other solid. */
 export function blocked(world: ColliderWorld, x: number, z: number, yaw: number, heave = 0): boolean {
   if (hitsTerrain(world.terrain, world.shape, x, z, yaw, heave)) return true

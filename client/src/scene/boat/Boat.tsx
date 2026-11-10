@@ -4,7 +4,7 @@ import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { applyCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
-import { blocked, colliderWorld, hullClearance, hullPenetration } from './collision'
+import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
 import {
   buildBoom,
   buildJib,
@@ -265,7 +265,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       }
       let boatHit = false
       let ramSpeed = pose.speed
-      integrate(pose, drive, delta, (x, z, yaw) => {
+      integrate(pose, drive, delta, (x, z, yaw, probe) => {
         const heave = swell(x, z, time)
         if (blocked(world, x, z, yaw, heave)) return true
         for (let i = 0; i < fleetCount; i++) {
@@ -276,9 +276,12 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
             Math.max(other.sunk, 1e-4),
           )
           if (pen > 0 && pen > other.sunk - 0.001) {
-            if (!boatHit) ramSpeed = pose.speed
-            boatHit = true
-            other.pushed = true
+            // Clearance samples must not count as driving into someone.
+            if (!probe) {
+              if (!boatHit) ramSpeed = pose.speed
+              boatHit = true
+              other.pushed = true
+            }
             return true
           }
         }
@@ -293,7 +296,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
           jibStarboard: drive.jibStarboard,
           spinHoist: getSpinHoist(),
         },
-      })
+      }, (x, z, yaw) => hullOverlap(world, x, z, yaw, swell(x, z, time)))
       const here = swell(pose.x, pose.z, time)
       const reach = world.shape.radius * 2 + RAM_TOUCH + 1.5
       const contacts: RamContact[] = []
