@@ -77,56 +77,149 @@ function smoothstep(e0: number, e1: number, x: number) {
 }
 
 /**
- * Flat cruising transom: a broad foot just under the waterline, then topsides
- * out to the sheer. v = 0 is the centreline, v = 1 is the sheer.
+ * Widest station. Aft of here the deck edge is a fair run into the transom,
+ * so the quarters are not pinched ahead of a wider stern.
  */
-function transomSection(v: number): THREE.Vector3 {
-  const z = STERN - 0.06 - 0.2 * v
+const STERN_JOIN = 0.38
+/** Transom width as a fraction of the beam at the widest station, before the corner radius. */
+const TRANSOM_BEAM = 0.8
+/** Radius of the transom corner in plan, metres. */
+const TRANSOM_RADIUS = 0.42
+
+/** Height of the transom. The foot is a flat just under the waterline, then the topsides rise to the sheer. */
+function transomHeight(v: number): number {
   const chine = 0.3
-  if (v < chine) {
-    return new THREE.Vector3((v / chine) * 1.02, -0.06, z)
-  }
+  if (v < chine) return -0.06
   const t = (v - chine) / (1 - chine)
-  return new THREE.Vector3(
-    1.02 + 0.66 * Math.pow(t, 0.8),
-    -0.06 + 1.46 * Math.pow(t, 0.85),
-    z,
-  )
+  return -0.06 + 1.46 * Math.pow(t, 0.85)
+}
+
+function stationZ(u: number, v: number): number {
+  const zKeel = STERN + (BOW - STERN) * u
+  const rake = 1.05 * smoothstep(0.58, 1, u) - 0.22 * (1 - smoothstep(0, 0.16, u))
+  return zKeel + rake * v
+}
+
+/** Tumblehome amidships. It fades out through the stern so the sheer is the widest point of the transom. */
+function tumble(u: number): number {
+  return 0.07 * (u >= STERN_JOIN ? 1 : smoothstep(0, STERN_JOIN, u))
+}
+
+function xShape(u: number, v: number): number {
+  let shape = Math.pow(Math.sin(v * Math.PI * 0.5), 0.42)
+  if (v > 0.78) {
+    const t = (v - 0.78) / 0.22
+    shape *= 1 - tumble(u) * t * t
+  }
+  return shape
+}
+
+/** Half-breadth before the stern fairing. The bow and the run forward of the widest station. */
+function beamFactor(u: number): number {
+  const entry = Math.sin(Math.PI * Math.pow(u, 0.72))
+  const run = 0.7 + 0.3 * smoothstep(0.08, 0.32, u)
+  const bowFine = 1 - 0.7 * smoothstep(0.84, 1, u)
+  return 2.18 * entry * run * bowFine
+}
+
+/** Deck-edge half-beam. Aft of the widest station it opens in a single curve from the transom. */
+function sheerHalf(u: number): number {
+  const shape = xShape(u, 1)
+  if (u >= STERN_JOIN) return beamFactor(u) * shape
+  const join = beamFactor(STERN_JOIN) * xShape(STERN_JOIN, 1)
+  const stern = join * TRANSOM_BEAM
+  const s = u / STERN_JOIN
+  const f = s * (2 - s)
+  return stern + (join - stern) * f
+}
+
+interface SternCorner {
+  uEnd: number
+  cx: number
+  cz: number
+  ang0: number
+  ang1: number
+}
+
+let cachedCorner: SternCorner | null = null
+
+/** Circular fillet where the transom meets the topsides, tangent to both. */
+function sternCorner(): SternCorner {
+  if (cachedCorner) return cachedCorner
+  const z0 = stationZ(0, 1)
+  const x0 = sheerHalf(0)
+  const du = 1e-3
+  const dx = (sheerHalf(du) - x0) / du
+  const dz = (stationZ(du, 1) - z0) / du
+  const speed = Math.hypot(dx, dz)
+  const outX = dx / speed
+  const outZ = dz / speed
+  const theta = Math.acos(Math.min(1, Math.max(-1, outX)))
+  const tlen = TRANSOM_RADIUS * Math.tan(theta / 2)
+  const sideX = x0 + outX * tlen
+  const sideZ = z0 + outZ * tlen
+  const cx = x0 - tlen
+  const cz = z0 + TRANSOM_RADIUS
+  cachedCorner = {
+    uEnd: tlen / speed,
+    cx,
+    cz,
+    ang0: -Math.PI / 2,
+    ang1: Math.atan2(sideZ - cz, sideX - cx),
+  }
+  return cachedCorner
+}
+
+/** Sheer planform through the transom corner. Past the fillet this is the fair sheer. */
+function sheerPlan(u: number): { x: number; z: number } {
+  const sharp = { x: sheerHalf(u), z: stationZ(u, 1) }
+  const corner = sternCorner()
+  if (u >= corner.uEnd) return sharp
+  const s = u / corner.uEnd
+  const ang = corner.ang0 + (corner.ang1 - corner.ang0) * s
+  const arcX = corner.cx + TRANSOM_RADIUS * Math.cos(ang)
+  const arcZ = corner.cz + TRANSOM_RADIUS * Math.sin(ang)
+  const w = smoothstep(0.82, 1, s)
+  return {
+    x: arcX * (1 - w) + sharp.x * w,
+    z: arcZ * (1 - w) + sharp.z * w,
+  }
+}
+
+/**
+ * Stations along the hull. The transom corner is a short arc, so the stern
+ * is sampled more tightly than the rest of the run.
+ */
+function loftUs(): number[] {
+  const us: number[] = []
+  const toe = 0.05
+  const edge = 8
+  const body = 32
+  for (let i = 0; i < edge; i++) us.push((toe * i) / edge)
+  for (let i = 1; i <= body; i++) us.push(toe + ((1 - toe) * i) / body)
+  return us
 }
 
 /** Starboard hull point. u = 0 at the transom, 1 at the stem. v = 0 at the centreline bottom, 1 at the sheer. */
 function hullPoint(u: number, v: number): THREE.Vector3 {
-  const zKeel = STERN + (BOW - STERN) * u
-  const rake = 1.05 * smoothstep(0.58, 1, u) - 0.22 * (1 - smoothstep(0, 0.16, u))
-  const z = zKeel + rake * v
-
   const stem = smoothstep(0.8, 1, u)
   const rocker = Math.sin(Math.PI * Math.pow(Math.min(u, 0.94), 0.7))
   const keelY = (-0.22 - 0.52 * rocker) * (1 - stem) + 0.42 * stem
   const sheerY = 0.96 + 0.8 * Math.pow(u, 1.6) + 0.4 * Math.pow(1 - u, 2.15)
-  const y = keelY + (sheerY - keelY) * Math.pow(v, 0.9)
-
-  const entry = Math.sin(Math.PI * Math.pow(u, 0.72))
-  const sternBeam = 0.7 + 0.3 * smoothstep(0.08, 0.32, u)
-  const bowFine = 1 - 0.7 * smoothstep(0.84, 1, u)
-  let half = 2.18 * entry * sternBeam * bowFine
-  half = Math.max(half, 1.45 * (1 - smoothstep(0.05, 0.26, u)) * (1 - stem))
-
-  let xShape = Math.pow(Math.sin(v * Math.PI * 0.5), 0.42)
-  if (v > 0.78) {
-    const t = (v - 0.78) / 0.22
-    xShape *= 1 - 0.07 * t * t
-  }
-  const body = new THREE.Vector3(half * xShape, y, z)
-  // The aft stations become the transom, so the stern is a face rather than a canoe point.
+  let y = keelY + (sheerY - keelY) * Math.pow(v, 0.9)
+  // Lift the aft foot up to the transom so the stern is not a deep canoe end.
   const sternBlend = 1 - smoothstep(0.02, 0.22, u)
-  if (sternBlend <= 0) return body
-  const tr = transomSection(v)
-  return new THREE.Vector3(
-    body.x * (1 - sternBlend) + tr.x * sternBlend,
-    body.y * (1 - sternBlend) + tr.y * sternBlend,
-    body.z * (1 - sternBlend) + tr.z * sternBlend,
-  )
+  if (sternBlend > 0) y = y * (1 - sternBlend) + transomHeight(v) * sternBlend
+
+  const deck = sheerHalf(u)
+  const half = deck / xShape(u, 1)
+  let x = half * xShape(u, v)
+  let z = stationZ(u, v)
+  const plan = sheerPlan(u)
+  const scale = deck > 1e-4 ? plan.x / deck : 1
+  x *= scale
+  z += plan.z - stationZ(u, 1)
+  return new THREE.Vector3(x, y, z)
 }
 
 function hullColor(y: number): RGB {
@@ -136,12 +229,12 @@ function hullColor(y: number): RGB {
 }
 
 function addHull(g: Geo) {
-  const U = 36
+  const us = loftUs()
   const V = 14
   const grid: number[][] = []
-  for (let i = 0; i <= U; i++) {
+  for (let i = 0; i < us.length; i++) {
     const row: number[] = []
-    const u = i / U
+    const u = us[i]
     for (let j = 0; j <= V; j++) {
       const p = hullPoint(u, j / V)
       // The transom face is one panel; keep the boot stripe from painting the whole stern grey.
@@ -152,9 +245,9 @@ function addHull(g: Geo) {
     grid.push(row)
   }
   const port: number[][] = []
-  for (let i = 0; i <= U; i++) {
+  for (let i = 0; i < us.length; i++) {
     const row: number[] = []
-    const u = i / U
+    const u = us[i]
     for (let j = 0; j <= V; j++) {
       const p = hullPoint(u, j / V)
       if (p.x < 0.015) row.push(grid[i][j])
@@ -162,7 +255,7 @@ function addHull(g: Geo) {
     }
     port.push(row)
   }
-  for (let i = 0; i < U; i++) {
+  for (let i = 0; i < us.length - 1; i++) {
     for (let j = 0; j < V; j++) {
       // Outward: starboard +x, port −x. u runs aft to bow, v runs keel to sheer.
       quad(g, grid[i][j], grid[i][j + 1], grid[i + 1][j + 1], grid[i + 1][j])
@@ -176,10 +269,10 @@ function addHull(g: Geo) {
 }
 
 function addDeck(g: Geo) {
-  const U = 28
-  for (let i = 0; i < U; i++) {
-    const u0 = i / U
-    const u1 = (i + 1) / U
+  const us = loftUs()
+  for (let i = 0; i < us.length - 1; i++) {
+    const u0 = us[i]
+    const u1 = us[i + 1]
     const a = hullPoint(u0, 1)
     const b = hullPoint(u1, 1)
     const crown = 0.045 * Math.sin(Math.PI * ((u0 + u1) / 2))
@@ -194,9 +287,9 @@ function addDeck(g: Geo) {
     quad(g, p0, p1, c1, c0)
   }
   // Toe rail, a low lip just outside the sheer.
-  for (let i = 0; i < U; i++) {
-    const u0 = i / U
-    const u1 = (i + 1) / U
+  for (let i = 0; i < us.length - 1; i++) {
+    const u0 = us[i]
+    const u1 = us[i + 1]
     for (const side of [1, -1]) {
       const a = hullPoint(u0, 1)
       const b = hullPoint(u1, 1)
