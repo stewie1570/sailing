@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Boat, Stage } from './diagram'
 import { clamp, lerp, sailLook, track } from './math'
 import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { ControlCallout } from './ControlCallout'
 import { FigureCopy, SheetRange } from './widgets'
 
 const DUR = 13.6
@@ -70,6 +71,7 @@ export function SheetSlide() {
       <Stage
         time={flutter}
         windFrom={0}
+        controls={<ControlCallout highlight={['main']} main={slider} />}
         progress={{
           time: clamp(time, 0, DUR),
           duration: DUR,

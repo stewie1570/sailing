@@ -1,6 +1,7 @@
 import { Boat, Stage, type BadgeTone } from './diagram'
 import { PI, clamp, rudderFrom, track, trail } from './math'
 import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { ControlCallout } from './ControlCallout'
 import { FigureCopy } from './widgets'
 
 const DUR = 16.4
@@ -72,6 +73,11 @@ const BEATS = [
   'Sheet the main all the way in first, so the boom is locked in the middle.',
   'The wind still flips the sail, but it only crosses the centerline. Then ease it out on the new side.',
 ]
+
+function mainTight(boom: number) {
+  const eased = clamp((Math.abs(boom) - 0.2) / (OUT - 0.2), 0, 1)
+  return 1 - eased
+}
 
 function headingAt(time: number) {
   if (time < SWAP) {
@@ -147,6 +153,7 @@ export function GybeSlide() {
       <Stage
         time={flutter}
         windFrom={PI}
+        controls={<ControlCallout highlight={['main']} main={mainTight(pose.boom)} />}
         alert={pose.alert}
         badge={{ tone: pose.tone, title: pose.title, detail: pose.detail }}
         progress={{

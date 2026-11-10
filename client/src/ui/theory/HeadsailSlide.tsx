@@ -1,6 +1,7 @@
 import { Boat, Stage, type BadgeTone } from './diagram'
 import { PI, clamp, relativeWind, sailLook, track } from './math'
 import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { ControlCallout, type SheetControl } from './ControlCallout'
 import { FigureCopy } from './widgets'
 
 const DUR = 16.4
@@ -38,6 +39,20 @@ const CUES: { t: number; text: string; title: string; detail: string; tone: Badg
 ]
 
 const BEATS = CUES.map((cue) => cue.text)
+
+function calloutAt(time: number, port: number, starboard: number): {
+  highlight: readonly SheetControl[]
+  sail: 'main' | 'jib' | 'spin'
+  port: number
+  starboard: number
+  main: number
+} {
+  if (time < 3.4) return { highlight: ['main'], sail: 'main', port, starboard, main: 0.55 }
+  if (time < 6.8) return { highlight: ['port', 'starboard'], sail: 'jib', port, starboard, main: 0.4 }
+  if (time < 10.4) return { highlight: ['starboard'], sail: 'jib', port, starboard, main: 0.4 }
+  if (time < 13.6) return { highlight: ['port', 'starboard'], sail: 'spin', port, starboard, main: 0.18 }
+  return { highlight: ['port'], sail: 'spin', port, starboard, main: 0.18 }
+}
 
 function poseAt(time: number) {
   const t = clamp(time, 0, DUR)
@@ -122,11 +137,22 @@ export function HeadsailSlide() {
   const { time: flutter } = useSeconds(!reduced)
   const pose = poseAt(time)
   const headsailLuff = pose.spinSet > pose.jibSet ? pose.spinLuff : pose.jibLuff
+  const spin = pose.t >= 10.4
+  const callout = calloutAt(pose.t, spin ? pose.spinPort : pose.jibPort, spin ? pose.spinStbd : pose.jibStbd)
   return (
     <>
       <Stage
         time={flutter}
         windFrom={pose.windFrom}
+        controls={
+          <ControlCallout
+            highlight={callout.highlight}
+            sail={callout.sail}
+            port={callout.port}
+            main={callout.main}
+            starboard={callout.starboard}
+          />
+        }
         badge={{ tone: pose.cue.tone, title: pose.cue.title, detail: pose.cue.detail }}
         progress={{
           time: pose.t,

@@ -197,6 +197,158 @@
 .theory-speed.is-fast strong { color: #9cf0c0; }
 .theory-speed.is-slow strong { color: #ffd0a8; }
 
+.theory-controls {
+  position: absolute;
+  z-index: 1;
+  right: 10px;
+  bottom: 52px;
+  width: 168px;
+  padding: 8px 8px 10px;
+  border-radius: 10px;
+  background: rgba(8, 18, 30, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.theory-controls-kicker {
+  margin: 0 0 4px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 244, 0.55);
+}
+
+.theory-furler {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+}
+
+.theory-furler span {
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 244, 0.5);
+}
+
+.theory-furler-track {
+  position: relative;
+  height: 10px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #121a24, #243140);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.theory-furler-fill {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 3px;
+  background: rgba(61, 220, 132, 0.38);
+}
+
+.theory-furler.is-spin .theory-furler-fill {
+  background: rgba(232, 96, 48, 0.5);
+}
+
+.theory-furler-knob {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-left: -4px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+  background: linear-gradient(#e4e8ec, #9aa1a8 42%, #5e656c);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.theory-controls-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.theory-sheet {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  opacity: 0.4;
+}
+
+.theory-sheet.is-on {
+  opacity: 1;
+}
+
+.theory-sheet-name {
+  width: 100%;
+  min-height: 2.2em;
+  font-size: 8px;
+  line-height: 1.15;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(232, 238, 244, 0.55);
+}
+
+.theory-sheet.is-on .theory-sheet-name {
+  color: #f4f7fb;
+}
+
+.theory-sheet-track {
+  position: relative;
+  width: 22px;
+  height: 58px;
+  border-radius: 6px;
+  background: linear-gradient(#243140, #121a24 40%, #0c1218);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 6px 8px rgba(0, 0, 0, 0.35);
+}
+
+.theory-sheet.is-on .theory-sheet-track {
+  box-shadow:
+    0 0 0 2px #3ddc84,
+    0 0 10px rgba(61, 220, 132, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+
+.theory-sheet-knob {
+  position: absolute;
+  left: 50%;
+  width: 18px;
+  height: 10px;
+  margin-left: -9px;
+  border-radius: 3px;
+  transform: translateY(-50%);
+  background: linear-gradient(#e4e8ec, #9aa1a8 42%, #5e656c);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.theory-sheet-knob::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 4px;
+  height: 1px;
+  border-radius: 1px;
+  background: rgba(20, 24, 28, 0.45);
+}
+
+.theory-sheet-knob.port {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 2px 0 #e5484d, inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.theory-sheet-knob.starboard {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 2px 0 #3ddc84, inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
 .theory-progress {
   position: absolute;
   z-index: 2;
@@ -381,6 +533,18 @@
 .theory-stage.is-tight {
   width: min(100%, calc(74dvh * 360 / 408));
   aspect-ratio: 360 / 408;
+}
+
+@media (max-width: 720px), (max-height: 539px) {
+  .theory-controls {
+    width: 142px;
+    right: 8px;
+    bottom: 48px;
+    padding: 6px 6px 8px;
+  }
+  .theory-sheet-track {
+    height: 46px;
+  }
 }
 
 /* Short viewports, including phones in landscape. The desktop fit (100dvh - 380px)
