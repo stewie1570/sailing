@@ -19,19 +19,19 @@ const HEADING = [
 ] as const
 
 const CUES = [
-  { t: 0, text: 'Going into the wind. To change sides you tack: the bow turns through the wind.' },
-  { t: 2, text: 'The bow is turning through the wind. The sail luffs as it crosses, then fills on the new side. That is a tack.' },
-  { t: 5.6, text: 'The wind is on the side of the boat. Coming about from here is still a tack.' },
-  { t: 10.2, text: 'The wind is off to the side and behind you. A turn that brings the stern through the wind is a gybe.' },
-  { t: 13.1, text: 'The wind is behind you. The stern turns through it, and the sail flips across. That is a gybe.' },
-  { t: 15.9, text: 'Behind you, or on the quarter: gybe. Ahead of you, or on the side: tack.' },
+  { t: 0, text: 'Going into the wind. This is a tack. The bow turns through the wind.' },
+  { t: 2, text: 'The bow is turning through the wind. The sail luffs as it crosses, then fills on the new side. This is a tack.' },
+  { t: 5.6, text: 'The wind is on the side of the boat. This is a tack.' },
+  { t: 10.2, text: 'The wind is off to the side and behind you. This is a gybe. The stern turns through the wind.' },
+  { t: 13.1, text: 'The wind is behind you. The stern turns through it, and the sail flips across. This is a gybe.' },
+  { t: 15.9, text: 'Behind you, or on the quarter, this is a gybe. Ahead of you, or on the side, this is a tack.' },
 ]
 
 const BEATS = [
-  'Going into the wind: you tack. The bow turns through the wind.',
-  'Wind on the side of you: changing sides is still a tack.',
-  'Wind off to the side and behind you: that turn is a gybe.',
-  'Wind behind you: you gybe. The stern turns through the wind and the sail flips across.',
+  'Going into the wind: this is a tack. The bow turns through the wind.',
+  'Wind on the side of you: this is a tack.',
+  'Wind off to the side and behind you: this is a gybe.',
+  'Wind behind you: this is a gybe. The stern turns through the wind and the sail flips across.',
 ]
 
 function headingOf(time: number) {

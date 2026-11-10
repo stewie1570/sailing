@@ -9,17 +9,17 @@ import './theory.css'
 const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
   {
     title: 'The main sheet',
-    lead: 'The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',
+    lead: 'Scenario: The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',
     View: SheetSlide,
   },
   {
-    title: 'Jib and spinnaker',
+    title: 'Jib and spinnaker sails',
     lead: 'Same idea as the main. Two sheets, one on each side.',
     View: HeadsailSlide,
   },
   {
     title: 'Tack or gybe',
-    lead: 'Into the wind, or with the wind on your side, you tack. With the wind behind you, or behind and to the side, you gybe.',
+    lead: 'Into the wind, or with the wind on your side, this is a tack. With the wind behind you, or behind and to the side, this is a gybe.',
     View: CourseSlide,
   },
   {

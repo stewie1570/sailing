@@ -11,7 +11,7 @@ const HAULED = 0.28
 const RULE = 'The sheet is the rope that controls the sail.'
 
 const CUES = [
-  { t: 0, text: 'The wind is in front of the boat. With the sheet eased, the sail swings out and the cloth flaps.' },
+  { t: 0, text: 'Scenario: The wind is in front of the boat. With the sheet eased, the sail swings out and the cloth flaps.' },
   { t: 2.8, text: 'Haul the sheet. The rope pulls the sail in against the wind.' },
   { t: 5.6, text: 'Sheeted in, the cloth holds still and the boat starts to move.' },
   { t: 8.4, text: 'Ease the sheet and the sail falls back out. The cloth flaps again.' },
@@ -19,7 +19,7 @@ const CUES = [
 ]
 
 const BEATS = [
-  'The wind is in front of the boat. Ease the sheet and the sail swings out. The cloth flaps.',
+  'Scenario: The wind is in front of the boat. Ease the sheet and the sail swings out. The cloth flaps.',
   'Haul the sheet. The rope pulls the sail in against the wind until the cloth holds still.',
   'Sheeted in, the boat starts to move. Ease the rope and the sail falls back out.',
 ]

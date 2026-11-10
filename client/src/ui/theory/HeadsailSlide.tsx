@@ -9,7 +9,7 @@ const CUES: { t: number; text: string; title: string; detail: string; tone: Badg
   { t: 0, text: 'The main has one sheet, led to the middle.', title: 'Main', detail: 'One sheet', tone: 'tack' },
   {
     t: 3.4,
-    text: 'The jib works the same way. Two sheets, one on each side.',
+    text: 'The jib works the same way, except two sheets, one on each side.',
     title: 'Jib',
     detail: 'Two sheets',
     tone: 'ok',
@@ -23,7 +23,7 @@ const CUES: { t: number; text: string; title: string; detail: string; tone: Badg
   },
   {
     t: 10.4,
-    text: 'The spinnaker uses those same two sheets. Eased, it fills on both sides.',
+    text: 'The spinnaker is controlled in the same way. Eased, it fills on both sides.',
     title: 'Spinnaker',
     detail: 'Both eased',
     tone: 'gybe',
