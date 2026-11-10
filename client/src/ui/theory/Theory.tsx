@@ -2,11 +2,23 @@ import { useState, type ReactNode } from 'react'
 import { CourseSlide } from './CourseSlide'
 import { GybeSlide } from './GybeSlide'
 import { HeadsailSlide } from './HeadsailSlide'
+import { PartsSlide } from './PartsSlide'
 import { SheetSlide } from './SheetSlide'
 import { TrimSlide } from './TrimSlide'
+import { UpwindSlide } from './UpwindSlide'
 import './theory.css'
 
 const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
+  {
+    title: 'Ends and sides',
+    lead: 'The bow is the front and the stern is the back. Forward is toward the bow, aft toward the stern. Face the bow: starboard is right, and port is left.',
+    View: PartsSlide,
+  },
+  {
+    title: 'Upwind and back',
+    lead: 'Point B is directly upwind of A. You zigzag there, tacking through the wind. Coming back, you run straight downwind.',
+    View: UpwindSlide,
+  },
   {
     title: 'The main sheet',
     lead: 'Scenario: The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',

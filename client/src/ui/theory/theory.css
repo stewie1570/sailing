@@ -565,6 +565,17 @@
   }
 }
 
+/* Seven lessons: the dot targets still fit a 320px screen. */
+@media (max-width: 360px) {
+  .theory-dots {
+    gap: 0;
+  }
+  .theory-dots button {
+    width: 40px;
+    min-width: 40px;
+  }
+}
+
 @media (max-width: 720px) {
   .theory-caption {
     min-height: 0;
