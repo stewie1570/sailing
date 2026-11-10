@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Boat, Stage } from './diagram'
 import { clamp, knotsOf, lerp, sailLook, track } from './math'
 import { cueAt, useLesson, useSeconds } from './useSeconds'
+import { ControlCallout } from './ControlCallout'
 import { FigureCopy, SheetRange } from './widgets'
 
 const DUR = 17.2
@@ -95,6 +96,7 @@ export function TrimSlide() {
       <Stage
         time={flutter}
         windFrom={0}
+        controls={<ControlCallout highlight={['main']} main={slider} />}
         speed={{ knots: knotsOf(look.speed), note }}
         progress={{
           time: animated.t,

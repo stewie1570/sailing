@@ -94,7 +94,7 @@ export function Menu({ onLearn, hidden = false }: { onLearn: () => void; hidden?
         </p>
       </div>
       <button type="button" className="menu-learn" disabled={connecting} onClick={onLearn}>
-        Learn sailing theory
+        Learn to Sail! ⛵️
       </button>
       </div>
     </div>

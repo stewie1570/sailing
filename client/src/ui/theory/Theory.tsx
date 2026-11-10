@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { CourseSlide } from './CourseSlide'
 import { GybeSlide } from './GybeSlide'
 import { HeadsailSlide } from './HeadsailSlide'
@@ -9,17 +9,17 @@ import './theory.css'
 const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
   {
     title: 'The main sheet',
-    lead: 'The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',
+    lead: 'Scenario: The wind is in front of the boat. The sheet is the rope that pulls the sail in against it.',
     View: SheetSlide,
   },
   {
-    title: 'Jib and spinnaker',
+    title: 'Jib and spinnaker sails',
     lead: 'Same idea as the main. Two sheets, one on each side.',
     View: HeadsailSlide,
   },
   {
     title: 'Tack or gybe',
-    lead: 'Into the wind, or with the wind on your side, you tack. With the wind behind you, or behind and to the side, you gybe.',
+    lead: 'Into the wind, or with the wind on your side, this is a tack. With the wind behind you, or behind and to the side, this is a gybe.',
     View: CourseSlide,
   },
   {
@@ -36,58 +36,18 @@ const SLIDES: { title: string; lead: string; View: () => ReactNode }[] = [
 
 export function Theory({ onBack }: { onBack: () => void }) {
   const [index, setIndex] = useState(0)
-  const rootRef = useRef<HTMLDivElement>(null)
-  const swipe = useRef<{ x: number; y: number } | null>(null)
   const slide = SLIDES[index] ?? SLIDES[0]
   const last = SLIDES.length - 1
-
-  useEffect(() => {
-    rootRef.current?.focus()
-  }, [])
 
   const go = (next: number) => {
     setIndex(Math.min(last, Math.max(0, next)))
   }
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      const target = event.target
-      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return
-      if (event.key === 'ArrowRight') {
-        event.preventDefault()
-        setIndex((value) => Math.min(last, value + 1))
-      } else if (event.key === 'ArrowLeft') {
-        event.preventDefault()
-        setIndex((value) => Math.max(0, value - 1))
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [last])
-
   if (!slide) return null
   const View = slide.View
 
   return (
-    <div
-      className="theory"
-      ref={rootRef}
-      tabIndex={-1}
-      onPointerDown={(event) => {
-        const target = event.target
-        if (!(target instanceof Element) || target.closest('input, button, a, label')) return
-        swipe.current = { x: event.clientX, y: event.clientY }
-      }}
-      onPointerUp={(event) => {
-        const start = swipe.current
-        swipe.current = null
-        if (!start) return
-        const dx = event.clientX - start.x
-        const dy = event.clientY - start.y
-        if (Math.abs(dx) < 56 || Math.abs(dx) < Math.abs(dy) * 1.3) return
-        go(index + (dx < 0 ? 1 : -1))
-      }}
-    >
+    <div className="theory">
       <div className="theory-sky" />
       <div className="theory-frame">
         <header className="theory-top">

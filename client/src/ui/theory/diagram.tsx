@@ -687,6 +687,7 @@ export function Stage({
   badge,
   speed,
   progress,
+  controls,
   alert = false,
 }: {
   time: number
@@ -701,6 +702,8 @@ export function Stage({
     caption: string
     onSeek: (time: number) => void
   } | null
+  /** Sailing-panel copy, drawn in the bottom right of the diagram. */
+  controls?: ReactNode
   alert?: boolean
 }) {
   const uid = useId().replace(/:/g, '')
@@ -727,6 +730,7 @@ export function Stage({
           </strong>
         </div>
       )}
+      {controls}
       {progress && (
         <LessonBar
           time={progress.time}
