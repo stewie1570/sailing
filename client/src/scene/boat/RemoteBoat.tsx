@@ -1,10 +1,13 @@
 import { useFrame } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import type { MapData } from '../../map/mapData'
 import { remoteShip, shipIsFresh, useRemoteShipIds } from '../../net/session'
+import { inHarbor } from '../harborLayout'
 import { RUDDER_LOCK, WHEEL_LOCK } from './dynamics'
 import {
   buildBoom,
+  buildFenders,
   buildJib,
   buildMainsail,
   buildSpin,
@@ -29,8 +32,10 @@ import { spinHalfFromCenter } from './sail'
  * Someone else's hull, posed from the snapshot they publish. The local boat
  * stops against that pose; this mesh does not run its own simulation.
  */
-export function RemoteBoat({ playerId }: { playerId: string }) {
+export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }) {
   const hull = useMemo(() => buildSailboat(), [])
+  const fenders = useMemo(() => buildFenders(), [])
+  const [fendersHung, setFendersHung] = useState(false)
   const wheel = useMemo(() => buildWheel(), [])
   const boomMesh = useMemo(() => buildBoom(), [])
   const sailMesh = useMemo(() => buildMainsail(), [])
@@ -63,14 +68,14 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) {
+      for (const mesh of [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) {
         disposeMesh(mesh)
       }
       const material = nameTag.material as THREE.SpriteMaterial
       material.map?.dispose()
       material.dispose()
     }
-  }, [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, nameTag])
+  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, nameTag])
 
   useFrame((state, delta) => {
     const ship = remoteShip(playerId)
@@ -107,6 +112,8 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
 
     const time = state.clock.elapsedTime
     g.position.set(pose.x, swell(pose.x, pose.z, time) - pose.sink, pose.z)
+    const hung = inHarbor(map, pose.x, pose.z)
+    if (hung !== fendersHung) setFendersHung(hung)
     g.rotation.x = sinkPitch(pose.sink)
     g.rotation.y = pose.yaw
 
@@ -147,6 +154,7 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
   return (
     <group ref={group}>
       <primitive object={hull} />
+      <primitive object={fenders} visible={fendersHung} />
       <primitive object={nameTag} />
       <group ref={boomRef} position={[rig.boomX, rig.boomY, rig.boomZ]}>
         <primitive object={boomMesh} />
@@ -185,12 +193,12 @@ export function RemoteBoat({ playerId }: { playerId: string }) {
   )
 }
 
-export function RemoteFleet() {
+export function RemoteFleet({ map }: { map: MapData }) {
   const ids = useRemoteShipIds()
   return (
     <>
       {ids.map((id) => (
-        <RemoteBoat key={id} playerId={id} />
+        <RemoteBoat key={id} playerId={id} map={map} />
       ))}
     </>
   )
