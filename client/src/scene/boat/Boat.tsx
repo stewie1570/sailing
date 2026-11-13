@@ -4,9 +4,11 @@ import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { applyCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
+import { inHarbor } from '../harborLayout'
 import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
 import {
   buildBoom,
+  buildFenders,
   buildJib,
   buildMainsail,
   buildSpin,
@@ -70,7 +72,9 @@ function disposeMesh(mesh: THREE.Mesh) {
  * The player's sloop. Twin screws and a rudder, a main on the boom, a jib
  * on the forestay, and an asymmetric spinnaker. The wheel and the blade turn with the helm. Each sail swings
  * only as far as its sheet allows, and the wind pushes it out. The hull stops when it
- * meets the shore, a dock, or any other solid mesh. Another sailor is solid too.
+ * meets the shore, a dock, or any other solid mesh. Fenders hung in a harbor are
+ * only drawn, so the dock still meets the topsides and the fenders look squeezed.
+ * Another sailor is solid too.
  * The boat going forward into that hull wins, and the one it drove into sinks
  * to the lakebed, then comes back at the berth it started on. The camera rides along
  * and chases the heading about a second behind, finishing at the same angle
@@ -78,6 +82,8 @@ function disposeMesh(mesh: THREE.Mesh) {
  */
 export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const hull = useMemo(() => buildSailboat(), [])
+  const fenders = useMemo(() => buildFenders(), [])
+  const [fendersHung, setFendersHung] = useState(false)
   const wheel = useMemo(() => buildWheel(), [])
   const boomMesh = useMemo(() => buildBoom(), [])
   const sailMesh = useMemo(() => buildMainsail(), [])
@@ -138,9 +144,9 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
+      for (const mesh of [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
     }
-  }, [hull, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
+  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -404,6 +410,9 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       g.rotation.y = pose.yaw
       g.updateWorldMatrix(true, false)
     }
+    // Hung only inside a basin. The mesh is not part of the collider, so this is only a draw flag.
+    const hung = inHarbor(map, pose.x, pose.z)
+    if (hung !== fendersHung) setFendersHung(hung)
 
     const orbit = controls as OrbitLike | null
     if (orbit?.target) {
@@ -457,6 +466,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   return (
     <group ref={group} position={[pose.x, 0, pose.z]} rotation={[0, pose.yaw, 0]}>
       <primitive object={hull} />
+      <primitive object={fenders} visible={fendersHung} />
       <group ref={boomRef} position={[rig.boomX, rig.boomY, rig.boomZ]}>
         <primitive object={boomMesh} />
         <group ref={sailRef} visible={false}>

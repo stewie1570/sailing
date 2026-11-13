@@ -997,6 +997,128 @@ export function buildSailboat(): THREE.Mesh {
   return toMesh(g)
 }
 
+/** Full radius. The centreline sits inside the skin, so only a shallow bulge is visible. */
+const FENDER_RADIUS = 0.15
+/** How far that bulge stands off the topsides. Just past the hull's stand-off, so a dock clips the outer face. */
+const FENDER_STICK = 0.11
+const FENDER_WHITE: RGB = [0.94, 0.95, 0.93]
+const FENDER_NAVY: RGB = [0.13, 0.24, 0.42]
+const FENDER_ROPE: RGB = [0.45, 0.32, 0.2]
+
+interface FenderRing {
+  x: number
+  y: number
+  z: number
+  rad: number
+  color: RGB
+}
+
+/** Station nearest a height. y rises from the keel to the sheer, so a short scan is enough. */
+function hullAtY(u: number, y: number) {
+  let best = hullPoint(u, 0.7)
+  let err = Infinity
+  for (let j = 0; j <= 36; j++) {
+    const p = hullPoint(u, j / 36)
+    const d = Math.abs(p.y - y)
+    if (d < err) {
+      err = d
+      best = p
+    }
+  }
+  return best
+}
+
+/** Horizontal slices along a spine. End slices taper so the fender reads as a hung cylinder, not a pipe. */
+function addFenderAlong(g: Geo, rings: readonly FenderRing[]) {
+  const sides = 12
+  const built = rings.map((ring) => {
+    const ids: number[] = []
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2
+      ids.push(vert(g, ring.x + Math.cos(a) * ring.rad, ring.y, ring.z + Math.sin(a) * ring.rad, ring.color))
+    }
+    return ids
+  })
+  for (let k = 0; k < built.length - 1; k++) {
+    const lower = built[k]
+    const upper = built[k + 1]
+    for (let i = 0; i < sides; i++) {
+      const j = (i + 1) % sides
+      quad(g, lower[i], upper[i], upper[j], lower[j])
+    }
+  }
+  const first = rings[0]
+  const last = rings[rings.length - 1]
+  const bottom = vert(g, first.x, first.y, first.z, FENDER_WHITE)
+  const top = vert(g, last.x, last.y, last.z, FENDER_WHITE)
+  for (let i = 0; i < sides; i++) {
+    const j = (i + 1) % sides
+    tri(g, bottom, built[0][j], built[0][i])
+    tri(g, top, built[built.length - 1][i], built[built.length - 1][j])
+  }
+}
+
+function fenderRings(n: number, at: (t: number) => { x: number; y: number; z: number }) {
+  const rings: FenderRing[] = []
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const end = i === 0 || i === n
+    const shoulder = i === 1 || i === n - 1
+    const rad = end ? FENDER_RADIUS * 0.28 : shoulder ? FENDER_RADIUS * 0.88 : FENDER_RADIUS
+    const color = t > 0.4 && t < 0.62 ? FENDER_NAVY : FENDER_WHITE
+    rings.push({ ...at(t), rad, color })
+  }
+  return rings
+}
+
+function addSideFender(g: Geo, u: number, side: 1 | -1) {
+  const sheer = hullPoint(u, 1)
+  const y1 = sheer.y - 0.12
+  const y0 = Math.max(0.2, y1 - 1.02)
+  // Spine follows the topside, so the flare does not leave the lower half standing off the hull.
+  const rings = fenderRings(8, (t) => {
+    const y = y0 + (y1 - y0) * t
+    const p = hullAtY(u, y)
+    return { x: side * (p.x + FENDER_STICK - FENDER_RADIUS), y, z: p.z }
+  })
+  addFenderAlong(g, rings)
+  const top = rings[rings.length - 1]
+  const railX = side * (sheer.x - 0.03)
+  addCylinderBetween(g, railX, sheer.y + RAIL_H * 0.82, top.z, top.x, top.y, top.z, 0.012, FENDER_ROPE)
+}
+
+function addSternFender(g: Geo, side: 1 | -1) {
+  const sheer = hullPoint(0, 1)
+  const y1 = sheer.y - 0.16
+  const y0 = Math.max(0.22, y1 - 0.92)
+  const x = side * 0.52
+  // The transom is the u = 0 station. The fender leans with it and clears it by FENDER_STICK.
+  const rings = fenderRings(8, (t) => {
+    const y = y0 + (y1 - y0) * t
+    const face = hullAtY(0, y)
+    return { x, y, z: face.z - FENDER_STICK + FENDER_RADIUS }
+  })
+  addFenderAlong(g, rings)
+  const top = rings[rings.length - 1]
+  addCylinderBetween(g, side * 0.7, sheer.y + 0.65, sheer.z, top.x, top.y, top.z, 0.012, FENDER_ROPE)
+}
+
+/**
+ * Fenders for a boat lying in a harbor. Drawn only. boatShape never samples
+ * them, so the hull still stops on its own skin and a dock covers the small
+ * bulge, which is what makes the fenders look squeezed.
+ */
+export function buildFenders(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  for (const u of [0.34, 0.5, 0.66]) {
+    addSideFender(g, u, 1)
+    addSideFender(g, u, -1)
+  }
+  addSternFender(g, 1)
+  addSternFender(g, -1)
+  return toMesh(g, 'fenders')
+}
+
 export interface Spar {
   x0: number
   y0: number

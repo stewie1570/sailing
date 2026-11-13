@@ -65,6 +65,28 @@ export const HARBOR_BASINS: [number, number][][] = [
   [[834, 512], [848, 504], [902, 502], [906, 558], [900, 566], [844, 564], [828, 520]],
 ]
 
+function insidePolygon(x: number, y: number, poly: readonly (readonly [number, number])[]) {
+  let inside = false
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0]
+    const yi = poly[i][1]
+    const xj = poly[j][0]
+    const yj = poly[j][1]
+    const cross = (yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi
+    if (cross) inside = !inside
+  }
+  return inside
+}
+
+/** True when this world position is in a marina basin. The open lake is not a harbor. */
+export function inHarbor(map: MapData, x: number, z: number) {
+  const [px, py] = map.toPixel(x, z)
+  for (const basin of HARBOR_BASINS) {
+    if (insidePolygon(px, py, basin)) return true
+  }
+  return false
+}
+
 function sideToward(comb: Comb, tx: number, ty: number): 1 | -1 {
   const dx = comb.x1 - comb.x0
   const dy = comb.y1 - comb.y0

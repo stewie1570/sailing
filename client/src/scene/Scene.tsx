@@ -136,7 +136,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
       <Buoys map={map} />
       <Harbors map={map} />
       <Boat map={map} slot={slot} />
-      <RemoteFleet />
+      <RemoteFleet map={map} />
       <OrbitControls
         makeDefault
         target={target}
