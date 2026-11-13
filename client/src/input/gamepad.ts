@@ -118,6 +118,19 @@ export function rateStep(value: number, input: number, rate: number, dt: number,
   return Math.min(max, Math.max(min, value + input * rate * dt))
 }
 
+/**
+ * Ease a partial stick command. 1 would leave it linear. Full travel stays
+ * at 1, so a hard push and a button held all the way still swing the wheel
+ * at the full rate. The middle is where a fine helm correction lives.
+ */
+export const STEER_CURVE = 1.5
+
+export function steerResponse(input: number) {
+  const mag = Math.min(1, Math.abs(input))
+  if (!(mag > 0)) return 0
+  return Math.sign(input) * mag ** STEER_CURVE
+}
+
 /** Catch state for a rate-driven lever with a centre stop. */
 export interface CenterNotch {
   /** True while the lever is pinned at 0 and the stick has not pushed clear. */
