@@ -13,6 +13,7 @@ import {
   rateStep,
   sameBinding,
   scopeOf,
+  steerResponse,
   type ActionId,
   type Binding,
   type CenterNotch,
@@ -305,10 +306,12 @@ function apply(pads: readonly PadSample[], dt: number, notches: { bow: CenterNot
     min: number,
     max: number,
     position: number | null,
+    shape?: (input: number) => number,
   ) => {
     if (dragName[drag]()) return current
     if (position != null) return position
-    return rateStep(current, readAction(ahead, pads) - readAction(astern, pads), rate, dt, min, max)
+    const input = readAction(ahead, pads) - readAction(astern, pads)
+    return rateStep(current, shape ? shape(input) : input, rate, dt, min, max)
   }
 
   const thruster = (
@@ -328,7 +331,9 @@ function apply(pads: readonly PadSample[], dt: number, notches: { bow: CenterNot
   }
 
   // The rudder is shared, so the wheel still steers after the mode button.
-  patch.rudder = lever(helm.rudder, 'rudderStbd', 'rudderPort', RATE.rudder, 'rudder', -1, 1, null)
+  // A partial stick is eased, so a nudge is a small helm change. A full
+  // push, and a button held down, still turn the wheel at RATE.rudder.
+  patch.rudder = lever(helm.rudder, 'rudderStbd', 'rudderPort', RATE.rudder, 'rudder', -1, 1, null, steerResponse)
   if (mode === 'engine') {
     const portPosition = active ? activeLever('portAhead', 'portAstern', pads) : null
     const stbdPosition = active ? activeLever('stbdAhead', 'stbdAstern', pads) : null
