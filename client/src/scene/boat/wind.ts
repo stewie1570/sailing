@@ -60,11 +60,10 @@ interface Clock {
   steadyFor: number
 }
 
-const START_YAW = 0
 const START_SPEED = (WIND_SPEED_MIN + WIND_SPEED_MAX) / 2
 
 let random = Math.random
-let clock: Clock = fresh(START_YAW, START_SPEED)
+let clock: Clock = fresh(random() * Math.PI * 2, START_SPEED)
 let display: WindDisplay = quantize(clock)
 const listeners = new Set<() => void>()
 
@@ -162,7 +161,7 @@ export function getWindDebug() {
   }
 }
 
-export function resetWind(blowYaw = START_YAW, speed = START_SPEED) {
+export function resetWind(blowYaw = random() * Math.PI * 2, speed = START_SPEED) {
   clock = fresh(blowYaw, speed)
   publish()
 }
