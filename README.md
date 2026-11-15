@@ -3,6 +3,8 @@
 Browser-based 3D sailing game targeting older tablets (≈5-year-old iPad) as the performance floor.
 Multiplayer-ready from the start: ASP.NET Core + SignalR on the server, Vite + React + three.js on the client.
 
+<img width="1280" height="800" alt="Screenshot_20261113-190140" src="https://github.com/user-attachments/assets/4a915944-92ee-4a42-868f-cad41f27fba9" />
+
 ```
 Sailing.sln
 server/Sailing.Server/     ASP.NET Core 9 host: SignalR hub, REST, serves the built client
