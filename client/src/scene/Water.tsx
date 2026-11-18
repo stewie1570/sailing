@@ -3,7 +3,6 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../map/mapData'
 import { environment, skyGlsl, skyUniforms } from './environment'
-import { telemetry } from './boat/telemetry'
 import { WIND_SPEED_MAX, WIND_SPEED_MIN, getWind } from './boat/wind'
 import { QUALITY_PRESETS, useQuality } from './quality'
 
@@ -53,7 +52,6 @@ const fragmentShader = /* glsl */ `
   uniform float uRippleStrength;
   uniform vec2 uWindDir;   // world xz, the way the air is moving
   uniform float uWindGain; // chop scale, about 1 in a moderate breeze
-  uniform vec2 uGearPos;   // world xz of the screws and rudder
   varying vec3 vWorldPos;
   varying float vSwell;
   #include <fog_pars_fragment>
@@ -159,21 +157,17 @@ const fragmentShader = /* glsl */ `
     float foam = foamBand * smoothstep(0.35, 0.75, foamNoise + 0.25 * vSwell * 3.0) * rippleFade;
 
     // V.y is the view against a flat surface, so ripple normals cannot flicker
-    // the opening. Close overhead views clear the foreground. The patch around
-    // the running gear stays clear from a lower quarter view as well.
+    // the opening. Close overhead views clear the foreground.
     float close = 1.0 - smoothstep(12.0, 64.0, dist);
     float overhead = smoothstep(0.08, 0.36, V.y);
-    float gearDist = length(vWorldPos.xz - uGearPos);
-    float nearGear = 1.0 - smoothstep(1.2, 8.5, gearDist);
-    float window = max(close * overhead, nearGear * smoothstep(0.04, 0.18, V.y));
+    float window = close * overhead;
     // Tint what shows through. A deep-water body colour here would ink it back out.
     body = mix(body, mix(uShallowColor, body, 0.25) * 1.2, window);
 
     vec3 col = mix(body, reflection, F * mix(1.0, 0.35, window));
     col = mix(col, vec3(0.85, 0.88, 0.9), foam);
     float solidAlpha = max(shoreAlpha, F * 0.9);
-    // Shallows stay more transparent than the cap. Gear water is the clearest.
-    float openAlpha = min(shoreAlpha, mix(0.36, 0.18, nearGear));
+    float openAlpha = min(shoreAlpha, 0.36);
     float alpha = mix(solidAlpha, openAlpha, window);
     alpha = max(alpha, foam);
     alpha *= smoothstep(-0.6, -0.2, depth); // fully hidden over land
@@ -222,7 +216,6 @@ export function Water({ map }: { map: MapData }) {
           uRippleStrength: { value: 0.28 },
           uWindDir: { value: new THREE.Vector2(0, 1) },
           uWindGain: { value: 1.2 },
-          uGearPos: { value: new THREE.Vector2(1e5, 1e5) },
         },
       ]),
     })
@@ -237,14 +230,6 @@ export function Water({ map }: { map: MapData }) {
     const wind = getWind()
     const dir = material.uniforms.uWindDir.value as THREE.Vector2
     dir.set(Math.sin(wind.blowYaw), Math.cos(wind.blowYaw))
-    if (telemetry.ready) {
-      // Stern gear, boat-local (0, -5.2) rotated by yaw into world xz.
-      const gear = material.uniforms.uGearPos.value as THREE.Vector2
-      gear.set(
-        telemetry.x - 5.2 * Math.sin(telemetry.yaw),
-        telemetry.z - 5.2 * Math.cos(telemetry.yaw),
-      )
-    }
     const span = WIND_SPEED_MAX - WIND_SPEED_MIN
     // Chop follows the 6–30 kn band. The quiet end still keeps a little texture.
     material.uniforms.uWindGain.value = 0.95 + 0.8 * ((wind.speed - WIND_SPEED_MIN) / span)

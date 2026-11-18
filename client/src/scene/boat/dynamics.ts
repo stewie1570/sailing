@@ -67,6 +67,15 @@ const HULL = {
   yawLin: 5200,
   yawSpeed: 3600,
   yawQuad: 18000,
+  /**
+   * Wave drag, newtons per (m/s)² of speed past `waveOnset`.
+   * It is what stops a reach from running away once the sails are drawing.
+   * Below the onset it adds nothing, so harbour speeds and a moderate breeze
+   * stay on the skin-friction curve.
+   */
+  wave: 420,
+  /** Metres per second. About 17.5 knots. Extra wave-making starts here. */
+  waveOnset: 9,
   /** Inward stern walk, newtons, at full astern on one screw. */
   walk: 250,
   /** Sideways newtons from one thruster at full. Enough to walk and spin at rest. */
@@ -110,6 +119,14 @@ const JIB_YAW_SHARE_STOPPED = 0.2
 const JIB_YAW_FADE_KN = 2.2
 /** The capped jib yaw, scaled so the jib is felt a little more in the helm. */
 const JIB_HELM = 1.15
+
+/**
+ * Integrator guard, metres per second. Hull resistance sets sailing speed.
+ * This only stops a stiff frame from running away, and it sits far above a
+ * reach in a gale. It is not the old 12 m/s ceiling that pinned every trim
+ * at the same 23 knots.
+ */
+export const SPEED_GUARD = 30
 
 /**
  * Yaw from the jib that the hull will actually accept. `JIB_HELM` lets a
@@ -228,11 +245,14 @@ export function stepMotion(
 
   // The linear term is what makes the hull feel reluctant to gather way.
   // A drawing sail eases surge, and eases only the low-speed part of sway,
-  // so a nearly stopped boat can still be blown a little sideways. Quad
-  // surge drag stays, which keeps a top speed.
+  // so a nearly stopped boat can still be blown a little sideways. Quadratic
+  // drag, plus the wave term once she is really moving, is what sets a top
+  // speed — and a better-trimmed sail, pushing harder, settles faster.
   const surgeLin = sailing ? HULL.dragLin * SAILING_SURGE : HULL.dragLin
   const swaySoft = sailing ? SAILING_SWAY : 1
   fx -= HULL.dragQuad * u * surgeAbs + surgeLin * u
+  const excess = Math.max(0, surgeAbs - HULL.waveOnset)
+  if (excess > 0) fx -= Math.sign(u) * HULL.wave * excess * excess
   if (!sailing) fx -= u * (HULL.creep / (0.45 + surgeAbs))
   fx -= HULL.dragQuad * 0.35 * sinD * sinD * u * surgeAbs
   fy -= swaySoft * (HULL.swayLin * v + HULL.swayQuad * v * Math.abs(v))
@@ -245,7 +265,7 @@ export function stepMotion(
   const keel = keelBite(surgeAbs) * HULL.swaySpeed * surgeAbs
   nv /= 1 + (keel / HULL.mass) * dt
   let nr = r + (n / HULL.inertia) * dt
-  nu = clamp(nu, -6, 12)
+  nu = clamp(nu, -6, SPEED_GUARD)
   nv = clamp(nv, -4, 4)
   nr = clamp(nr, -1.2, 1.2)
   // With both levers in the stop notch, the sails furled, and the thrusters
