@@ -29,10 +29,22 @@
  * wind and the sail. Coefficients peak, then stall, so sheeting in too far
  * or leaving the sail square to a beam wind both lose drive.
  *
+ * A gybe is the wind crossing the sail, not the stern crossing the wind.
+ * The boom stays on its side while it is still to leeward of the apparent
+ * wind, including by the lee. It swings across only once the breeze has
+ * passed the chord itself. Sheeting in until the boom comes inside that
+ * breeze gybes it; easing the sheet does not.
+ *
  * A jib that is drawing just to leeward of the main speeds the air through
  * the slot and the main drives harder than it would alone. A jib sheeted
  * across the main, or stalled onto it, dirties that air and the main loses
  * drive. The rig is not the sum of two separate sails.
+ *
+ * Downwind the upwind sail throws a wake. Wind speed in that wake falls off
+ * with how squarely the leeward sail sits behind the windward one, and drive
+ * falls with the square of the wind that is left. A jib or a kite winged
+ * clear of the main keeps the free stream. Forward of the beam the main is
+ * not upwind of the headsail, so that wake is not there.
  *
  * The spinnaker is the other headsail, and it is not a jib. A jib lives on
  * one side. A symmetric kite is a balloon ahead of the boat: with both sheets
@@ -235,16 +247,66 @@ export function angleOfAttack(airBow: number, airPort: number, aws: number, boom
   return between > Math.PI / 2 ? Math.PI - between : between
 }
 
+function wrapPi(angle: number) {
+  const turn = (angle + Math.PI) % (2 * Math.PI)
+  return (turn < 0 ? turn + 2 * Math.PI : turn) - Math.PI
+}
+
+/**
+ * Signed angle of the apparent wind off dead astern.
+ * Positive is to starboard, the same sense as a boom angle. Zero is dead aft,
+ * and both branches of ±π land on zero so the cut does not invent a side.
+ */
+export function windOffStern(awa: number) {
+  return wrapPi(awa - Math.PI)
+}
+
+/**
+ * True once the apparent wind has passed the sail chord, so the cloth is
+ * backwinded and must swing across.
+ *
+ * `sail` is the chord's angle, positive to starboard. It is not the boat's
+ * heading and not the angle of the wind off the stern. A sail eased to the
+ * shroud can be well by the lee before this is true. A sail sheeted amidships
+ * is crossed as soon as the breeze leaves the chord.
+ */
+export function windCrossedSail(sail: number, awa: number) {
+  const off = windOffStern(awa)
+  const side = Math.sign(sail)
+  if (side === 0) return Math.abs(off) > 1e-3
+  return Math.sign(off) === side && Math.abs(off) > Math.abs(sail)
+}
+
+/**
+ * Where a sheeted sail settles. The sheet only caps the swing. Until the wind
+ * crosses the chord the sail weathercocks on its present side: out against
+ * the sheet when the breeze is aft of it, in to the wind when the breeze is
+ * forward. Once the wind has passed the chord, the target is the other side.
+ */
+export function sailTrimTarget(current: number, awa: number, cap: number, sideHint = 1) {
+  const limit = Math.max(0, cap)
+  if (limit < 1e-4) return 0
+  const hinted = Math.sign(sideHint) || 1
+  const side = Math.sign(current) || hinted
+  const probe = current === 0 ? side * 1e-4 : current
+  if (windCrossedSail(probe, awa)) return Math.min(limit, Math.max(-limit, awa))
+  if (side > 0) {
+    // By the lee the breeze is on this side of the stern and still behind the
+    // cloth, so it presses the sail out. It does not pull it across.
+    if (awa <= 0) return limit
+    return Math.min(limit, awa)
+  }
+  if (awa >= 0) return -limit
+  return Math.max(-limit, awa)
+}
+
 function boomTarget(awa: number, sheet: number, sailHoist: number) {
   if (sailHoist < 0.05) return 0
   const cap = Math.min(SHEET_MAX, Math.max(0, sheet) * SHEET_MAX)
-  // A run sits on the ±π branch cut. Keep the boom where it is until the
-  // breeze is clearly on the other quarter, instead of gybing every step.
-  const astern = Math.PI - Math.abs(awa)
-  let angle = awa
-  if (astern < 0.35) angle = boomSide * Math.abs(awa)
-  else if (Math.abs(awa) > 0.15) boomSide = Math.sign(awa) || boomSide
-  return Math.min(cap, Math.max(-cap, angle))
+  const target = sailTrimTarget(boom, awa, cap, boomSide)
+  const side = Math.sign(target) || Math.sign(boom)
+  if (side !== 0) boomSide = side
+  return target
 }
 
 /**
@@ -404,18 +466,21 @@ function wingedSide(allow: { min: number; max: number }, weatherAngle: number) {
 function jibTarget(awa: number, portTight: number, stbdTight: number, sailHoist: number) {
   if (sailHoist < 0.05) return 0
   const allow = jibAllowances(portTight, stbdTight)
-  // Same branch-cut hold as the boom, so a dead run does not gybe every step.
-  const astern = Math.PI - Math.abs(awa)
-  let angle = awa
-  if (astern < 0.35) angle = jibSide * Math.abs(awa)
-  else if (Math.abs(awa) > 0.15) jibSide = Math.sign(awa) || jibSide
+  // Same rule as the boom: the clew stays on its side until the wind crosses
+  // the cloth. The sheet window then limits that swing.
+  let angle = sailTrimTarget(clew, awa, JIB_SHEET_MAX, jibSide)
   // Only on a run. Closer to the wind, sheeting across backwinds the jib
   // and the ordinary clamp (the inboard edge) is the trim the sailor set.
+  // On a run, a window hauled wholly onto the other side is wing-and-wing:
+  // the following wind blows the clew out to the far sheet.
   if (Math.abs(awa) > RUN_AWA) {
     const side = wingedSide(allow, angle)
     if (side !== 0) angle = side * Math.abs(awa)
   }
-  return Math.min(allow.max, Math.max(allow.min, angle))
+  const next = Math.min(allow.max, Math.max(allow.min, angle))
+  const side = Math.sign(next) || Math.sign(clew)
+  if (side !== 0) jibSide = side
+  return next
 }
 
 function aeroLoads(
@@ -443,9 +508,80 @@ function aeroLoads(
 }
 
 /**
+ * How wide the dirty air spreads behind a sail.
+ * A headsail whose chord sits inside this of the upwind sail is in the wake.
+ */
+export const SHADOW_SPREAD = (62 * Math.PI) / 180
+/**
+ * Wind speed left in the core of that wake, as a fraction of the free stream.
+ * Force scales with the square, so the core keeps a little drive and no more.
+ */
+export const SHADOW_CORE = 0.36
+
+/**
+ * 0 when the apparent wind is forward of the beam, 1 once it is well aft.
+ * Aft of the beam the main is upwind of a headsail and can blanket it.
+ * Forward of the beam it cannot: the headsail is the upwind sail.
+ */
+export function aftBlanket(awa: number) {
+  const off = Math.abs(awa)
+  const start = Math.PI / 2
+  const full = (125 * Math.PI) / 180
+  if (off <= start) return 0
+  if (off >= full) return 1
+  const t = (off - start) / (full - start)
+  return t * t * (3 - 2 * t)
+}
+
+/** 1 in the core of a wake, 0 once `separation` is outside it. Smooth, no cliff. */
+export function pointShadow(separation: number, spread = SHADOW_SPREAD) {
+  const x = Math.min(1, Math.abs(separation) / Math.max(spread, 1e-4))
+  return 1 - x * x * (3 - 2 * x)
+}
+
+/**
+ * Share of a sail's foot that sits in a wake of half-width `spread`
+ * centred on `center`. 0 is clear air, 1 is the whole foot.
+ */
+export function spanShadow(lo: number, hi: number, center: number, spread = SHADOW_SPREAD) {
+  const width = Math.max(1e-4, hi - lo)
+  const overlap = Math.max(0, Math.min(hi, center + spread) - Math.max(lo, center - spread))
+  return Math.min(1, overlap / width)
+}
+
+/** Dynamic-pressure factor for a sail with `cover` of its cloth in the wake. */
+export function shadowForceFactor(cover: number, core = SHADOW_CORE) {
+  const c = Math.min(1, Math.max(0, cover))
+  const wind = 1 - (1 - core) * c
+  return wind * wind
+}
+
+/** Smallest angle from `angle` to the foot that runs `center ± half`. */
+function angleGap(angle: number, center: number, half: number) {
+  const lo = center - half
+  const hi = center + half
+  if (angle >= lo && angle <= hi) return 0
+  return Math.min(Math.abs(wrapPi(angle - lo)), Math.abs(wrapPi(angle - hi)))
+}
+
+/**
+ * Share of its drive a headsail keeps after the main's wake.
+ * The main has to be upwind, which means the breeze is aft of the beam, and
+ * it has to be set. A headsail winged clear of the chord keeps the free stream.
+ * `half` is the foot's half-width; a jib is a single chord and passes 0.
+ */
+export function headsailShadow(clewAngle: number, half: number, mainBoom: number, mainHoist: number, awa: number) {
+  const weight = aftBlanket(awa) * clamp01(mainHoist)
+  if (weight <= 0) return 1
+  const cover = half > 0.05 ? spanShadow(clewAngle - half, clewAngle + half, mainBoom) : pointShadow(wrapPi(clewAngle - mainBoom))
+  return 1 - weight * (1 - shadowForceFactor(cover))
+}
+
+/**
  * The jib's own drive, from where the sheets allow it to sit relative to the wind.
- * On a run, a jib left on the mainsail's side is in its shadow and loses most of that drive.
- * Winged to the other side it stands in clear air, so that loss is not applied.
+ * Aft of the beam the main is upwind. A jib left in that wake loses wind speed,
+ * and the force falls with the square of what remains. Winged clear of the main,
+ * or sailed with the breeze forward of the beam, it stands in the free stream.
  */
 function evaluateJib(
   pose: BodyMotion,
@@ -460,15 +596,9 @@ function evaluateJib(
   // A touch more lift than the main, and it peaks a little earlier.
   const loads = aeroLoads(aw, clewAngle, JIB_AREA, exposed, 24, 1.55)
   let { fx, fy } = loads
-  const blanketed =
-    sailHoist > 0.4 &&
-    mainHoist > 0.4 &&
-    Math.abs(aw.awa) > RUN_AWA &&
-    (Math.sign(clewAngle) === Math.sign(mainBoom) || Math.abs(clewAngle) < 0.15 || Math.abs(mainBoom) < 0.15)
-  if (blanketed) {
-    fx *= 0.35
-    fy *= 0.35
-  }
+  const shadow = headsailShadow(clewAngle, 0, mainBoom, mainHoist, aw.awa)
+  fx *= shadow
+  fy *= shadow
   // Geometric centre of the jib, forward of the mast. This is the sail-plan
   // yaw. Flow over the keel and rudder decides how much of it the hull takes
   // up; that limit is applied with the rest of the hull forces.
@@ -527,11 +657,6 @@ export function jibAddedDrive(mainFx: number, jibFx: number, slot: number) {
 
 function clamp01(v: number) {
   return Math.min(1, Math.max(0, v))
-}
-
-function wrapPi(angle: number) {
-  const turn = (angle + Math.PI) % (2 * Math.PI)
-  return (turn < 0 ? turn + 2 * Math.PI : turn) - Math.PI
 }
 
 /** Piecewise linear sample. `x` is radians, the knots are degrees. */
@@ -665,9 +790,17 @@ function spinFill(awa: number) {
 /**
  * The spinnaker's own drive. The sheets set the belly; the wind does not
  * weathercock it onto one edge the way it does a jib. Upwind the cloth
- * collapses. Square, or eased out to leeward, it pulls.
+ * collapses. Square, or eased out to leeward, it pulls. Aft of the beam the
+ * main is upwind of it, so cloth sitting in the main's wake loses the wind.
  */
-function evaluateSpin(pose: BodyMotion, wind: Air, center: number, sailHoist: number): JibForce {
+function evaluateSpin(
+  pose: BodyMotion,
+  wind: Air,
+  center: number,
+  sailHoist: number,
+  mainBoom: number,
+  mainHoist: number,
+): JibForce {
   const aw = apparentWind(pose, wind)
   const set = clamp01(sailHoist)
   const exposed = SPIN_FURL_FRACTION + (1 - SPIN_FURL_FRACTION) * set
@@ -676,11 +809,12 @@ function evaluateSpin(pose: BodyMotion, wind: Air, center: number, sailHoist: nu
   const span = 0.8 + 0.2 * (spinHalf / SPIN_HALF_EASED)
   const q = 0.5 * AIR_RHO * aw.aws * aw.aws
   const scale = q * SPIN_AREA * exposed * WIND_ON_SAIL * span * work * fill
-  const fx = sampleDeg(aw.awa, SPIN_CX) * scale
+  const shadow = headsailShadow(center, spinHalf, mainBoom, mainHoist, aw.awa)
+  const fx = sampleDeg(aw.awa, SPIN_CX) * scale * shadow
   const fromAft = Math.PI - Math.abs(aw.awa)
   const lee = fromAft < 0.28 ? 0 : Math.sign(aw.awa)
   // Leeward push from the breeze, plus the pull of a belly hauled off centre.
-  const fy = (-lee * sampleDeg(aw.awa, SPIN_CY) - center / SPIN_SHEET_MAX * 0.18) * scale
+  const fy = (-lee * sampleDeg(aw.awa, SPIN_CY) - center / SPIN_SHEET_MAX * 0.18) * scale * shadow
   const zCe = 4.4
   const xCe = -Math.sin(center) * 1.1
   const n = zCe * fy - xCe * fx
@@ -715,32 +849,37 @@ function stepHeadsails(pose: BodyMotion, wind: Air, command: SailCommand, dt: nu
   }
   return {
     jib: evaluateJib(pose, wind, clew, jibH, mainBoom, command.hoist),
-    spin: evaluateSpin(pose, wind, flyingSpin ? clew : 0, spinH),
+    spin: evaluateSpin(pose, wind, flyingSpin ? clew : 0, spinH, mainBoom, command.hoist),
   }
 }
 
 /**
- * A drawing kite sits in front of the main. On a run it steals a good part
- * of the main's air. On a reach the main is still out to leeward and keeps
- * more of its drive. The returned main force stays the sail on its own.
+ * Share of the main's drive kept when a kite is set.
+ * Aft of the beam the main is the upwind sail, so the kite is in its wake
+ * and the main keeps the free stream. Forward of the beam a drawing kite
+ * sits in front of the main and blankets it, most when the main's chord
+ * lies behind the kite's foot. A collapsed kite throws no wake.
  */
-function mainKeptWithSpin(spin: JibForce) {
-  if (spin.hoist < 0.3 || spin.luff > 0.55) return 1
-  const deep = Math.min(1, Math.max(0, (Math.abs(spin.awa) - (105 * Math.PI) / 180) / ((75 * Math.PI) / 180)))
-  return 1 - 0.5 * deep * Math.min(1, spin.hoist) * (1 - spin.luff)
+function mainKeptWithSpin(mainBoom: number, spin: JibForce) {
+  if (spin.hoist < 0.25 || spin.luff > 0.5) return 1
+  const upwind = (1 - aftBlanket(spin.awa)) * clamp01(spin.hoist)
+  if (upwind <= 0) return 1
+  const cover = pointShadow(angleGap(mainBoom, spin.clew, spinHalf))
+  return 1 - upwind * (1 - shadowForceFactor(cover))
 }
 
 /**
  * Main plus the headsail that is set, with the jib's slot applied to the main.
- * A spinnaker adds its own drive and does not change the slot. Deep, it
- * blankets part of the main. The returned main force is the sail on its own.
+ * A spinnaker adds its own drive and does not change the slot. When the kite
+ * is upwind of the main it blankets it; when the main is upwind the kite is
+ * the sail that loses the wind. The returned main force is the sail on its own.
  * `fx` is what the hull feels.
  */
 export function rigForce(pose: BodyMotion, wind: Air, command: SailCommand, dt: number): RigForce {
   const main = sailForce(pose, wind, command, dt)
   const heads = stepHeadsails(pose, wind, command, dt, main.boom)
   const slot = slotFactor(main, heads.jib)
-  const keep = mainKeptWithSpin(heads.spin)
+  const keep = mainKeptWithSpin(main.boom, heads.spin)
   return {
     fx: main.fx * slot * keep + heads.jib.fx + heads.spin.fx,
     fy: main.fy * slot * keep + heads.jib.fy + heads.spin.fy,
@@ -756,9 +895,9 @@ export function rigForce(pose: BodyMotion, wind: Air, command: SailCommand, dt: 
 export function readRig(pose: BodyMotion, wind: Air): RigForce {
   const main = evaluateMain(pose, wind, boom, hoist)
   const jib = evaluateJib(pose, wind, clew, jibHoist, main.boom, main.hoist)
-  const spin = evaluateSpin(pose, wind, spinHoist >= 0.05 ? clew : 0, spinHoist)
+  const spin = evaluateSpin(pose, wind, spinHoist >= 0.05 ? clew : 0, spinHoist, main.boom, main.hoist)
   const slot = slotFactor(main, jib)
-  const keep = mainKeptWithSpin(spin)
+  const keep = mainKeptWithSpin(main.boom, spin)
   return {
     fx: main.fx * slot * keep + jib.fx + spin.fx,
     fy: main.fy * slot * keep + jib.fy + spin.fy,
