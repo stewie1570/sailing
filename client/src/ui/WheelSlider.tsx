@@ -54,16 +54,11 @@ function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number,
   if (sailing) rightLimit = Math.min(rightLimit, sailing.left - 16)
   const gap = Math.max(0, rightLimit - leftLimit)
   const wheelHere = w.visible && Number.isFinite(w.x) && Number.isFinite(w.y) && w.x > -80 && w.x < vw + 80
-  let width = Math.max(150, gap)
-  let x = gap >= 150 ? (leftLimit + rightLimit) / 2 : vw / 2
-  // Sailing keeps the sheet panel on one side, so a full-gap slider would sit
-  // off the wheel. Stay as wide as the open water allows, with straight helm
-  // as close to the wheel as that width permits.
-  if (sailing && wheelHere && gap >= 150) {
-    width = Math.min(gap, Math.max(240, vw * 0.5))
-    x = w.x
-  }
-  if (width > gap && gap >= 140) width = gap
+  // Wider than the old phone slider, and short of the levers. A full-gap bar
+  // covered the chart and was too easy to grab while looking around.
+  let width = Math.min(gap, Math.max(200, Math.min(340, vw * 0.48)))
+  if (gap < 200) width = Math.max(140, gap)
+  let x = wheelHere ? w.x : (leftLimit + rightLimit) / 2
   const half = width / 2
   const lo = leftLimit + half
   const hi = rightLimit - half

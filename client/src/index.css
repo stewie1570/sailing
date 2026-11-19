@@ -1719,7 +1719,7 @@ html:-webkit-full-screen {
     pointer-events: none;
     left: 0;
     right: 0;
-    width: min(520px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap))));
+    width: min(260px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap))));
     max-width: none;
     min-width: 0;
     height: auto;
@@ -1731,7 +1731,7 @@ html:-webkit-full-screen {
   }
   .hud.navmap.wide {
     top: calc(max(8px, env(safe-area-inset-top)) + 124px);
-    width: calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap)));
+    width: min(380px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap))));
     display: flex;
     flex-direction: column;
   }
@@ -1757,10 +1757,11 @@ html:-webkit-full-screen {
   .navmap-zoom {
     position: fixed;
     z-index: 8;
-    left: calc(max(8px, env(safe-area-inset-left)) + var(--m-lever) + var(--m-gap));
-    right: calc(max(8px, env(safe-area-inset-right)) + var(--m-lever) + var(--m-gap));
+    left: 0;
+    right: 0;
     bottom: max(6px, env(safe-area-inset-bottom));
-    margin: 0;
+    width: min(300px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap))));
+    margin: 0 auto;
     display: flex;
     flex-wrap: nowrap;
     justify-content: center;
