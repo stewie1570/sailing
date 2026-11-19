@@ -1776,6 +1776,36 @@ html:-webkit-full-screen {
     min-height: 40px;
     padding: 6px 4px;
   }
+  /* The scale row stays. The chart itself is gone until a scale is chosen again. */
+  .hud.navmap.off {
+    width: 0;
+    height: 0;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    overflow: visible;
+    pointer-events: none;
+  }
+  .hud.navmap.off .navmap-head,
+  .hud.navmap.off canvas,
+  .hud.navmap.off .navmap-tip {
+    display: none;
+  }
+  .hud.navmap.off .navmap-zoom,
+  .hud.navmap.off .ais-banner {
+    pointer-events: auto;
+  }
+  .hud.navmap.off .ais-banner {
+    position: fixed;
+    left: 50%;
+    right: auto;
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + 52px);
+    width: min(280px, calc(100vw - 48px));
+    transform: translateX(-50%);
+  }
 
   body[data-helm='sailing'] .hud.navmap,
   body[data-helm='sailing'] .hud.navmap.wide {
