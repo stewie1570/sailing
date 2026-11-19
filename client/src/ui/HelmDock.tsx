@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { setHelmMode, useController, useControllerLoop } from '../input/controller'
 import { useHelm, useHelmKeyboard } from '../scene/boat/helm'
@@ -25,6 +25,13 @@ export function HelmDock() {
   const [controllers, setControllers] = useState(false)
   useHelmKeyboard(helmMode)
   useControllerLoop()
+
+  useEffect(() => {
+    document.body.dataset.helm = helmMode
+    return () => {
+      delete document.body.dataset.helm
+    }
+  }, [helmMode])
 
   return (
     <div className={`hud throttles mode-${helmMode}`}>

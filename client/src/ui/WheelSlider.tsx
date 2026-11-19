@@ -11,6 +11,9 @@ import {
 import { wheelScreen } from '../scene/boat/telemetry'
 import { useCancelSliderTouch } from './sliderTouch'
 
+/** Same cutoff as the phone-only helm layout in index.css. Tablets stay on the compact rules. */
+const PHONE_HELM = '(max-width: 500px), (max-height: 500px) and (max-width: 950px)'
+
 function clamp01(v: number) {
   return Math.min(1, Math.max(0, v))
 }
@@ -25,6 +28,65 @@ function rudderText(value: number) {
   const deg = Math.abs(value) * RUDDER_LOCK * (180 / Math.PI)
   if (deg < 0.8) return 'Straight'
   return `${deg.toFixed(0)}° ${value < 0 ? 'port' : 'stbd'}`
+}
+
+function boxOf(sel: string): DOMRect | null {
+  const rect = document.querySelector(sel)?.getBoundingClientRect()
+  return rect && rect.width > 2 && rect.height > 2 ? rect : null
+}
+
+/**
+ * On a phone the levers own the side edges, so the rudder takes the gap between
+ * them. It stays off the thrusters, the mode tabs, and the chart buttons, and
+ * it is allowed to cross the chart — the chart sits behind this slider.
+ */
+function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number, vh: number) {
+  const slots = [...document.querySelectorAll('.throttle-slot')]
+    .map((node) => node.getBoundingClientRect())
+    .filter((rect) => rect.width > 2 && rect.height > 2)
+  let leftLimit = 8
+  let rightLimit = vw - 8
+  for (const rect of slots) {
+    if (rect.left + rect.width / 2 < vw / 2) leftLimit = Math.max(leftLimit, rect.right + 18)
+    else rightLimit = Math.min(rightLimit, rect.left - 18)
+  }
+  const sailing = boxOf('.throttles.mode-sailing')
+  if (sailing) rightLimit = Math.min(rightLimit, sailing.left - 16)
+  const gap = Math.max(0, rightLimit - leftLimit)
+  const wheelHere = w.visible && Number.isFinite(w.x) && Number.isFinite(w.y) && w.x > -80 && w.x < vw + 80
+  let width = Math.max(150, gap)
+  let x = gap >= 150 ? (leftLimit + rightLimit) / 2 : vw / 2
+  // Sailing keeps the sheet panel on one side, so a full-gap slider would sit
+  // off the wheel. Stay as wide as the open water allows, with straight helm
+  // as close to the wheel as that width permits.
+  if (sailing && wheelHere && gap >= 150) {
+    width = Math.min(gap, Math.max(240, vw * 0.5))
+    x = w.x
+  }
+  if (width > gap && gap >= 140) width = gap
+  const half = width / 2
+  const lo = leftLimit + half
+  const hi = rightLimit - half
+  x = lo <= hi ? Math.min(hi, Math.max(lo, x)) : (leftLimit + rightLimit) / 2
+
+  const overlapsX = (rect: DOMRect) => rect.right > x - half + 6 && rect.left < x + half - 6
+  const above = [boxOf('.hud-speed'), boxOf('.helm-tabs'), boxOf('.thruster-bow'), boxOf('.hud-status')]
+    .filter((rect): rect is DOMRect => !!rect && overlapsX(rect))
+  const below = [boxOf('.thruster-stern'), boxOf('.navmap-zoom'), sailing].filter(
+    (rect): rect is DOMRect => !!rect && overlapsX(rect),
+  )
+  let minY = 36
+  let maxY = vh - 26
+  for (const rect of above) minY = Math.max(minY, rect.bottom + 38)
+  for (const rect of below) maxY = Math.min(maxY, rect.top - 24)
+  let y = w.visible && Number.isFinite(w.y) ? w.y : vh * 0.46
+  if (!w.visible || y < -120 || y > vh + 120) y = vh * 0.46
+  y = minY <= maxY ? Math.min(maxY, Math.max(minY, y)) : maxY
+
+  const onWheel = w.visible && Number.isFinite(w.x) && Number.isFinite(w.y)
+  el.style.width = `${Math.round(width)}px`
+  el.style.transform = `translate3d(${x - half}px, ${y - 22}px, 0)`
+  el.style.opacity = onWheel ? '1' : '0.92'
 }
 
 /**
@@ -47,6 +109,10 @@ export function WheelSlider() {
       const w = wheelScreen
       const vw = window.innerWidth
       const vh = window.innerHeight
+      if (window.matchMedia(PHONE_HELM).matches) {
+        placePhoneRudder(el, w, vw, vh)
+        return
+      }
       const compact = vw <= 720 || vh <= 520
       const radius = w.radius > 4 ? w.radius : compact ? 28 : 36
       const cap = compact ? Math.min(136, vw * 0.38) : 460
