@@ -1025,7 +1025,10 @@ html:-webkit-full-screen {
   .wind-true { font-size: 13px; }
   .furler-block { margin-top: 4px; }
   .sheet-label {
-    white-space: nowrap;
+    /* Stay inside the column. A wider "spin" name must not spill into the next sheet. */
+    white-space: normal;
+    width: 100%;
+    line-height: 1.15;
     font-size: 8px;
     letter-spacing: 0.02em;
   }
@@ -1055,8 +1058,10 @@ html:-webkit-full-screen {
     grid-template-columns: auto max-content;
   }
   .furler { flex: 0 0 96px; width: 96px; min-width: 96px; }
-  .sheet-col { min-width: 40px; }
-  .sheet-track { height: 84px; }
+  /* "STBD" and "SPIN" share this width, so unfurling the kite does not move the panel. */
+  .sheet-col { width: 48px; min-width: 48px; max-width: 48px; }
+  .sail-panel .sheet-row { align-self: end; }
+  .sheet-track { width: 36px; height: 128px; }
 }
 /* Expand is 10% under half the width and 7% under half the height, so the chart labels clear the rudder. */
 .navmap.wide {
