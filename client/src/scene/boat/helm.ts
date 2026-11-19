@@ -8,9 +8,6 @@ export interface Helm {
   rudder: number
   /** 0 rolls the main into the boom, 1 hoists it. The slider sets this directly. */
   halyard: number
-  /** −1 shoves that end to port, 0 off, +1 shoves it to starboard. */
-  bow: number
-  stern: number
   /** 0 sheets the boom to the centreline, 1 eases it out to the shrouds. */
   sheet: number
   /** Jib furler. 0 is rolled onto the forestay, 1 is fully out. */
@@ -35,7 +32,7 @@ export interface Helm {
   jibStarboard: number
 }
 
-export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'spin' | 'jibPort' | 'jibStarboard' | 'halyard' | 'bow' | 'stern'
+export type Control = 'port' | 'starboard' | 'rudder' | 'sheet' | 'jib' | 'spin' | 'jibPort' | 'jibStarboard' | 'halyard'
 
 /** How close a released throttle must be to sit in the stop notch. */
 export const NEUTRAL_GRAB = 0.07
@@ -49,8 +46,6 @@ const ZERO: Helm = {
   starboard: 0,
   rudder: 0,
   halyard: 0,
-  bow: 0,
-  stern: 0,
   sheet: 0.5,
   jib: 0,
   spin: 0,
@@ -69,8 +64,6 @@ const drag: Record<Control, boolean> = {
   jibPort: false,
   jibStarboard: false,
   halyard: false,
-  bow: false,
-  stern: false,
 }
 
 function clamp(v: number) {
@@ -161,8 +154,6 @@ export function updateHelm(patch: Partial<Helm>) {
     starboard: clamp(patch.starboard ?? helm.starboard),
     rudder: clamp(patch.rudder ?? helm.rudder),
     halyard: clamp01(patch.halyard ?? helm.halyard),
-    bow: clamp(patch.bow ?? helm.bow),
-    stern: clamp(patch.stern ?? helm.stern),
     sheet: clamp01(patch.sheet ?? helm.sheet),
     jib: heads.jib,
     spin: heads.spin,
@@ -174,8 +165,6 @@ export function updateHelm(patch: Partial<Helm>) {
     next.starboard === helm.starboard &&
     next.rudder === helm.rudder &&
     next.halyard === helm.halyard &&
-    next.bow === helm.bow &&
-    next.stern === helm.stern &&
     next.sheet === helm.sheet &&
     next.jib === helm.jib &&
     next.spin === helm.spin &&

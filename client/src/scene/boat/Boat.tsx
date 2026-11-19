@@ -371,8 +371,6 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       trim.spin.luff,
       pose.speed,
       pose.sway,
-      drive.bow,
-      drive.stern,
       wreck.depth,
       activeClaim(wreck, performance.now()),
     )

@@ -213,8 +213,6 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         && Finite(ship.Rudder, -1.5, 1.5)
         && Finite(ship.Port, -1.5, 1.5)
         && Finite(ship.Starboard, -1.5, 1.5)
-        && Finite(ship.Bow, -1.5, 1.5)
-        && Finite(ship.Stern, -1.5, 1.5)
         && Finite(ship.Hoist, -0.1, 1.1)
         && Finite(ship.Boom, -4, 4)
         && Finite(ship.JibHoist, -0.1, 1.1)
@@ -322,8 +320,6 @@ public sealed record ShipRelay(
     double JibLuff,
     double Speed,
     double Sway,
-    double Bow,
-    double Stern,
     double SpinHoist = 0,
     double SpinLuff = 0,
     double Sink = 0,

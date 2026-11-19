@@ -30,10 +30,6 @@ export const ACTIONS = [
   { id: 'portAstern', label: 'Port throttle astern', group: 'Engines' },
   { id: 'stbdAhead', label: 'Starboard throttle ahead', group: 'Engines' },
   { id: 'stbdAstern', label: 'Starboard throttle astern', group: 'Engines' },
-  { id: 'bowPort', label: 'Bow thruster to port', group: 'Engines' },
-  { id: 'bowStbd', label: 'Bow thruster to starboard', group: 'Engines' },
-  { id: 'sternPort', label: 'Stern thruster to port', group: 'Engines' },
-  { id: 'sternStbd', label: 'Stern thruster to starboard', group: 'Engines' },
   { id: 'sheetIn', label: 'Sheet in the main', group: 'Sails' },
   { id: 'sheetOut', label: 'Ease the main', group: 'Sails' },
   { id: 'halyardUp', label: 'Hoist the main', group: 'Sails' },
@@ -129,59 +125,6 @@ export function steerResponse(input: number) {
   const mag = Math.min(1, Math.abs(input))
   if (!(mag > 0)) return 0
   return Math.sign(input) * mag ** STEER_CURVE
-}
-
-/** Catch state for a rate-driven lever with a centre stop. */
-export interface CenterNotch {
-  /** True while the lever is pinned at 0 and the stick has not pushed clear. */
-  held: boolean
-  /** Signed stick travel commanded since the lever snapped to centre. */
-  travel: number
-}
-
-/**
- * Rate-step a lever that has the pointer's stop notch.
- * Letting go inside `release` sits at 0. Driving into `grab` catches there,
- * and the stick has to travel past `release` before the lever leaves, so a
- * resting "off" cannot keep a fraction of power. Thrust then builds from the
- * overshoot rather than jumping across the notch: a stick has no absolute
- * position for the lever to catch up to.
- */
-export function notchStep(
-  value: number,
-  input: number,
-  rate: number,
-  dt: number,
-  notch: CenterNotch,
-  grab: number,
-  release: number,
-  min = -1,
-  max = 1,
-) {
-  const clamp = (v: number) => Math.min(max, Math.max(min, v))
-  if (!(dt > 0)) return value
-  if (input === 0) {
-    notch.held = false
-    notch.travel = 0
-    return Math.abs(value) <= release ? 0 : value
-  }
-  if (notch.held) {
-    notch.travel = clamp(notch.travel + input * rate * dt)
-    if (Math.abs(notch.travel) <= release) return 0
-    const next = clamp(notch.travel - Math.sign(notch.travel) * release)
-    notch.held = false
-    notch.travel = 0
-    return next
-  }
-  const next = clamp(value + input * rate * dt)
-  const towardCenter = value !== 0 && Math.sign(input) !== Math.sign(value)
-  const crossed = value !== 0 && next !== 0 && Math.sign(value) !== Math.sign(next)
-  if (crossed || (towardCenter && Math.abs(next) <= grab)) {
-    notch.held = true
-    notch.travel = 0
-    return 0
-  }
-  return next
 }
 
 export function sameBinding(a: Binding, b: Binding) {

@@ -212,7 +212,7 @@ html:-webkit-full-screen {
   background: rgba(61, 220, 132, 0.22);
   border-color: rgba(61, 220, 132, 0.65);
 }
-/* Stays lit while a screw or thruster is out of stop, including on the sailing tab. */
+/* Stays lit while a screw is out of stop, including on the sailing tab. */
 .helm-tabs button.engines-on {
   color: #ffe0a6;
   background: rgba(255, 140, 24, 0.34);
@@ -588,67 +588,6 @@ html:-webkit-full-screen {
   text-transform: uppercase;
   color: rgba(232, 238, 244, 0.55);
 }
-.thruster-bow { margin-bottom: 10px; }
-.thruster-stern { margin-top: 10px; }
-.thruster-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 4px;
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: rgba(232, 238, 244, 0.7);
-}
-.thruster-head span:last-child {
-  letter-spacing: 0.04em;
-  text-transform: none;
-  color: rgba(232, 238, 244, 0.55);
-}
-.thruster-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.thruster-track {
-  position: relative;
-  flex: 1;
-  height: 36px;
-  border-radius: 9px;
-  background: linear-gradient(90deg, #243140, #121a24 46%, #121a24 54%, #243140);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 8px 12px rgba(0, 0, 0, 0.35);
-  touch-action: none;
-  cursor: grab;
-}
-.thruster-track.dragging { cursor: grabbing; }
-.thruster-zero {
-  position: absolute;
-  left: 50%;
-  top: 6px;
-  bottom: 6px;
-  width: 2px;
-  transform: translateX(-50%);
-  border-radius: 1px;
-  background: rgba(245, 194, 66, 0.85);
-  pointer-events: none;
-}
-.thruster-knob {
-  position: absolute;
-  top: 50%;
-  width: 18px;
-  height: 26px;
-  margin-left: -9px;
-  border-radius: 5px;
-  transform: translateY(-50%);
-  background: linear-gradient(#e4e8ec, #9aa1a8 42%, #5e656c);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  pointer-events: none;
-  transition: left 80ms ease-out;
-}
-.thruster-track.dragging .thruster-knob { transition: none; }
-.thruster-track.in-stop .thruster-knob {
-  box-shadow: 0 0 0 1px rgba(245, 194, 66, 0.85), 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.65);
-}
 
 .navmap {
   left: max(12px, env(safe-area-inset-left));
@@ -984,7 +923,6 @@ html:-webkit-full-screen {
     -webkit-backdrop-filter: none;
   }
   .throttles .throttle-name,
-  .throttles .thruster-head,
   .throttles .wind-true,
   .throttles .sheet-label,
   .throttles .sail-toggle-name,
@@ -1003,8 +941,6 @@ html:-webkit-full-screen {
   .tick:not(.tick-stop),
   .throttle-dir,
   .throttle-mode,
-  .thruster-head span:last-child,
-  .thruster .furler-end,
   .wind-kicker,
   .wind-app,
   .sail-toggle-state,
@@ -1012,14 +948,7 @@ html:-webkit-full-screen {
     display: none;
   }
   .helm-tabs { margin-bottom: 8px; }
-  .thruster-bow { margin-bottom: 6px; }
-  .thruster-stern { margin-top: 8px; }
-  .thruster-head {
-    justify-content: center;
-    margin-bottom: 1px;
-  }
   .throttle-foot { margin-top: 4px; }
-  .thruster-track { height: 28px; flex: 1 1 auto; min-width: 0; width: 100%; }
   .furler { flex: 1 1 auto; min-width: 0; }
   .wind-dial { width: 36px; height: 36px; }
   .wind-true { font-size: 13px; }
@@ -1596,8 +1525,7 @@ html:-webkit-full-screen {
  * chart, and rudder stay put. On a phone the engine levers move to the
  * side edges and grow to nearly the full height, the rudder takes the gap
  * between them, and the chart sits behind those controls with its scale
- * buttons in a row along the bottom. Bow and stern thrusters stack in that
- * same band, just above the scale buttons and the same width as the row.
+ * buttons in a row along the bottom.
  */
 @media (max-width: 500px), (max-height: 500px) and (max-width: 950px) {
   :root {
@@ -1606,8 +1534,6 @@ html:-webkit-full-screen {
     --m-dock: 48px;
     --m-bar: min(300px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap))));
     --m-zoom: 40px;
-    /* Label plus the 32px track. The stack offsets assume this height. */
-    --m-thruster-block: 48px;
   }
 
   .throttles.mode-engine {
@@ -1691,33 +1617,6 @@ html:-webkit-full-screen {
     right: max(8px, env(safe-area-inset-right));
     left: auto;
   }
-  .throttles.mode-engine .thruster {
-    position: fixed;
-    z-index: 7;
-    left: 0;
-    right: 0;
-    width: var(--m-bar);
-    margin: 0 auto;
-    transform: none;
-    pointer-events: auto;
-  }
-  .throttles.mode-engine .thruster-bow,
-  .throttles.mode-engine .thruster-stern {
-    top: auto;
-    margin: 0 auto;
-  }
-  .throttles.mode-engine .thruster-stern {
-    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-zoom) + 6px);
-  }
-  .throttles.mode-engine .thruster-bow {
-    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-zoom) + 6px + var(--m-thruster-block) + 6px);
-  }
-  .throttles.mode-engine .thruster-track {
-    height: 32px;
-  }
-  .throttles.mode-engine .thruster-head {
-    margin-bottom: 2px;
-  }
   .throttles.mode-sailing {
     bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--m-dock) + 6px);
   }
@@ -1740,7 +1639,7 @@ html:-webkit-full-screen {
     max-height: none;
     margin-left: auto;
     margin-right: auto;
-    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-zoom) + 6px + 2 * var(--m-thruster-block) + 14px);
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-zoom) + 8px);
   }
   .hud.navmap.wide {
     top: calc(max(8px, env(safe-area-inset-top)) + 72px);
@@ -1815,7 +1714,7 @@ html:-webkit-full-screen {
     position: fixed;
     left: 50%;
     right: auto;
-    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-zoom) + 6px + 2 * var(--m-thruster-block) + 18px);
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-zoom) + 12px);
     width: min(280px, calc(100vw - 48px));
     transform: translateX(-50%);
   }

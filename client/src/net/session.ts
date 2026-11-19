@@ -125,8 +125,6 @@ const localShip: ShipVisual & { fresh: boolean } = {
   rudder: 0,
   port: 0,
   starboard: 0,
-  bow: 0,
-  stern: 0,
   hoist: 0,
   boom: 0,
   jibHoist: 0,
@@ -161,8 +159,6 @@ export function noteLocalShip(
   spinLuff: number,
   speed: number,
   sway: number,
-  bow: number,
-  stern: number,
   sink: number,
   ram: string,
 ) {
@@ -183,8 +179,6 @@ export function noteLocalShip(
   localShip.spinLuff = spinLuff
   localShip.speed = speed
   localShip.sway = sway
-  localShip.bow = bow
-  localShip.stern = stern
   localShip.sink = sink
   localShip.ram = ram
   localShip.fresh = true
@@ -250,8 +244,6 @@ function rememberShip(ship: ShipMessage) {
     known.spinLuff = ship.spinLuff || 0
     known.speed = ship.speed
     known.sway = ship.sway
-    known.bow = ship.bow
-    known.stern = ship.stern
     known.sink = Number.isFinite(ship.sink) ? ship.sink : 0
     known.ram = typeof ship.ram === 'string' ? ship.ram : ''
     known.at = performance.now()
@@ -439,8 +431,6 @@ async function sendShip() {
     spinLuff: round(localShip.spinLuff, 3),
     speed: round(localShip.speed, 2),
     sway: round(localShip.sway, 2),
-    bow: round(localShip.bow, 3),
-    stern: round(localShip.stern, 3),
     sink: round(localShip.sink, 2),
     ram: localShip.ram,
   }

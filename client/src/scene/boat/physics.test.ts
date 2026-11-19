@@ -46,7 +46,7 @@ function stopped(): BodyMotion {
   return { yaw: 0, speed: 0, sway: 0 }
 }
 
-const IDLE: Drive = { port: 0, starboard: 0, rudder: 0, bow: 0, stern: 0 }
+const IDLE: Drive = { port: 0, starboard: 0, rudder: 0 }
 
 function mainOnly(sheet = 1): SailCommand {
   return { hoist: 1, sheet, jibHoist: 0, jibPort: 0, jibStarboard: 0, spinHoist: 0 }
