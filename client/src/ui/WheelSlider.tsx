@@ -37,8 +37,8 @@ function boxOf(sel: string): DOMRect | null {
 
 /**
  * On a phone the levers own the side edges, so the rudder takes the gap between
- * them. It stays off the thrusters, the mode tabs, and the chart buttons, and
- * it is allowed to cross the chart — the chart sits behind this slider.
+ * them. It stays off the thruster stack, the mode tabs, and the chart buttons,
+ * and it is allowed to cross the chart — the chart sits behind this slider.
  */
 function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number, vh: number) {
   const slots = [...document.querySelectorAll('.throttle-slot')]
@@ -65,9 +65,9 @@ function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number,
   x = lo <= hi ? Math.min(hi, Math.max(lo, x)) : (leftLimit + rightLimit) / 2
 
   const overlapsX = (rect: DOMRect) => rect.right > x - half + 6 && rect.left < x + half - 6
-  const above = [boxOf('.hud-speed'), boxOf('.helm-tabs'), boxOf('.thruster-bow'), boxOf('.hud-status')]
+  const above = [boxOf('.hud-speed'), boxOf('.helm-tabs'), boxOf('.hud-status')]
     .filter((rect): rect is DOMRect => !!rect && overlapsX(rect))
-  const below = [boxOf('.thruster-stern'), boxOf('.navmap-zoom'), sailing].filter(
+  const below = [boxOf('.thruster-bow'), boxOf('.thruster-stern'), boxOf('.navmap-zoom'), sailing].filter(
     (rect): rect is DOMRect => !!rect && overlapsX(rect),
   )
   let minY = 36
