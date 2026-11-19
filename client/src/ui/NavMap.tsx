@@ -35,6 +35,21 @@ function buoyRadius(span: ChartSpan) {
 /** How close the pointer must be, in CSS pixels, to count as over another boat. */
 const SHIP_HIT = 18
 
+/** Same phone cutoff as the helm layout in index.css and WheelSlider.tsx. */
+const PHONE_HELM = '(max-width: 500px), (max-height: 500px) and (max-width: 950px)'
+
+function usePhoneHelm() {
+  const [phone, setPhone] = useState(() => window.matchMedia(PHONE_HELM).matches)
+  useEffect(() => {
+    const media = window.matchMedia(PHONE_HELM)
+    const sync = () => setPhone(media.matches)
+    sync()
+    media.addEventListener('change', sync)
+    return () => media.removeEventListener('change', sync)
+  }, [])
+  return phone
+}
+
 interface ChartShip {
   ship: ShipMessage
   x: number
@@ -60,6 +75,9 @@ export function NavMap() {
   const tipDriveRef = useRef<HTMLElement>(null)
   const [span, setSpan] = useState<ChartSpan>('lake')
   const [wide, setWide] = useState(false)
+  const [open, setOpen] = useState(true)
+  const phone = usePhoneHelm()
+  const chartOn = !phone || open
   const spanRef = useRef<ChartSpan>('lake')
   const sharedRef = useRef(false)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
@@ -73,9 +91,9 @@ export function NavMap() {
   }, [span, shared])
 
   useEffect(() => {
-    setAisChartWide(shared && wide)
+    setAisChartWide(shared && wide && chartOn)
     return () => setAisChartWide(false)
-  }, [shared, wide])
+  }, [shared, wide, chartOn])
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -394,9 +412,21 @@ export function NavMap() {
   }, [])
 
   const banner = shared ? mail.banner : null
+  const lit = (next: ChartSpan) => chartOn && span === next
+  // On a phone the scale buttons are a radio that can be turned off. The lit
+  // one hides the chart; any other one brings that scale back. Tablet and
+  // desktop keep the chart up.
+  const chooseSpan = (next: ChartSpan) => {
+    if (phone && open && span === next) {
+      setOpen(false)
+      return
+    }
+    setSpan(next)
+    setOpen(true)
+  }
 
   return (
-    <div className={wide ? 'hud navmap wide' : 'hud navmap'}>
+    <div className={['hud', 'navmap', chartOn && wide ? 'wide' : '', chartOn ? '' : 'off'].filter(Boolean).join(' ')}>
       {banner && (
         <button
           type="button"
@@ -453,23 +483,29 @@ export function NavMap() {
           Message
         </button>
       </div>
-      <div className="navmap-zoom">
-        <button type="button" className={span === 'lake' ? 'active' : ''} aria-pressed={span === 'lake'} onClick={() => setSpan('lake')}>
+      <div className="navmap-zoom" role="group" aria-label="Chart scale">
+        <button type="button" className={lit('lake') ? 'active' : ''} aria-pressed={lit('lake')} onClick={() => chooseSpan('lake')}>
           Lake
         </button>
-        <button type="button" className={span === 'mid' ? 'active' : ''} aria-pressed={span === 'mid'} onClick={() => setSpan('mid')}>
+        <button type="button" className={lit('mid') ? 'active' : ''} aria-pressed={lit('mid')} onClick={() => chooseSpan('mid')}>
           Mid
         </button>
-        <button type="button" className={span === 'near' ? 'active' : ''} aria-pressed={span === 'near'} onClick={() => setSpan('near')}>
+        <button type="button" className={lit('near') ? 'active' : ''} aria-pressed={lit('near')} onClick={() => chooseSpan('near')}>
           Near
         </button>
         <button
           type="button"
-          className={wide ? 'active' : ''}
-          aria-pressed={wide}
-          onClick={() => setWide((on) => !on)}
+          className={chartOn && wide ? 'active' : ''}
+          aria-pressed={chartOn && wide}
+          onClick={() => {
+            if (phone && !open) {
+              setOpen(true)
+              return
+            }
+            setWide((on) => !on)
+          }}
         >
-          {wide ? 'Shrink' : 'Expand'}
+          {chartOn && wide ? 'Shrink' : 'Expand'}
         </button>
       </div>
     </div>
