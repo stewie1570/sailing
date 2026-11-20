@@ -1,19 +1,38 @@
 import { useEffect, useRef } from 'react'
-import { actionsFor, bindingLabel, sameBinding, scopeOf, shortPadName, type ActionId, type Binding } from '../input/gamepad'
+import { actionsFor, sameBinding, scopeOf, shortPadName, type ActionId, type Binding } from '../input/gamepad'
 import {
   clearBinding,
+  followConnectedController,
   getController,
   setActiveThrottles,
   setHelmMode,
   setListening,
   useController,
+  applyLayout,
 } from '../input/controller'
+import {
+  bindingLabel,
+  detectedLayout,
+  labelsFor,
+  LAYOUTS,
+  layoutName,
+  type LayoutChoice,
+  type LayoutId,
+} from '../input/layouts'
 import type { HelmMode } from '../scene/boat/helm'
 
-function boundText(binding: Binding | undefined, selected: boolean, padCount: number, also: string | null) {
+function boundText(
+  binding: Binding | undefined,
+  selected: boolean,
+  padCount: number,
+  also: string | null,
+  buttons?: readonly string[],
+) {
   const name = !binding
     ? null
-    : padCount > 1 ? `${shortPadName(binding.padId)} · ${bindingLabel(binding)}` : bindingLabel(binding)
+    : padCount > 1
+      ? `${shortPadName(binding.padId)} · ${bindingLabel(binding, buttons)}`
+      : bindingLabel(binding, buttons)
   if (selected) {
     const now = name ? `Press a control · now ${name}` : 'Press a control'
     return also ? `${now} · ${also}` : now
@@ -36,8 +55,23 @@ function otherModeUse(id: ActionId, binding: Binding | undefined, mode: HelmMode
   return null
 }
 
+function layoutHelp(layout: LayoutChoice, detected: LayoutId | null, active: boolean) {
+  const levers = active ? ' Active throttles are on.' : ''
+  if (layout === 'custom') {
+    return 'These assignments are yours. Pick a controller above to replace them with its defaults, including active throttles.'
+  }
+  if (layout === 'auto') {
+    if (!detected) return 'Plug in a standard controller and it uses that layout, with active throttles. Or pick one above.'
+    return `${layoutName(detected)} defaults follow the connected controller.${levers} Change a row and your assignments stay.`
+  }
+  if (detected && detected !== layout) {
+    return `${layoutName(layout)} defaults are selected.${levers} The connected controller looks like ${layoutName(detected)}.`
+  }
+  return `${layoutName(layout)} defaults.${levers} Change a row and your assignments stay.`
+}
+
 export function ControllerSetup({ onClose }: { onClose: () => void }) {
-  const { activeThrottles, bindings, helmMode, listening, pads } = useController()
+  const { activeThrottles, bindings, helmMode, layout, listening, pads } = useController()
   const dialogRef = useRef<HTMLDivElement>(null)
   const selectedRef = useRef<HTMLButtonElement>(null)
   const actions = actionsFor(helmMode)
@@ -64,6 +98,8 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   const names = pads.map((pad) => shortPadName(pad.id))
+  const detected = detectedLayout(pads)
+  const pressed: LayoutId | null = layout === 'auto' ? detected : layout === 'custom' ? null : layout
 
   return (
     <div className="controller-backdrop" onPointerDown={onClose}>
@@ -88,6 +124,29 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
             ? 'No controller yet. Press a button on it, then pick a function.'
             : `${names.join(', ')} connected. A control can do one thing in Engine and another in Sailing. The switch picks which one runs.`}
         </p>
+
+        <p className="controller-kicker">Default layout</p>
+        <div className="controller-modes controller-layouts" role="group" aria-label="Default layout">
+          {LAYOUTS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={pressed === item.id ? 'active' : ''}
+              aria-pressed={pressed === item.id}
+              onClick={() => applyLayout(item.id)}
+            >
+              {item.name}
+            </button>
+          ))}
+        </div>
+        <p className="controller-help">{layoutHelp(layout, detected, activeThrottles)}</p>
+        {layout !== 'auto' && detected && (
+          <button type="button" className="controller-match" onClick={() => followConnectedController()}>
+            {layout === 'custom'
+              ? `Replace with the connected ${layoutName(detected)}`
+              : `Follow the connected ${layoutName(detected)}`}
+          </button>
+        )}
 
         <div className="controller-modes" role="group" aria-label="Programming mode">
           <button
@@ -130,6 +189,7 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
           {actions.map((action, index) => {
             const selected = listening === action.id
             const binding = bindings[scopeOf(action.id)][action.id]
+            const buttons = labelsFor(layout, pads, binding)
             const showGroup = index === 0 || actions[index - 1].group !== action.group
             const modeNote = action.id === 'toggleHelm' ? (helmMode === 'engine' ? 'Engine' : 'Sailing') : null
             return (
@@ -149,7 +209,7 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
                       {action.id === 'toggleActive' ? (activeThrottles ? ' · on' : ' · off') : ''}
                     </span>
                     <span className="controller-bind">
-                      {boundText(binding, selected, pads.length, otherModeUse(action.id, binding, helmMode))}
+                      {boundText(binding, selected, pads.length, otherModeUse(action.id, binding, helmMode), buttons)}
                     </span>
                   </button>
                   {binding && (
