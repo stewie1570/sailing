@@ -17,6 +17,18 @@ import {
   type Binding,
   type PadSample,
 } from './gamepad'
+import {
+  autoBindings,
+  bindingsFor,
+  isLayoutId,
+  layoutFromSaved,
+  padForLayout,
+  presetPadId,
+  retargetLayout,
+  sameBindingSets,
+  type LayoutChoice,
+  type LayoutId,
+} from './layouts'
 
 const STORAGE_KEY = 'sailing.controller'
 
@@ -32,6 +44,12 @@ interface SavedController {
   activeThrottles: boolean
   helmMode: HelmMode
   bindings: BindingSets
+  layout: LayoutChoice
+}
+
+interface StoredController extends SavedController {
+  /** Set once the sailor has used the active-throttles checkbox. */
+  throttlesSet?: boolean
 }
 
 export interface ControllerState extends SavedController {
@@ -71,16 +89,22 @@ function bindingsFrom(stored: unknown): BindingSets {
 }
 
 function emptySaved(): SavedController {
-  return { activeThrottles: false, helmMode: 'engine', bindings: emptyBindings() }
+  return { activeThrottles: false, helmMode: 'engine', bindings: emptyBindings(), layout: 'auto' }
 }
+
+/** True after the checkbox is used, or when a saved map was already the sailor's own. */
+let throttlesChosen = false
 
 function loadSaved(): SavedController {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return emptySaved()
-    const parsed = JSON.parse(raw) as Partial<SavedController>
+    const parsed = JSON.parse(raw) as Partial<StoredController>
     const helmMode = parsed.helmMode === 'sailing' ? 'sailing' : 'engine'
-    return { activeThrottles: parsed.activeThrottles === true, helmMode, bindings: bindingsFrom(parsed.bindings) }
+    const bindings = bindingsFrom(parsed.bindings)
+    const layout = layoutFromSaved(parsed.layout, bindings)
+    throttlesChosen = parsed.throttlesSet === true || layout === 'custom'
+    return { activeThrottles: parsed.activeThrottles === true, helmMode, bindings, layout }
   } catch {
     return emptySaved()
   }
@@ -92,7 +116,13 @@ const listeners = new Set<() => void>()
 function commit(next: ControllerState, persist: boolean) {
   state = next
   if (persist) {
-    const saved: SavedController = { activeThrottles: next.activeThrottles, helmMode: next.helmMode, bindings: next.bindings }
+    const saved: StoredController = {
+      activeThrottles: next.activeThrottles,
+      helmMode: next.helmMode,
+      bindings: next.bindings,
+      layout: next.layout,
+    }
+    if (throttlesChosen) saved.throttlesSet = true
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saved))
   }
   listeners.forEach((listener) => listener())
@@ -122,7 +152,8 @@ export function setListening(id: ActionId | null) {
 }
 
 export function setActiveThrottles(on: boolean) {
-  if (state.activeThrottles === on) return
+  if (state.activeThrottles === on && throttlesChosen) return
+  throttlesChosen = true
   replace({ activeThrottles: on }, true)
 }
 
@@ -143,7 +174,7 @@ export function clearBinding(id: ActionId) {
   if (!state.bindings[scope][id]) return
   const bucket = { ...state.bindings[scope] }
   delete bucket[id]
-  replace({ bindings: { ...state.bindings, [scope]: bucket } }, true)
+  replace({ bindings: { ...state.bindings, [scope]: bucket }, layout: 'custom' }, true)
 }
 
 function withoutControl(bucket: BindingMap, binding: Binding) {
@@ -171,7 +202,54 @@ export function bindAction(id: ActionId, binding: Binding) {
   const list = actionsFor(state.helmMode)
   const index = list.findIndex((action) => action.id === id)
   const next = list[index + 1]?.id ?? id
-  replace({ bindings, listening: state.listening === id ? next : state.listening }, true)
+  replace({ bindings, layout: 'custom', listening: state.listening === id ? next : state.listening }, true)
+}
+
+/**
+ * Replace the map with one controller's defaults, including active throttles.
+ * Editing a row afterwards keeps the sailor's version.
+ */
+export function applyLayout(id: LayoutId) {
+  const pad = padForLayout(id, state.pads)
+  replace({
+    layout: id,
+    activeThrottles: true,
+    bindings: bindingsFor(id, pad?.id ?? presetPadId(id)),
+  }, true)
+}
+
+/** Drop a chosen or edited map and follow the pad that is plugged in. */
+export function followConnectedController() {
+  const applied = autoBindings(state.pads)
+  replace({
+    layout: 'auto',
+    activeThrottles: true,
+    bindings: applied ?? emptyBindings(),
+  }, true)
+}
+
+/**
+ * The poll reports the pads it just read. Until the sailor edits a row or
+ * picks a layout, a standard pad supplies its own default map. A layout they
+ * picked keeps its buttons and moves onto the pad that is plugged in now.
+ */
+export function setConnectedPads(pads: PadSample[]) {
+  const patch: Partial<ControllerState> = {}
+  if (padsChanged(pads)) patch.pads = pads
+
+  if (state.layout === 'auto') {
+    const applied = autoBindings(pads)
+    if (applied && !sameBindingSets(state.bindings, applied)) {
+      patch.bindings = applied
+      if (!throttlesChosen && !state.activeThrottles) patch.activeThrottles = true
+    }
+  } else if (isLayoutId(state.layout)) {
+    const stamped = retargetLayout(state.layout, state.bindings, pads)
+    if (stamped && !sameBindingSets(state.bindings, stamped)) patch.bindings = stamped
+  }
+
+  if (!patch.pads && !patch.bindings && patch.activeThrottles === undefined) return
+  replace(patch, patch.bindings != null || patch.activeThrottles !== undefined)
 }
 
 function buttonValues(buttons: ArrayLike<GamepadButton> | null | undefined) {
@@ -357,7 +435,7 @@ export function useControllerLoop() {
       } catch {
         pads = []
       }
-      if (padsChanged(pads)) replace({ pads }, false)
+      if (padsChanged(pads)) setConnectedPads(pads)
 
       const listening = state.listening
       const activeEdge = rising('toggleActive', pads, held)
@@ -383,8 +461,7 @@ export function useControllerLoop() {
     }
     const onPadChange = () => {
       try {
-        const pads = readPads()
-        if (padsChanged(pads)) replace({ pads }, false)
+        setConnectedPads(readPads())
       } catch {
         // The next frame polls again.
       }

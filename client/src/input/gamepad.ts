@@ -172,27 +172,6 @@ export function captureInput(prev: PadSample | null, next: PadSample): Binding |
   return best?.binding ?? null
 }
 
-const STANDARD_BUTTONS = [
-  'A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'Back', 'Start', 'L3', 'R3',
-  'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right',
-]
-
-const STANDARD_AXES: Record<string, string> = {
-  '0:1': 'Left stick right',
-  '0:-1': 'Left stick left',
-  '1:-1': 'Left stick up',
-  '1:1': 'Left stick down',
-  '2:1': 'Right stick right',
-  '2:-1': 'Right stick left',
-  '3:-1': 'Right stick up',
-  '3:1': 'Right stick down',
-}
-
-export function bindingLabel(binding: Binding) {
-  if (binding.source === 'button') return STANDARD_BUTTONS[binding.index] ?? `Button ${binding.index}`
-  return STANDARD_AXES[`${binding.index}:${binding.sign}`] ?? `Axis ${binding.index} ${binding.sign > 0 ? '+' : '−'}`
-}
-
 export function shortPadName(id: string) {
   const name = id.split('(')[0]?.trim()
   return name || 'Controller'
