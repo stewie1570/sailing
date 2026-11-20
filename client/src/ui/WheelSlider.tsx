@@ -37,7 +37,7 @@ function boxOf(sel: string): DOMRect | null {
 
 /**
  * On a phone the levers own the side edges, so the rudder takes the gap between
- * them. It stays off the thruster stack, the mode tabs, and the chart buttons,
+ * them. It stays off the mode tabs and the chart buttons,
  * and it is allowed to cross the chart — the chart sits behind this slider.
  */
 function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number, vh: number) {
@@ -67,7 +67,7 @@ function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number,
   const overlapsX = (rect: DOMRect) => rect.right > x - half + 6 && rect.left < x + half - 6
   const above = [boxOf('.hud-speed'), boxOf('.helm-tabs'), boxOf('.hud-status')]
     .filter((rect): rect is DOMRect => !!rect && overlapsX(rect))
-  const below = [boxOf('.thruster-bow'), boxOf('.thruster-stern'), boxOf('.navmap-zoom'), sailing].filter(
+  const below = [boxOf('.navmap-zoom'), sailing].filter(
     (rect): rect is DOMRect => !!rect && overlapsX(rect),
   )
   let minY = 36

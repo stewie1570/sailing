@@ -29,27 +29,25 @@ export function formatKnots(speed: number, sway: number) {
 }
 
 /**
- * Screws or thrusters count as engine once they are out of stop.
+ * Screws count as engine once they are out of stop.
  * A sail counts once enough cloth is out to see it.
  */
 const DRIVE_ON = 0.02
 
-/** Screws or thrusters are out of the stop notch. */
-export function enginesRunning(port: number, starboard: number, bow: number, stern: number) {
-  return [port, starboard, bow, stern].some((value) => Number.isFinite(value) && Math.abs(value) > DRIVE_ON)
+/** Screws are out of the stop notch. */
+export function enginesRunning(port: number, starboard: number) {
+  return [port, starboard].some((value) => Number.isFinite(value) && Math.abs(value) > DRIVE_ON)
 }
 
 /** Engine, sail, both, or neither. The chart hover uses this wording. */
 export function propulsionLabel(
   port: number,
   starboard: number,
-  bow: number,
-  stern: number,
   hoist: number,
   jibHoist: number,
   spinHoist = 0,
 ) {
-  const powered = enginesRunning(port, starboard, bow, stern)
+  const powered = enginesRunning(port, starboard)
   const sailing = [hoist, jibHoist, spinHoist].some((value) => Number.isFinite(value) && value > DRIVE_ON)
   if (powered && sailing) return 'Engine and sail'
   if (powered) return 'Under engine'

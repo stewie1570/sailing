@@ -21,7 +21,7 @@ function GearIcon() {
 export function HelmDock() {
   const { helmMode } = useController()
   const helm = useHelm()
-  const enginesOn = enginesRunning(helm.port, helm.starboard, helm.bow, helm.stern)
+  const enginesOn = enginesRunning(helm.port, helm.starboard)
   const [controllers, setControllers] = useState(false)
   useHelmKeyboard(helmMode)
   useControllerLoop()

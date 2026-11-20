@@ -34,10 +34,6 @@ export interface ShipVisual {
   rudder: number
   port: number
   starboard: number
-  /** −1 shoves the bow to port, 0 off, +1 to starboard. */
-  bow: number
-  /** −1 shoves the stern to port, 0 off, +1 to starboard. */
-  stern: number
   hoist: number
   boom: number
   jibHoist: number
