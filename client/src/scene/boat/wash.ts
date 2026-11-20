@@ -5,8 +5,9 @@
  * wash reverses that bend. Length, brightness, and scroll follow that screw's
  * own lever. A stopped screw hides its ribbon.
  *
- * A few dozen vertices and one unlit material per screw. The lake shader is
- * left alone.
+ * A few dozen vertices and one unlit material per screw. The boil, the
+ * sideways wander, and the curve past the rudder are a handful of sines on
+ * that ribbon. The lake shader is left alone.
  */
 
 import * as THREE from 'three'
@@ -25,7 +26,7 @@ const HINGE = { x: 0.34, y: 0.16, z: -6.45 }
 /** Metres of tail aft of the hinge at full ahead. The transom is near z = -6.55. */
 const TAIL = 5.2
 const APPROACH = 4
-const TAIL_SEGS = 8
+const TAIL_SEGS = 12
 
 export interface WashMotion {
   on: boolean
@@ -58,6 +59,8 @@ export function washMotion(throttle: number, rudder: number): WashMotion {
 const vertexShader = /* glsl */ `
   attribute float aAlong;
   attribute float aSide;
+  uniform float uScroll;
+  uniform float uPhase;
   uniform float uKick;
   uniform float uStrength;
   uniform float uHinge;
@@ -70,9 +73,10 @@ const vertexShader = /* glsl */ `
   void main() {
     vAlong = aAlong;
     vSide = aSide;
-    // The run up to the blade stays put. Past it, the tail shortens with the
-    // lever and yaws with the rudder. Same bend the blade mesh already uses.
-    float t = smoothstep(uHinge, uHinge + 0.1, aAlong);
+    // The bend builds along the whole tail, so the stream curves off the
+    // blade instead of kinking. A small wander, growing toward the tip and
+    // travelling with the scroll, keeps the two sides from looking ruled.
+    float t = smoothstep(uHinge, 0.92, aAlong);
     float reach = mix(0.18, 1.0, uStrength);
     float dx = position.x - uHingeX;
     float dz = position.z - uHingeZ;
@@ -81,9 +85,12 @@ const vertexShader = /* glsl */ `
     float ang = uKick * t;
     float c = cos(ang);
     float s = sin(ang);
+    float wander = sin(aAlong * 8.0 + uScroll * 0.2 + uPhase) * 0.18
+      + sin(aAlong * 14.0 - uScroll * 0.09 + uPhase * 1.7) * 0.07;
+    wander *= t * (0.4 + 0.6 * uStrength);
     vec3 pos = position;
-    pos.x = uHingeX + dx * c + dz * s;
-    pos.z = uHingeZ - dx * s + dz * c;
+    pos.x = uHingeX + dx * c + dz * s + wander * c;
+    pos.z = uHingeZ - dx * s + dz * c - wander * s;
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
     gl_Position = projectionMatrix * mvPosition;
     #include <fog_vertex>
@@ -92,18 +99,25 @@ const vertexShader = /* glsl */ `
 
 const fragmentShader = /* glsl */ `
   uniform float uScroll;
+  uniform float uPhase;
   uniform float uStrength;
   varying float vAlong;
   varying float vSide;
   #include <fog_pars_fragment>
 
   void main() {
-    float streak = 0.62 + 0.38 * sin(vAlong * 22.0 - uScroll);
-    float edge = 1.0 - smoothstep(0.42, 1.0, abs(vSide));
-    float head = smoothstep(0.0, 0.03, vAlong);
-    float tip = 1.0 - smoothstep(0.88, 1.0, vAlong);
-    float alpha = uStrength * streak * edge * head * tip;
-    vec3 col = mix(vec3(0.72, 0.86, 0.9), vec3(0.97, 0.98, 0.99), streak);
+    // Two stretches of boil, not one even stripe. They do not share a period,
+    // and each screw has its own phase, so the pair does not pulse together.
+    float boil = sin(vAlong * 18.0 - uScroll + uPhase);
+    float boil2 = sin(vAlong * 7.3 - uScroll * 0.53 + uPhase * 2.1);
+    float streak = clamp(0.55 + 0.28 * boil + 0.17 * boil2, 0.0, 1.0);
+    float edgeAt = 0.48 + 0.22 * boil2;
+    float edge = 1.0 - smoothstep(edgeAt, 1.05, abs(vSide));
+    float core = 1.0 - smoothstep(0.0, 0.8, abs(vSide));
+    float head = smoothstep(0.0, 0.07, vAlong);
+    float tip = 1.0 - smoothstep(0.4, 1.0, vAlong);
+    float alpha = uStrength * (0.4 + 0.6 * streak) * edge * (0.5 + 0.5 * core) * head * tip;
+    vec3 col = mix(vec3(0.58, 0.78, 0.84), vec3(0.97, 0.98, 0.99), streak);
     gl_FragColor = vec4(col, alpha);
     #include <fog_fragment>
     #include <tonemapping_fragment>
@@ -139,7 +153,7 @@ export function createEngineWash(side: 1 | -1): EngineWash {
       x = side * HINGE.x
       y = HINGE.y
       z = HINGE.z - TAIL * u
-      width = 0.64 + 0.7 * u
+      width = 0.5 + 1.15 * u
     }
     center.push({ x, y, z, along, width })
   }
@@ -188,6 +202,7 @@ export function createEngineWash(side: 1 | -1): EngineWash {
       THREE.UniformsLib.fog,
       {
         uScroll: { value: 0 },
+        uPhase: { value: side > 0 ? 0.4 : 2.15 },
         uStrength: { value: 0 },
         uKick: { value: 0 },
         uHinge: { value: hingeAlong },
