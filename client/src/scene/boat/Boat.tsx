@@ -58,6 +58,7 @@ import {
   type RamContact,
 } from './ram'
 import { publishTelemetry, publishWheel } from './telemetry'
+import { createEngineWash, disposeEngineWash, poseEngineWash } from './wash'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
 
@@ -69,7 +70,7 @@ function disposeMesh(mesh: THREE.Mesh) {
 }
 
 /**
- * The player's sloop. Twin screws and a rudder, a main on the boom, a jib
+ * The player's sloop. Twin screws and a rudder, a wash ribbon off each screw, a main on the boom, a jib
  * on the forestay, and an asymmetric spinnaker. The wheel and the blade turn with the helm. Each sail swings
  * only as far as its sheet allows, and the wind pushes it out. The hull stops when it
  * meets the shore, a dock, or any other solid mesh. Fenders hung in a harbor are
@@ -98,6 +99,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const stbdProp = useMemo(() => buildPropeller(), [])
   const portStrut = useMemo(() => buildPropStrut(), [])
   const stbdStrut = useMemo(() => buildPropStrut(), [])
+  const portWash = useMemo(() => createEngineWash(1), [])
+  const stbdWash = useMemo(() => createEngineWash(-1), [])
   const hardware = useMemo(() => helmHardware(), [])
   const quality = useQuality()
   const preset = QUALITY_PRESETS[quality]
@@ -145,8 +148,10 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   useEffect(() => {
     return () => {
       for (const mesh of [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) disposeMesh(mesh)
+      disposeEngineWash(portWash)
+      disposeEngineWash(stbdWash)
     }
-  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut])
+  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, portWash, stbdWash])
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -399,6 +404,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     if (vaneRef.current) vaneRef.current.rotation.y = trim.main.awa
     if (portSpinRef.current) portSpinRef.current.rotation.z += drive.port * 16 * spin
     if (stbdSpinRef.current) stbdSpinRef.current.rotation.z -= drive.starboard * 16 * spin
+    poseEngineWash(portWash, drive.port, drive.rudder, time)
+    poseEngineWash(stbdWash, drive.starboard, drive.rudder, time)
 
     const y = swell(pose.x, pose.z, time) - wreck.depth
     const g = group.current
@@ -498,6 +505,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
           <primitive object={stbdProp} />
         </group>
       </group>
+      <primitive object={portWash.mesh} />
+      <primitive object={stbdWash.mesh} />
     </group>
   )
 }

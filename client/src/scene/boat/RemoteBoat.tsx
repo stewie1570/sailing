@@ -27,6 +27,7 @@ import {
 import { swell } from './physics'
 import { sinkPitch } from './ram'
 import { spinHalfFromCenter } from './sail'
+import { createEngineWash, disposeEngineWash, poseEngineWash } from './wash'
 
 /**
  * Someone else's hull, posed from the snapshot they publish. The local boat
@@ -50,6 +51,8 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
   const stbdProp = useMemo(() => buildPropeller(), [])
   const portStrut = useMemo(() => buildPropStrut(), [])
   const stbdStrut = useMemo(() => buildPropStrut(), [])
+  const portWash = useMemo(() => createEngineWash(1), [])
+  const stbdWash = useMemo(() => createEngineWash(-1), [])
   const hardware = useMemo(() => helmHardware(), [])
   const nameTag = useMemo(() => makeNameSprite('Sailor'), [])
   const group = useRef<THREE.Group>(null)
@@ -71,11 +74,13 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
       for (const mesh of [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut]) {
         disposeMesh(mesh)
       }
+      disposeEngineWash(portWash)
+      disposeEngineWash(stbdWash)
       const material = nameTag.material as THREE.SpriteMaterial
       material.map?.dispose()
       material.dispose()
     }
-  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, nameTag])
+  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, portWash, stbdWash, nameTag])
 
   useFrame((state, delta) => {
     const ship = remoteShip(playerId)
@@ -144,6 +149,8 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
     if (vaneRef.current) vaneRef.current.rotation.y = ship.vane
     if (portSpinRef.current) portSpinRef.current.rotation.z += ship.port * 16 * spin
     if (stbdSpinRef.current) stbdSpinRef.current.rotation.z -= ship.starboard * 16 * spin
+    poseEngineWash(portWash, ship.port, ship.rudder, time)
+    poseEngineWash(stbdWash, ship.starboard, ship.rudder, time)
   })
 
   const wheelPos = hardware.wheel
@@ -189,6 +196,8 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
           <primitive object={stbdProp} />
         </group>
       </group>
+      <primitive object={portWash.mesh} />
+      <primitive object={stbdWash.mesh} />
     </group>
   )
 }
