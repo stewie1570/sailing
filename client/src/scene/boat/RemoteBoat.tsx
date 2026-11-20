@@ -27,7 +27,7 @@ import {
 import { swell } from './physics'
 import { sinkPitch } from './ram'
 import { spinHalfFromCenter } from './sail'
-import { createEngineWash, disposeEngineWash, poseEngineWash } from './wash'
+import { createEngineWash, createHullWake, disposeEngineWash, disposeHullWake, poseEngineWash, poseHullWake } from './wash'
 
 /**
  * Someone else's hull, posed from the snapshot they publish. The local boat
@@ -53,6 +53,7 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
   const stbdStrut = useMemo(() => buildPropStrut(), [])
   const portWash = useMemo(() => createEngineWash(1), [])
   const stbdWash = useMemo(() => createEngineWash(-1), [])
+  const hullWake = useMemo(() => createHullWake(), [])
   const hardware = useMemo(() => helmHardware(), [])
   const nameTag = useMemo(() => makeNameSprite('Sailor'), [])
   const group = useRef<THREE.Group>(null)
@@ -76,11 +77,12 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
       }
       disposeEngineWash(portWash)
       disposeEngineWash(stbdWash)
+      disposeHullWake(hullWake)
       const material = nameTag.material as THREE.SpriteMaterial
       material.map?.dispose()
       material.dispose()
     }
-  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, portWash, stbdWash, nameTag])
+  }, [hull, fenders, wheel, boomMesh, sailMesh, jibMesh, spinMesh, vaneMesh, rudderMesh, portProp, stbdProp, portStrut, stbdStrut, portWash, stbdWash, hullWake, nameTag])
 
   useFrame((state, delta) => {
     const ship = remoteShip(playerId)
@@ -151,6 +153,7 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
     if (stbdSpinRef.current) stbdSpinRef.current.rotation.z -= ship.starboard * 16 * spin
     poseEngineWash(portWash, ship.port, ship.rudder, time)
     poseEngineWash(stbdWash, ship.starboard, ship.rudder, time)
+    poseHullWake(hullWake, ship.speed, ship.rudder, time)
   })
 
   const wheelPos = hardware.wheel
@@ -198,6 +201,7 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
       </group>
       <primitive object={portWash.mesh} />
       <primitive object={stbdWash.mesh} />
+      <primitive object={hullWake.mesh} />
     </group>
   )
 }
