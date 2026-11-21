@@ -6,6 +6,8 @@ import { loadMapData, type MapData } from '../map/mapData'
 import { useMySlot } from '../net/session'
 import { Boat } from './boat/Boat'
 import { RemoteFleet } from './boat/RemoteBoat'
+import { bindChallengeChart } from './challenge'
+import { ChallengeDirector, ChallengeMarkers } from './ChallengeView'
 import { chaseOffset, spawnPose } from './boat/physics'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
@@ -136,6 +138,8 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
       <Buoys map={map} />
       <Harbors map={map} />
       <Boat map={map} slot={slot} />
+      <ChallengeMarkers />
+      <ChallengeDirector />
       <RemoteFleet map={map} />
       <OrbitControls
         makeDefault
@@ -161,7 +165,11 @@ export function Scene({ onReady }: { onReady?: () => void }) {
 
   useEffect(() => {
     let cancelled = false
-    mapPromise.then(() => { if (!cancelled) onReady?.() })
+    mapPromise.then((map) => {
+      if (cancelled) return
+      bindChallengeChart(map)
+      onReady?.()
+    })
     return () => { cancelled = true }
   }, [mapPromise, onReady])
 

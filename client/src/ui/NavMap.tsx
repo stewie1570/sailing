@@ -4,6 +4,7 @@ import type { ShipMessage } from '../net/protocol'
 import { eachFreshShip, useSession } from '../net/session'
 import { openAis, setAisChartWide, useAisMail } from '../net/aisMail'
 import { formatKnots, propulsionLabel, telemetry } from '../scene/boat/telemetry'
+import { berthEnds, getChallenge, packageWorld } from '../scene/challenge'
 import { HARBOR_BASINS, harborPieces, type HarborPiece } from '../scene/harborLayout'
 import { compassPoint, getWind, MS_TO_KN, windFromDegrees } from '../scene/boat/wind'
 
@@ -273,6 +274,8 @@ export function NavMap() {
         ctx.stroke()
         ctx.restore()
 
+        drawChallenge(ctx, toScreen, cssW, cssH)
+
         const deg = (heading * 180) / Math.PI
         const hdg = `${(Math.round((deg + 360) % 360) % 360).toString().padStart(3, '0')}°`
         const spd = formatKnots(telemetry.speed, telemetry.sway)
@@ -528,6 +531,64 @@ function overShip(pointer: { x: number; y: number }, other: ChartShip) {
   if (dx * dx + dy * dy <= SHIP_HIT * SHIP_HIT) return true
   const half = Math.min(72, 8 + other.ship.name.length * 3.2)
   return Math.abs(dx) <= half && dy < -2 && dy > -30
+}
+
+/** Gold ring on the target finger, and an edge arrow when that dock is off the chart. */
+function drawChallenge(
+  ctx: CanvasRenderingContext2D,
+  toScreen: (x: number, z: number) => { x: number; y: number },
+  cssW: number,
+  cssH: number,
+) {
+  const challenge = getChallenge()
+  const berth = challenge.target
+  if (!berth || challenge.phase === 'idle') return
+  const ends = berthEnds(berth)
+  const a = toScreen(ends.x0, ends.z0)
+  const b = toScreen(ends.x1, ends.z1)
+  ctx.save()
+  ctx.strokeStyle = '#f5c242'
+  ctx.lineWidth = 3
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(a.x, a.y)
+  ctx.lineTo(b.x, b.y)
+  ctx.stroke()
+
+  const spot = packageWorld(berth)
+  const p = toScreen(spot.x, spot.z)
+  const margin = 14
+  const inside = p.x >= margin && p.y >= margin && p.x <= cssW - margin && p.y <= cssH - margin
+  if (inside) {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
+    ctx.lineWidth = 2
+    ctx.stroke()
+    if (challenge.cargo === 'dock') {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 3.4, 0, Math.PI * 2)
+      ctx.fillStyle = '#e25b2a'
+      ctx.fill()
+    }
+  } else {
+    const cx = cssW / 2
+    const cy = cssH / 2
+    const vx = p.x - cx
+    const vy = p.y - cy
+    const sx = (cssW / 2 - margin) / Math.max(Math.abs(vx), 0.001)
+    const sy = (cssH / 2 - margin) / Math.max(Math.abs(vy), 0.001)
+    const t = Math.min(sx, sy)
+    ctx.translate(cx + vx * t, cy + vy * t)
+    ctx.rotate(Math.atan2(vy, vx))
+    ctx.beginPath()
+    ctx.moveTo(8, 0)
+    ctx.lineTo(-6, 5)
+    ctx.lineTo(-6, -5)
+    ctx.closePath()
+    ctx.fillStyle = '#f5c242'
+    ctx.fill()
+  }
+  ctx.restore()
 }
 
 function drawOtherBoat(ctx: CanvasRenderingContext2D, other: ChartShip, hot: boolean) {
