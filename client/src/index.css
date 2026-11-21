@@ -75,7 +75,8 @@ html:-webkit-full-screen {
   left: auto;
   max-width: 100%;
 }
-.hud-stack > .hud-status { z-index: 2; }
+/* Above the room card (.hud is 5) and the challenge banner, so the open menu covers the code. */
+.hud-stack > .hud-status { z-index: 6; }
 .hud-status { text-align: left; }
 .hud-status .hud-row { justify-content: flex-start; }
 .hud-bottom {
@@ -1816,7 +1817,7 @@ html:-webkit-full-screen {
   gap: 4px;
   min-width: 168px;
   padding: 6px;
-  background: rgba(8, 18, 30, 0.94);
+  background: rgb(8, 18, 30);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 10px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
