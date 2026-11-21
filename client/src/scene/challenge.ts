@@ -1,11 +1,14 @@
 import { useSyncExternalStore } from 'react'
+import { telemetry } from './boat/telemetry'
 import { fingerBerths, type Berth } from './harborLayout'
 
 /**
- * A delivery run between the two harbours. One finger is highlighted with a
- * parcel on it. Stopping the hull beside that parcel puts it on the aft deck,
- * and the run then points at a finger in the other harbour. Stopping there
- * sets the parcel down and freezes the clock.
+ * A delivery run between the two harbours. The pickup is a finger in whichever
+ * harbour the boat is nearer. Stopping beside the parcel, with the engines at
+ * stop and the sails furled, puts it on the aft deck. The run then points at a
+ * finger in the other harbour. Stopping there the same way sets the parcel
+ * down and freezes the clock. Fingers buried in the shore, or with no open
+ * side, are left out of the draw.
  */
 
 export interface BoatSample {
@@ -15,6 +18,10 @@ export interface BoatSample {
   speed: number
   sway: number
   yawRate: number
+  /** Screws are out of the stop notch. */
+  engines: boolean
+  /** Main, jib, or spinnaker still has cloth out. */
+  sails: boolean
 }
 
 export interface DockCargo {
@@ -40,7 +47,14 @@ interface ChartSize {
   metersPerPixel: number
   width: number
   height: number
-  harbors?: readonly { name: string }[]
+  harbors?: readonly { name: string; x?: number; z?: number }[]
+  isLand?: (x: number, z: number) => boolean
+  heightAt?: (x: number, z: number) => number
+}
+
+interface Ground {
+  isLand(x: number, z: number): boolean
+  heightAt(x: number, z: number): number
 }
 
 interface ChallengeRun {
@@ -82,12 +96,79 @@ const IDLE: ChallengeView = {
 }
 
 let chartBerths: readonly Berth[] | null = null
+let harborMarks: readonly { x?: number; z?: number }[] = []
 let run: ChallengeRun | null = null
 let view: ChallengeView = IDLE
 const listeners = new Set<() => void>()
 
+/** Ground above this, in metres, is shore or a bank. The pontoon deck is only 0.9 m tall. */
+const SHORE = 0.15
+
+function onShore(ground: Ground, x: number, z: number) {
+  return ground.isLand(x, z) || ground.heightAt(x, z) > SHORE
+}
+
+/**
+ * A finger the boat can use. The pontoon where she would lie is in the water,
+ * and at least one side has open water out to the fairway. Land or a bank on
+ * the dock, or on both approaches, leaves it out of the draw.
+ */
+export function berthReachable(berth: Berth, ground: Ground) {
+  const parcel = packageAlong(berth)
+  const limit = berth.length / 2 - 1
+  const clamp = (along: number) => Math.min(limit, Math.max(-limit, along))
+  for (let along = parcel - 7; along <= parcel + 7; along += 3.5) {
+    const p = dockPoint(berth, clamp(along))
+    if (onShore(ground, p.x, p.z)) return false
+  }
+  const face = berth.thickness / 2
+  const sideClear = (side: 1 | -1) => {
+    for (const along of [parcel - 5, parcel, parcel + 5]) {
+      for (const off of [face + 4, face + 12, face + 20]) {
+        const p = dockPoint(berth, clamp(along), side * off)
+        if (onShore(ground, p.x, p.z)) return false
+      }
+    }
+    return true
+  }
+  return sideClear(1) || sideClear(-1)
+}
+
 export function bindChallengeChart(map: ChartSize | null) {
-  chartBerths = map ? fingerBerths(map) : null
+  if (!map) {
+    chartBerths = null
+    harborMarks = []
+    return
+  }
+  const berths = fingerBerths(map)
+  const ground = map.isLand && map.heightAt
+    ? { isLand: map.isLand.bind(map), heightAt: map.heightAt.bind(map) }
+    : null
+  chartBerths = ground ? berths.filter((berth) => berthReachable(berth, ground)) : berths
+  harborMarks = map.harbors ?? []
+}
+
+/** Harbour whose marked centre, or the middle of its slips, is nearer the boat. */
+export function nearestHarbor(berths: readonly Berth[], x: number, z: number, harbors: readonly { x?: number; z?: number }[] = []) {
+  const ids = [...new Set(berths.map((berth) => berth.harbor))].sort((a, b) => a - b)
+  let best = ids[0] ?? 0
+  let bestD = Infinity
+  for (const id of ids) {
+    const named = harbors[id]
+    let cx = named?.x
+    let cz = named?.z
+    if (typeof cx !== 'number' || typeof cz !== 'number') {
+      const group = berths.filter((berth) => berth.harbor === id)
+      cx = group.reduce((sum, berth) => sum + berth.x, 0) / group.length
+      cz = group.reduce((sum, berth) => sum + berth.z, 0) / group.length
+    }
+    const d = Math.hypot(cx - x, cz - z)
+    if (d < bestD) {
+      bestD = d
+      best = id
+    }
+  }
+  return best
 }
 
 export function packageAlong(berth: Berth) {
@@ -131,10 +212,10 @@ function dockFrame(berth: Berth, x: number, z: number) {
   return { along: dx * c - dz * s, across: dx * s + dz * c }
 }
 
-/** True when some part of the hull is against the finger, next to the parcel, and the boat has stopped. */
+/** True when the hull is against the parcel, stopped, with the screws at stop and the sails furled. */
 export function besidePackage(berth: Berth, pose: BoatSample) {
   const moving = Math.hypot(pose.speed, pose.sway) > STOP_SPEED || Math.abs(pose.yawRate) > STOP_YAW
-  if (moving) return false
+  if (moving || pose.engines || pose.sails) return false
   const c = Math.cos(pose.yaw)
   const s = Math.sin(pose.yaw)
   const face = berth.thickness / 2
@@ -192,10 +273,20 @@ export function useChallenge() {
   return useSyncExternalStore(subscribe, getChallenge)
 }
 
-export function startChallenge(now = performance.now(), rng: () => number = Math.random) {
+export function startChallenge(
+  now = performance.now(),
+  rng: () => number = Math.random,
+  at: { x: number; z: number } = telemetry,
+) {
   if (!chartBerths || chartBerths.length === 0) return false
-  const harbor = rng() < 0.5 ? 0 : 1
-  const pickup = pickBerth(chartBerths, harbor, rng)
+  let harbor = nearestHarbor(chartBerths, at.x, at.z, harborMarks)
+  let pickup = pickBerth(chartBerths, harbor, rng)
+  if (!pickup) {
+    const other = chartBerths.find((berth) => berth.harbor !== harbor)
+    if (!other) return false
+    harbor = other.harbor
+    pickup = pickBerth(chartBerths, harbor, rng)
+  }
   if (!pickup) return false
   run = {
     phase: 'pickup',

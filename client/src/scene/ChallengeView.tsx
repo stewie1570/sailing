@@ -2,7 +2,9 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { alongsidePose, packageAlong, getChallenge, startChallenge, stepChallenge, dismissChallenge, useChallenge } from './challenge'
-import { telemetry } from './boat/telemetry'
+import { getHelm } from './boat/helm'
+import { getHoist, getJibHoist, getSpinHoist } from './boat/sail'
+import { enginesRunning, telemetry } from './boat/telemetry'
 
 /** Cardboard parcel with a tape cross. Origin is the bottom centre. */
 export function Crate() {
@@ -101,7 +103,19 @@ export function ChallengeDirector() {
     const phase = getChallenge().phase
     if (phase !== 'pickup' && phase !== 'carry') return
     if (!telemetry.ready) return
-    stepChallenge(telemetry, dt, performance.now())
+    const helm = getHelm()
+    // Cloth below this reads as furled on the sail controls.
+    const sails = [getHoist(), getJibHoist(), getSpinHoist()].some((value) => value > 0.04)
+    stepChallenge({
+      x: telemetry.x,
+      z: telemetry.z,
+      yaw: telemetry.yaw,
+      speed: telemetry.speed,
+      sway: telemetry.sway,
+      yawRate: telemetry.yawRate,
+      engines: enginesRunning(helm.port, helm.starboard),
+      sails,
+    }, dt, performance.now())
   })
 
   useEffect(() => {

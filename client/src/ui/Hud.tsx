@@ -10,38 +10,6 @@ import { WheelSlider } from './WheelSlider'
 import { perf } from '../scene/quality'
 import { canFullscreen, enterFullscreen, exitFullscreen, fullscreenElement } from './fullscreen'
 
-function FullscreenButton() {
-  const [active, setActive] = useState(() => !!fullscreenElement())
-  const [supported] = useState(canFullscreen)
-
-  useEffect(() => {
-    const sync = () => setActive(!!fullscreenElement())
-    document.addEventListener('fullscreenchange', sync)
-    document.addEventListener('webkitfullscreenchange', sync)
-    return () => {
-      document.removeEventListener('fullscreenchange', sync)
-      document.removeEventListener('webkitfullscreenchange', sync)
-    }
-  }, [])
-
-  if (!supported) return null
-
-  return (
-    <button
-      type="button"
-      className={active ? 'active' : ''}
-      aria-pressed={active}
-      aria-label={active ? 'Exit full screen' : 'Enter full screen'}
-      title={active ? 'Exit full screen' : 'Full screen'}
-      onClick={() => {
-        void (active ? exitFullscreen() : enterFullscreen())
-      }}
-    >
-      {active ? 'Exit' : 'Full'}
-    </button>
-  )
-}
-
 function BoatSpeed() {
   const valueRef = useRef<HTMLSpanElement>(null)
 
@@ -71,7 +39,19 @@ function BoatSpeed() {
 
 function SimMenu() {
   const [open, setOpen] = useState(false)
+  const [fullscreen, setFullscreen] = useState(() => !!fullscreenElement())
+  const [fullscreenOk] = useState(canFullscreen)
   const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const sync = () => setFullscreen(!!fullscreenElement())
+    document.addEventListener('fullscreenchange', sync)
+    document.addEventListener('webkitfullscreenchange', sync)
+    return () => {
+      document.removeEventListener('fullscreenchange', sync)
+      document.removeEventListener('webkitfullscreenchange', sync)
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -127,6 +107,19 @@ function SimMenu() {
           >
             Challenge
           </button>
+          {fullscreenOk && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-pressed={fullscreen}
+              onClick={() => {
+                setOpen(false)
+                void (fullscreen ? exitFullscreen() : enterFullscreen())
+              }}
+            >
+              {fullscreen ? 'Exit full screen' : 'Full screen'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -187,7 +180,6 @@ export function Hud({ loading }: { loading: boolean }) {
           </div>
           <div className="hud-row quality">
             <SimMenu />
-            <FullscreenButton />
           </div>
         </div>
 

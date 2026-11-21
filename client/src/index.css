@@ -892,7 +892,7 @@ html:-webkit-full-screen {
   .sheet-track { height: 92px; }
 }
 /* Phones only. A tablet (short side 744+) and a desktop keep the panel, the scale, and the backing.
-   The status card (link and frame rate) goes away; Full and the menu stay as buttons. */
+   The status card (link and frame rate) goes away; the menu stays as a button. */
 @media (max-width: 500px), (max-height: 500px) and (max-width: 950px) {
   .hud-status {
     background: none;
@@ -1812,7 +1812,7 @@ html:-webkit-full-screen {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-width: 148px;
+  min-width: 168px;
   padding: 6px;
   background: rgba(8, 18, 30, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.14);

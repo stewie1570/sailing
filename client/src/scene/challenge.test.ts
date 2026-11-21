@@ -3,12 +3,14 @@ import { CARGO_DECK } from './boat/geometry'
 import {
   alongsidePose,
   berthEnds,
+  berthReachable,
   besidePackage,
   bindChallengeChart,
   dismissChallenge,
   dockPoint,
   formatDuration,
   getChallenge,
+  nearestHarbor,
   packageAlong,
   packageWorld,
   resetChallenge,
@@ -22,11 +24,25 @@ const CHART = {
   metersPerPixel: 7.766666666666667,
   width: 1024,
   height: 768,
-  harbors: [{ name: 'West Harbor' }, { name: 'East Harbor' }],
+  harbors: [
+    { name: 'West Harbor', x: -3277.5, z: -1149.5 },
+    { name: 'East Harbor', x: 2842.6, z: 1087.3 },
+  ],
 }
 
+const WEST = { x: -4000, z: -1500 }
+const EAST = { x: 4000, z: 1500 }
+
 function stopped(pose: { x: number; z: number; yaw: number }, speed = 0): BoatSample {
-  return { ...pose, speed, sway: 0, yawRate: 0 }
+  return { ...pose, speed, sway: 0, yawRate: 0, engines: false, sails: false }
+}
+
+function acrossOf(berth: Berth, x: number, z: number) {
+  const dx = x - berth.x
+  const dz = z - berth.z
+  const c = Math.cos(berth.rotationY)
+  const s = Math.sin(berth.rotationY)
+  return dx * s + dz * c
 }
 
 function bowOn(berth: Berth, side: 1 | -1): BoatSample {
@@ -92,6 +108,37 @@ describe('beside the parcel', () => {
     expect(besidePackage(berth, stopped({ x: root.x, z: root.z, yaw: berth.rotationY + Math.PI / 2 }))).toBe(false)
     expect(besidePackage(berth, stopped({ x: berth.x + 80, z: berth.z, yaw: 0 }))).toBe(false)
   })
+
+  it('waits until the engines are idle and the sails are furled', () => {
+    const pose = stopped(alongsidePose(berth, 1))
+    expect(besidePackage(berth, { ...pose, engines: true })).toBe(false)
+    expect(besidePackage(berth, { ...pose, sails: true })).toBe(false)
+    expect(besidePackage(berth, pose)).toBe(true)
+  })
+})
+
+describe('reachable slips', () => {
+  const berth = fingerBerths(CHART)[0]!
+  const water = { isLand: () => false, heightAt: () => -6 }
+
+  it('keeps a finger lying in open water', () => {
+    expect(berthReachable(berth, water)).toBe(true)
+  })
+
+  it('drops a finger the shore covers or a bank rises through', () => {
+    expect(berthReachable(berth, { isLand: () => true, heightAt: () => -6 })).toBe(false)
+    expect(berthReachable(berth, { isLand: () => false, heightAt: () => 1.4 })).toBe(false)
+  })
+
+  it('needs one open side, and ignores a bank on the other', () => {
+    const face = berth.thickness / 2
+    const high = (x: number, z: number) => Math.abs(acrossOf(berth, x, z)) > face + 1
+    expect(berthReachable(berth, { isLand: () => false, heightAt: (x, z) => (high(x, z) ? 2 : -6) })).toBe(false)
+    expect(berthReachable(berth, {
+      isLand: (x, z) => acrossOf(berth, x, z) > face + 1,
+      heightAt: () => -6,
+    })).toBe(true)
+  })
 })
 
 describe('challenge run', () => {
@@ -108,7 +155,7 @@ describe('challenge run', () => {
   })
 
   it('moves the parcel from one harbour to the other once the hull stops', () => {
-    expect(startChallenge(5_000, () => 0)).toBe(true)
+    expect(startChallenge(5_000, () => 0, WEST)).toBe(true)
     const pickup = getChallenge()
     expect(pickup.phase).toBe('pickup')
     expect(pickup.target?.harbor).toBe(0)
@@ -141,17 +188,38 @@ describe('challenge run', () => {
     expect(getChallenge().target).toBeNull()
   })
 
-  it('picks the opposite harbour when the first draw is east', () => {
-    startChallenge(0, () => 0.9)
+  it('starts in the nearer harbour and delivers to the other', () => {
+    const berths = fingerBerths(CHART)
+    expect(nearestHarbor(berths, WEST.x, WEST.z, CHART.harbors)).toBe(0)
+    expect(nearestHarbor(berths, EAST.x, EAST.z, CHART.harbors)).toBe(1)
+    expect(nearestHarbor(berths, 0, 0)).toBe(1)
+
+    startChallenge(0, () => 0.9, EAST)
+    expect(getChallenge().target?.harbor).toBe(1)
     const pose = stopped(alongsidePose(getChallenge().target!, 1))
     for (let i = 0; i < 12; i++) stepChallenge(pose, 0.1, 1_000)
     expect(getChallenge().phase).toBe('carry')
     expect(getChallenge().target?.harbor).toBe(0)
   })
 
+  it('holds the parcel while the screws are in gear or a sail is set', () => {
+    startChallenge(0, () => 0, WEST)
+    const pose = stopped(alongsidePose(getChallenge().target!, 1))
+    for (let i = 0; i < 12; i++) stepChallenge({ ...pose, engines: true }, 0.1, 1_000)
+    expect(getChallenge().phase).toBe('pickup')
+    for (let i = 0; i < 12; i++) stepChallenge({ ...pose, sails: true }, 0.1, 2_000)
+    expect(getChallenge().phase).toBe('pickup')
+  })
+
+  it('leaves a buried harbour out of the draw', () => {
+    bindChallengeChart({ ...CHART, isLand: () => true, heightAt: () => 2 })
+    expect(startChallenge(0, () => 0, WEST)).toBe(false)
+    expect(getChallenge().phase).toBe('idle')
+  })
+
   it('does nothing before the chart is bound', () => {
     bindChallengeChart(null)
-    expect(startChallenge(0, () => 0)).toBe(false)
+    expect(startChallenge(0, () => 0, WEST)).toBe(false)
     expect(getChallenge().phase).toBe('idle')
   })
 })
