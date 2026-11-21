@@ -56,7 +56,9 @@ html:-webkit-full-screen {
 
 .hud-stack {
   position: absolute;
-  z-index: 5;
+  /* Above the chart (6, or 8 when expanded) and the rudder slider (9).
+     The AIS note and the dialogs stay higher. */
+  z-index: 10;
   top: max(12px, env(safe-area-inset-top));
   left: max(12px, env(safe-area-inset-left));
   display: flex;
