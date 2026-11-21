@@ -184,26 +184,26 @@ export function Hud({ loading }: { loading: boolean }) {
         </div>
 
         <ChallengeBanner />
-
-        {inRoom && (
-          <div className="hud hud-room">
-            <RoomChip />
-            {session.roster.length > 0 && (
-              <div className="room-names">
-                {session.roster.map((seat) => (
-                  <span key={seat.playerId}>
-                    {seat.name}
-                    {seat.playerId === session.playerId ? ' (you)' : ''}
-                    {seat.host ? ' · host' : ''}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       <BoatSpeed />
+
+      {inRoom && (
+        <div className="hud hud-room">
+          <RoomChip />
+          {session.roster.length > 0 && (
+            <div className="room-names">
+              {session.roster.map((seat) => (
+                <span key={seat.playerId}>
+                  {seat.name}
+                  {seat.playerId === session.playerId ? ' (you)' : ''}
+                  {seat.host ? ' · host' : ''}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="hud hud-bottom">
         {loading

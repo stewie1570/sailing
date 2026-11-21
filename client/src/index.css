@@ -75,7 +75,7 @@ html:-webkit-full-screen {
   left: auto;
   max-width: 100%;
 }
-/* Above the room card (.hud is 5) and the challenge banner, so the open menu covers the code. */
+/* Above the challenge banner, so the open menu covers it. */
 .hud-stack > .hud-status { z-index: 6; }
 .hud-status { text-align: left; }
 .hud-status .hud-row { justify-content: flex-start; }
@@ -1304,10 +1304,20 @@ html:-webkit-full-screen {
 }
 .controller-row.selected .controller-bind { color: #d7ffe8; }
 .controller-clear { align-self: center; }
+.hud-room {
+  top: calc(max(12px, env(safe-area-inset-top)) + 46px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 160px));
+  padding: 4px 10px 6px;
+  text-align: center;
+}
 .room-chip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 12px;
   pointer-events: auto;
 }
@@ -1338,8 +1348,9 @@ html:-webkit-full-screen {
 .room-names {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 2px 10px;
-  margin-top: 6px;
+  margin-top: 2px;
   font-size: 12px;
   color: rgba(232, 238, 244, 0.78);
 }
@@ -1775,6 +1786,7 @@ html:-webkit-full-screen {
 
 /* Portrait phones. The mode tabs drop under the speed so they clear it. */
 @media (max-width: 500px) {
+  .hud-room { top: calc(max(8px, env(safe-area-inset-top)) + 46px); }
   .throttles.mode-engine .helm-tabs {
     top: calc(max(8px, env(safe-area-inset-top)) + 52px);
     right: auto;
@@ -1784,6 +1796,13 @@ html:-webkit-full-screen {
   }
   .hud.navmap.wide {
     top: calc(max(8px, env(safe-area-inset-top)) + 108px);
+  }
+  /* The room code sits under the speed, so the tabs and the chart drop below it. */
+  .app:has(.hud-room) .throttles.mode-engine .helm-tabs {
+    top: calc(max(8px, env(safe-area-inset-top)) + 128px);
+  }
+  .app:has(.hud-room) .hud.navmap.wide {
+    top: calc(max(8px, env(safe-area-inset-top)) + 180px);
   }
 }
 
