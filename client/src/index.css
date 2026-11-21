@@ -1783,9 +1783,19 @@ html:-webkit-full-screen {
     background: rgba(232, 238, 244, 0.24);
   }
 
-  /* The room code reads like the speed, with no panel over the bow. */
+  /* One line beside the speed, in the open sky between the menu and the readout. */
   .hud-room {
-    top: calc(max(12px, env(safe-area-inset-top)) + 42px);
+    top: max(12px, env(safe-area-inset-top));
+    left: calc(max(8px, env(safe-area-inset-left)) + 68px);
+    right: calc(50% + 44px);
+    transform: none;
+    width: auto;
+    max-width: none;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
     padding: 0;
     background: none;
     border: 0;
@@ -1793,6 +1803,16 @@ html:-webkit-full-screen {
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    text-align: left;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .hud-room .room-chip,
+  .hud-room .room-chip > div {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
   }
   .hud-room .room-kicker,
   .hud-room .room-code,
@@ -1802,10 +1822,9 @@ html:-webkit-full-screen {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.9);
   }
   .hud-room .room-code {
-    font-size: 20px;
+    font-size: 18px;
     letter-spacing: 0.12em;
   }
-  .hud-room .room-chip { gap: 8px; }
   .hud-room .room-chip button {
     background: none;
     border: 0;
@@ -1815,19 +1834,30 @@ html:-webkit-full-screen {
     padding: 0 2px;
     text-decoration: underline;
     text-underline-offset: 2px;
+    flex: 0 0 auto;
   }
-  .hud-room .room-names { margin-top: 0; font-size: 11px; }
+  .hud-room .room-names {
+    margin: 0;
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
-  /* Text under the speed, in the gap between the levers. */
+  /* One line under the top band, across the gap between the levers. */
   .hud-stack > .challenge-banner {
     position: fixed;
-    top: calc(max(12px, env(safe-area-inset-top)) + 46px);
-    left: 50%;
-    right: auto;
+    top: calc(max(12px, env(safe-area-inset-top)) + 52px);
+    left: calc(max(8px, env(safe-area-inset-left)) + var(--m-lever) + var(--m-gap));
+    right: calc(max(8px, env(safe-area-inset-right)) + var(--m-lever) + var(--m-gap));
     bottom: auto;
-    transform: translateX(-50%);
-    width: max-content;
-    max-width: var(--m-bar);
+    transform: none;
+    width: auto;
+    max-width: none;
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
     padding: 0;
     background: none;
     border: 0;
@@ -1836,10 +1866,15 @@ html:-webkit-full-screen {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
     z-index: 2;
   }
-  .app:has(.hud-room) .hud-stack > .challenge-banner {
-    top: calc(max(12px, env(safe-area-inset-top)) + 100px);
+  .hud-stack > .challenge-banner strong {
+    display: inline;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .challenge-banner,
   .challenge-banner strong,
@@ -1853,7 +1888,16 @@ html:-webkit-full-screen {
 
 /* Portrait phones. The mode tabs drop under the speed so they clear it. */
 @media (max-width: 500px) {
-  .hud-room { top: calc(max(8px, env(safe-area-inset-top)) + 42px); }
+  /* The side gaps are too narrow, so the code takes one full line under the speed. */
+  .hud-room {
+    top: calc(max(8px, env(safe-area-inset-top)) + 52px);
+    left: calc(max(8px, env(safe-area-inset-left)) + var(--m-lever) + 10px);
+    right: calc(max(8px, env(safe-area-inset-right)) + var(--m-lever) + 10px);
+    height: auto;
+    justify-content: space-between;
+  }
+  .hud-room .room-code { font-size: 16px; }
+  .hud-room .room-chip button { min-height: 0; }
   .throttles.mode-engine .helm-tabs {
     top: calc(max(8px, env(safe-area-inset-top)) + 52px);
     right: auto;
@@ -1864,27 +1908,25 @@ html:-webkit-full-screen {
   .hud.navmap.wide {
     top: calc(max(8px, env(safe-area-inset-top)) + 108px);
   }
-  /* The room code sits under the speed, so the tabs and the chart drop below it. */
   .hud-stack > .challenge-banner {
     top: calc(max(8px, env(safe-area-inset-top)) + 46px);
   }
   .app:has(.hud-room) .hud-stack > .challenge-banner {
-    top: calc(max(8px, env(safe-area-inset-top)) + 104px);
+    top: calc(max(8px, env(safe-area-inset-top)) + 78px);
   }
+  .app:has(.hud-room) .throttles.mode-engine .helm-tabs,
   .app:has(.challenge-banner) .throttles.mode-engine .helm-tabs {
-    top: calc(max(8px, env(safe-area-inset-top)) + 108px);
-  }
-  .app:has(.hud-room) .throttles.mode-engine .helm-tabs {
-    top: calc(max(8px, env(safe-area-inset-top)) + 108px);
+    top: calc(max(8px, env(safe-area-inset-top)) + 76px);
   }
   .app:has(.hud-room):has(.challenge-banner) .throttles.mode-engine .helm-tabs {
-    top: calc(max(8px, env(safe-area-inset-top)) + 160px);
+    top: calc(max(8px, env(safe-area-inset-top)) + 104px);
   }
+  .app:has(.challenge-banner) .hud.navmap.wide,
   .app:has(.hud-room) .hud.navmap.wide {
-    top: calc(max(8px, env(safe-area-inset-top)) + 160px);
+    top: calc(max(8px, env(safe-area-inset-top)) + 128px);
   }
   .app:has(.hud-room):has(.challenge-banner) .hud.navmap.wide {
-    top: calc(max(8px, env(safe-area-inset-top)) + 212px);
+    top: calc(max(8px, env(safe-area-inset-top)) + 148px);
   }
 }
 
