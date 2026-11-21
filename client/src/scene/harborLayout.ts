@@ -105,15 +105,17 @@ export interface HarborPiece {
   /** Metres across the piece. */
   thickness: number
   kind: Kind
+  /** Index into the marina list. 0 is west, 1 is east, matching the chart harbors. */
+  harbor: number
 }
 
 /** Moles, walkways and fingers in chart pixels. The meshes, the collision and the chart share this list. */
 export function harborPieces(): HarborPiece[] {
   const out: HarborPiece[] = []
-  for (const marina of MARINAS) {
-    for (const seg of marina.segments) out.push(seg)
+  MARINAS.forEach((marina, harbor) => {
+    for (const seg of marina.segments) out.push({ ...seg, harbor })
     for (const comb of marina.combs) {
-      out.push({ x0: comb.x0, y0: comb.y0, x1: comb.x1, y1: comb.y1, thickness: WALK, kind: 'deck' })
+      out.push({ x0: comb.x0, y0: comb.y0, x1: comb.x1, y1: comb.y1, thickness: WALK, kind: 'deck', harbor })
       const dx = comb.x1 - comb.x0
       const dy = comb.y1 - comb.y0
       const len = Math.hypot(dx, dy)
@@ -133,11 +135,12 @@ export function harborPieces(): HarborPiece[] {
             y1: cy + ny * s * comb.length,
             thickness: FINGER,
             kind: 'finger',
+            harbor,
           })
         }
       }
     }
-  }
+  })
   return out
 }
 
@@ -175,6 +178,53 @@ export function dockBoxes(map: MapData): DockBox[] {
       height: mole ? 4.3 : 0.7,
       thickness: seg.thickness,
       kind: seg.kind,
+    })
+  }
+  return out
+}
+
+export interface Berth {
+  harbor: number
+  name: string
+  /** Centre of the finger, world metres. Local +X runs from the walkway toward the tip. */
+  x: number
+  z: number
+  y: number
+  rotationY: number
+  length: number
+  height: number
+  thickness: number
+}
+
+interface ChartSize {
+  metersPerPixel: number
+  width: number
+  height: number
+  harbors?: readonly { name: string }[]
+}
+
+/** Finger pontoons a boat can lie alongside. Same world box as {@link dockBoxes} for kind `finger`. */
+export function fingerBerths(map: ChartSize): Berth[] {
+  const out: Berth[] = []
+  const m = map.metersPerPixel
+  for (const seg of harborPieces()) {
+    if (seg.kind !== 'finger') continue
+    const dx = seg.x1 - seg.x0
+    const dy = seg.y1 - seg.y0
+    const lenPx = Math.hypot(dx, dy)
+    if (lenPx < 0.4) continue
+    const cx = (seg.x0 + seg.x1) / 2
+    const cy = (seg.y0 + seg.y1) / 2
+    out.push({
+      harbor: seg.harbor,
+      name: map.harbors?.[seg.harbor]?.name ?? 'Harbor',
+      x: (cx - map.width / 2) * m,
+      z: (cy - map.height / 2) * m,
+      y: 0.2,
+      rotationY: -Math.atan2(dy, dx),
+      length: lenPx * m + 1.5,
+      height: 0.7,
+      thickness: seg.thickness,
     })
   }
   return out
