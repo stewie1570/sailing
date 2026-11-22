@@ -27,7 +27,7 @@ export interface VesselView {
 }
 
 const SAIL_VIEW: VesselView = { back: 12, height: 5.2, look: 1.15, minDistance: 4.5 }
-const FERRY_VIEW: VesselView = { back: 38, height: 16, look: 3.6, minDistance: 12 }
+const FERRY_VIEW: VesselView = { back: 38, height: 16, look: 3.6, minDistance: 1.5 }
 
 export function vesselView(kind: VesselKind): VesselView {
   return kind === 'ferry' ? FERRY_VIEW : SAIL_VIEW

@@ -4,11 +4,12 @@ import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { MAX_SAILORS } from '../../net/protocol'
 import { eachFreshShip, myPlayerId, noteLocalShip } from '../../net/session'
-import { applyCameraNudge } from '../cameraDrive'
+import { applyNudge, consumeCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
 import { stepFerry } from './ferryDynamics'
-import { POD_Y, POD_Z, FERRY_CARGO, buildFerry, buildPod, buildPodScrew, ferryShape } from './ferryGeometry'
+import { POD_Y, POD_Z, BRIDGE_EYE, FERRY_CARGO, buildFerry, buildPod, buildPodScrew, ferryShape } from './ferryGeometry'
+import { bridgeExitLocal, bridgeLookDir, overFerryDeck, shipToWorld, worldToShip } from './ferryBridge'
 import { useChallenge } from '../challenge'
 import { Cars } from '../ChallengeView'
 import { getPods, stepPods, updatePods } from './pods'
@@ -40,7 +41,12 @@ import { hullShape } from './shapes'
 import { publishTelemetry } from './telemetry'
 import { vesselView } from './vessel'
 
-type OrbitLike = { target: THREE.Vector3; update: () => void }
+type OrbitLike = {
+  target: THREE.Vector3
+  update: () => void
+  enabled?: boolean
+  sphericalDelta?: { set: (x: number, y: number, z: number) => void }
+}
 
 function disposeMesh(mesh: THREE.Mesh) {
   mesh.geometry.dispose()
@@ -94,6 +100,11 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const follow = useRef({ x: pose.x, y: 0, z: pose.z, yaw: pose.yaw })
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls)
+  const gl = useThree((s) => s.gl)
+  const bridge = useRef(false)
+  const look = useRef({ yaw: 0, pitch: -0.08 })
+  const leaveBridge = useRef(false)
+  const outsideNear = useRef(1.5)
 
   useEffect(() => {
     return () => {
@@ -140,6 +151,70 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       if (w.__sailing) delete w.__sailing.boat
     }
   }, [pose, camera, controls, view.look])
+
+  useEffect(() => {
+    const el = gl.domElement
+    const pointers = new Map<number, { x: number; y: number }>()
+    let drag: number | null = null
+    let pinch: number | null = null
+    const span = () => {
+      const pts = [...pointers.values()]
+      if (pts.length < 2) return 0
+      return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+    }
+    const onDown = (event: PointerEvent) => {
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (!bridge.current) return
+      if (event.pointerType === 'mouse' && event.button !== 0) return
+      drag = event.pointerId
+      el.setPointerCapture(event.pointerId)
+    }
+    const onMove = (event: PointerEvent) => {
+      const prev = pointers.get(event.pointerId)
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY })
+      if (!bridge.current) return
+      if (pointers.size >= 2) {
+        const next = span()
+        if (pinch != null && pinch > 0 && next > pinch * 1.08) leaveBridge.current = true
+        pinch = next
+        return
+      }
+      pinch = null
+      if (drag !== event.pointerId || !prev) return
+      look.current.yaw -= (event.clientX - prev.x) * 0.0032
+      look.current.pitch = Math.min(1.15, Math.max(-1.2, look.current.pitch - (event.clientY - prev.y) * 0.0032))
+    }
+    const onUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId)
+      if (drag === event.pointerId) drag = null
+      pinch = pointers.size >= 2 ? span() : null
+    }
+    const onWheel = (event: WheelEvent) => {
+      if (!bridge.current) return
+      event.preventDefault()
+      if (event.deltaY > 0) leaveBridge.current = true
+    }
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMove)
+    el.addEventListener('pointerup', onUp)
+    el.addEventListener('pointercancel', onUp)
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => {
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('pointerup', onUp)
+      el.removeEventListener('pointercancel', onUp)
+      el.removeEventListener('wheel', onWheel)
+      bridge.current = false
+      const orbit = controls as OrbitLike | null
+      if (orbit) orbit.enabled = true
+      const cam = camera as THREE.PerspectiveCamera
+      if (cam.isPerspectiveCamera && cam.near < 0.4) {
+        cam.near = outsideNear.current
+        cam.updateProjectionMatrix()
+      }
+    }
+  }, [camera, controls, gl])
 
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime
@@ -297,21 +372,73 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
     }
     const orbit = controls as OrbitLike | null
     if (orbit?.target) {
+      const nudged = consumeCameraNudge()
+      const cam = camera as THREE.PerspectiveCamera
       const prev = follow.current
-      const lagged = chaseYaw(prev.yaw, pose.yaw, delta, CHASE_YAW_LAG)
-      const dYaw = lagged - prev.yaw
-      prev.yaw = lagged
-      camera.position.x += pose.x - prev.x
-      camera.position.y += y - prev.y
-      camera.position.z += pose.z - prev.z
-      if (dYaw !== 0) {
-        const off = rotateYaw(camera.position.x - pose.x, camera.position.z - pose.z, dYaw)
-        camera.position.x = pose.x + off.x
-        camera.position.z = pose.z + off.z
+      if (bridge.current) {
+        look.current.yaw -= nudged.yaw
+        look.current.pitch = Math.min(1.15, Math.max(-1.2, look.current.pitch + nudged.height * 0.06))
+        const zoomOut = leaveBridge.current || nudged.distance > 1.001
+        leaveBridge.current = false
+        if (zoomOut) {
+          bridge.current = false
+          orbit.enabled = true
+          orbit.sphericalDelta?.set(0, 0, 0)
+          if (cam.isPerspectiveCamera) {
+            cam.near = outsideNear.current
+            cam.updateProjectionMatrix()
+          }
+          const spot = shipToWorld(pose, y, bridgeExitLocal(look.current.yaw))
+          camera.position.set(spot.x, spot.y, spot.z)
+          orbit.target.set(pose.x, y + view.look, pose.z)
+          camera.lookAt(orbit.target)
+          prev.yaw = pose.yaw
+        } else {
+          orbit.enabled = false
+          if (cam.isPerspectiveCamera && cam.near > 0.4) {
+            outsideNear.current = cam.near
+            cam.near = 0.15
+            cam.updateProjectionMatrix()
+          }
+          const eye = shipToWorld(pose, y, BRIDGE_EYE)
+          const dir = bridgeLookDir(pose.yaw, look.current.yaw, look.current.pitch)
+          camera.position.set(eye.x, eye.y, eye.z)
+          orbit.target.set(eye.x + dir.x * 3, eye.y + dir.y * 3, eye.z + dir.z * 3)
+          camera.lookAt(orbit.target)
+        }
+      } else {
+        const lagged = chaseYaw(prev.yaw, pose.yaw, delta, CHASE_YAW_LAG)
+        const dYaw = lagged - prev.yaw
+        prev.yaw = lagged
+        camera.position.x += pose.x - prev.x
+        camera.position.y += y - prev.y
+        camera.position.z += pose.z - prev.z
+        if (dYaw !== 0) {
+          const off = rotateYaw(camera.position.x - pose.x, camera.position.z - pose.z, dYaw)
+          camera.position.x = pose.x + off.x
+          camera.position.z = pose.z + off.z
+        }
+        orbit.target.set(pose.x, y + view.look, pose.z)
+        applyNudge(camera, orbit.target, nudged)
+        camera.lookAt(orbit.target)
+        const local = worldToShip(pose, y, camera.position.x, camera.position.y, camera.position.z)
+        if (overFerryDeck(local.x, local.y, local.z)) {
+          bridge.current = true
+          look.current.yaw = 0
+          look.current.pitch = 0
+          orbit.enabled = false
+          if (cam.isPerspectiveCamera && cam.near > 0.4) {
+            outsideNear.current = cam.near
+            cam.near = 0.15
+            cam.updateProjectionMatrix()
+          }
+          const eye = shipToWorld(pose, y, BRIDGE_EYE)
+          const dir = bridgeLookDir(pose.yaw, look.current.yaw, look.current.pitch)
+          camera.position.set(eye.x, eye.y, eye.z)
+          orbit.target.set(eye.x + dir.x * 3, eye.y + dir.y * 3, eye.z + dir.z * 3)
+          camera.lookAt(orbit.target)
+        }
       }
-      orbit.target.set(pose.x, y + view.look, pose.z)
-      applyCameraNudge(camera, orbit.target)
-      camera.lookAt(orbit.target)
       prev.x = pose.x
       prev.y = y
       prev.z = pose.z

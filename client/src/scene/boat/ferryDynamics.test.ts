@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { bridgeExitLocal, overFerryDeck, shipToWorld, worldToShip } from './ferryBridge'
+import { BRIDGE_EYE } from './ferryGeometry'
 import { boatShape } from './geometry'
 import { stepFerry, type FerryPose } from './ferryDynamics'
 import { buildFerry, ferryShape } from './ferryGeometry'
@@ -165,6 +167,29 @@ describe('ferry dynamics', () => {
     const cruise = run(rest(), { ...stopped, bowThrust: 1, sternThrust: 1 }, 40)
     expect(cruise.speed).toBeGreaterThan(3.5)
     expect(cruise.speed).toBeLessThan(6.5)
+  })
+})
+
+describe('ferry bridge camera', () => {
+  it('snaps onto the deck and steps back outside the hull', () => {
+    expect(overFerryDeck(BRIDGE_EYE.x, BRIDGE_EYE.y, BRIDGE_EYE.z)).toBe(true)
+    expect(overFerryDeck(0, 16, -38)).toBe(false)
+    expect(overFerryDeck(0, 4, -40)).toBe(false)
+
+    const ahead = bridgeExitLocal(0)
+    expect(overFerryDeck(ahead.x, ahead.y, ahead.z)).toBe(false)
+    expect(ahead.z).toBeLessThan(-20)
+
+    const toPort = bridgeExitLocal(Math.PI / 2)
+    expect(overFerryDeck(toPort.x, toPort.y, toPort.z)).toBe(false)
+    expect(toPort.x).toBeLessThan(-6)
+
+    const pose = { x: 10, z: -4, yaw: 0.4 }
+    const world = shipToWorld(pose, 1.2, BRIDGE_EYE)
+    const back = worldToShip(pose, 1.2, world.x, world.y, world.z)
+    expect(back.x).toBeCloseTo(BRIDGE_EYE.x, 5)
+    expect(back.y).toBeCloseTo(BRIDGE_EYE.y, 5)
+    expect(back.z).toBeCloseTo(BRIDGE_EYE.z, 5)
   })
 })
 

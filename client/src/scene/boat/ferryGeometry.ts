@@ -21,6 +21,23 @@ const HALF = FERRY_LOA / 2 - 1.4
 const BEAM = FERRY_BEAM / 2 - 0.15
 const DECK = 2.12
 
+export const FERRY_HALF_LEN = HALF
+export const FERRY_HALF_BEAM = BEAM
+export const FERRY_DECK_Y = DECK
+
+/** Wheelhouse, a little inboard of the port rail. Smaller than the first cut. */
+const HOUSE = {
+  x0: 0.55,
+  x1: 4.65,
+  z0: -4.9,
+  z1: 6.05,
+  y0: DECK + 0.02,
+  y1: DECK + 2.62,
+}
+
+/** Seated eye in the wheelhouse, mid-window, looking along the ship. */
+export const BRIDGE_EYE = { x: 2.55, y: HOUSE.y0 + 1.2, z: 0.3 }
+
 /** Middle of the three cars on the open lane, clear of the wheelhouse. */
 export const FERRY_CARGO = { x: -2.4, y: DECK + 0.02, z: -2 }
 
@@ -31,9 +48,13 @@ const DECK_GREY: RGB = [0.55, 0.57, 0.6]
 const WINDOW: RGB = [0.1, 0.16, 0.22]
 const RAIL: RGB = [0.86, 0.88, 0.9]
 const RED: RGB = [0.78, 0.16, 0.13]
+const GREEN: RGB = [0.16, 0.5, 0.28]
 const YELLOW: RGB = [0.9, 0.74, 0.16]
+const LANE: RGB = [0.78, 0.74, 0.46]
+const FLOOR: RGB = [0.4, 0.42, 0.45]
 const METAL: RGB = [0.28, 0.3, 0.33]
 const METAL_DARK: RGB = [0.16, 0.17, 0.19]
+const CONSOLE: RGB = [0.22, 0.24, 0.27]
 
 type RGB = readonly [number, number, number]
 
@@ -208,31 +229,138 @@ function addRamps(g: Geo) {
   }
 }
 
-function addHouse(g: Geo) {
-  const x0 = 0.15
-  const x1 = 5.15
-  const z0 = -6.2
-  const z1 = 7.4
-  const y0 = DECK + 0.04
-  const y1 = DECK + 3.15
-  addBox(g, (x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, WHITE)
-  // Blue fascia under the roof, and the roof itself.
-  addBox(g, (x0 + x1) / 2, y1 - 0.16, (z0 + z1) / 2, x1 - x0 + 0.28, 0.22, z1 - z0 + 0.45, BLUE)
-  addBox(g, (x0 + x1) / 2, y1 + 0.08, (z0 + z1) / 2, x1 - x0 + 0.5, 0.12, z1 - z0 + 0.7, WHITE)
-  // Window band on the port side, the forward face, and the lane side.
-  for (let i = 0; i < 4; i++) {
-    const z = z0 + 1.5 + i * 2.7
-    addBox(g, x1 + 0.04, y0 + 1.7, z, 0.06, 0.72, 1.7, WINDOW)
+function spans(cuts: number[]) {
+  const sorted = [...cuts].sort((a, b) => a - b)
+  const out: Array<[number, number]> = []
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i]
+    const b = sorted[i + 1]
+    if (b - a > 0.04 && (out.length === 0 || b - out[out.length - 1][1] > 0.02)) out.push([a, b])
   }
-  addBox(g, (x0 + x1) / 2, y0 + 1.7, z1 + 0.04, 3.3, 0.7, 0.06, WINDOW)
-  addBox(g, x0 - 0.04, y0 + 1.55, 1.2, 0.06, 0.85, 2.4, WINDOW)
-  // Life ring on the forward face of the house.
-  addCylinderBetween(g, 3.6, y0 + 1.15, z1 + 0.08, 3.6, y0 + 1.15, z1 + 0.2, 0.38, RED)
-  addCylinderBetween(g, 3.6, y0 + 1.15, z1 + 0.12, 3.6, y0 + 1.15, z1 + 0.22, 0.2, WHITE)
-  // Short mast and a pair of aerials.
-  addCylinderBetween(g, 2.6, y1 + 0.1, 0.4, 2.6, y1 + 3.4, 0.4, 0.08, METAL)
-  addCylinderBetween(g, 2.2, y1 + 0.15, -2.2, 2.2, y1 + 2.1, -2.2, 0.035, METAL_DARK)
-  addCylinderBetween(g, 3.4, y1 + 0.15, 3.1, 3.4, y1 + 1.7, 3.1, 0.03, METAL_DARK)
+  return out
+}
+
+/** A wall of thickness 0.14 with rectangular openings. Each slab faces both ways. */
+function addWallZ(
+  g: Geo,
+  z: number,
+  x0: number, x1: number, y0: number, y1: number,
+  holes: Array<{ x0: number; x1: number; y0: number; y1: number }>,
+  color: RGB,
+) {
+  const cols = spans([x0, x1, ...holes.flatMap((hole) => [hole.x0, hole.x1])])
+  for (const [xa, xb] of cols) {
+    const mid = (xa + xb) / 2
+    const open = holes.filter((hole) => mid > hole.x0 && mid < hole.x1)
+    const bands = spans([y0, y1, ...open.flatMap((hole) => [hole.y0, hole.y1])])
+    for (const [ya, yb] of bands) {
+      const ym = (ya + yb) / 2
+      if (open.some((hole) => ym > hole.y0 && ym < hole.y1)) continue
+      addBox(g, mid, ym, z, xb - xa, yb - ya, 0.14, color)
+    }
+  }
+}
+
+function addWallX(
+  g: Geo,
+  x: number,
+  z0: number, z1: number, y0: number, y1: number,
+  holes: Array<{ z0: number; z1: number; y0: number; y1: number }>,
+  color: RGB,
+) {
+  const cols = spans([z0, z1, ...holes.flatMap((hole) => [hole.z0, hole.z1])])
+  for (const [za, zb] of cols) {
+    const mid = (za + zb) / 2
+    const open = holes.filter((hole) => mid > hole.z0 && mid < hole.z1)
+    const bands = spans([y0, y1, ...open.flatMap((hole) => [hole.y0, hole.y1])])
+    for (const [ya, yb] of bands) {
+      const ym = (ya + yb) / 2
+      if (open.some((hole) => ym > hole.y0 && ym < hole.y1)) continue
+      addBox(g, x, ym, mid, 0.14, yb - ya, zb - za, color)
+    }
+  }
+}
+
+function addWindowFrameZ(g: Geo, z: number, hole: { x0: number; x1: number; y0: number; y1: number }) {
+  const midX = (hole.x0 + hole.x1) / 2
+  const midY = (hole.y0 + hole.y1) / 2
+  addBox(g, midX, hole.y0 + 0.035, z, hole.x1 - hole.x0, 0.07, 0.05, WINDOW)
+  addBox(g, midX, hole.y1 - 0.035, z, hole.x1 - hole.x0, 0.07, 0.05, WINDOW)
+  addBox(g, hole.x0 + 0.035, midY, z, 0.07, hole.y1 - hole.y0, 0.05, WINDOW)
+  addBox(g, hole.x1 - 0.035, midY, z, 0.07, hole.y1 - hole.y0, 0.05, WINDOW)
+  addBox(g, midX, midY, z, 0.06, hole.y1 - hole.y0 - 0.1, 0.05, WINDOW)
+}
+
+function addWindowFrameX(g: Geo, x: number, hole: { z0: number; z1: number; y0: number; y1: number }) {
+  const midZ = (hole.z0 + hole.z1) / 2
+  const midY = (hole.y0 + hole.y1) / 2
+  addBox(g, x, hole.y0 + 0.035, midZ, 0.05, 0.07, hole.z1 - hole.z0, WINDOW)
+  addBox(g, x, hole.y1 - 0.035, midZ, 0.05, 0.07, hole.z1 - hole.z0, WINDOW)
+  addBox(g, x, midY, hole.z0 + 0.035, 0.05, hole.y1 - hole.y0, 0.07, WINDOW)
+  addBox(g, x, midY, hole.z1 - 0.035, 0.05, hole.y1 - hole.y0, 0.07, WINDOW)
+}
+
+function addHouse(g: Geo) {
+  const { x0, x1, z0, z1, y0, y1 } = HOUSE
+  const win = { y0: y0 + 1.02, y1: y0 + 1.86 }
+  const cx = (x0 + x1) / 2
+  const cz = (z0 + z1) / 2
+  // Floor you can see from the chair, then four walls with window openings.
+  addBox(g, cx, y0 + 0.03, cz, x1 - x0 - 0.2, 0.05, z1 - z0 - 0.2, FLOOR)
+  addWallZ(g, z1, x0, x1, y0, y1, [{ x0: x0 + 0.38, x1: x1 - 0.38, ...win }], WHITE)
+  addWallZ(g, z0, x0, x1, y0, y1, [{ x0: x0 + 0.38, x1: x1 - 0.38, ...win }], WHITE)
+  addWallX(g, x1, z0, z1, y0, y1, [
+    { z0: z0 + 1.3, z1: z0 + 3.5, ...win },
+    { z0: cz + 0.4, z1: z1 - 1.15, ...win },
+  ], WHITE)
+  // Lane side: a door forward of amidships, and a window aft of it.
+  addWallX(g, x0, z0, z1, y0, y1, [
+    { z0: 0.55, z1: 1.55, y0, y1: y0 + 1.95 },
+    { z0: -3.5, z1: -1.5, ...win },
+  ], WHITE)
+  addBox(g, x0 - 0.02, y0 + 0.98, 1.05, 0.06, 1.9, 0.86, CONSOLE)
+  const endHole = { x0: x0 + 0.38, x1: x1 - 0.38, ...win }
+  addWindowFrameZ(g, z1 + 0.08, endHole)
+  addWindowFrameZ(g, z0 - 0.08, endHole)
+  addWindowFrameX(g, x1 + 0.08, { z0: z0 + 1.3, z1: z0 + 3.5, ...win })
+  addWindowFrameX(g, x1 + 0.08, { z0: cz + 0.4, z1: z1 - 1.15, ...win })
+  addWindowFrameX(g, x0 - 0.08, { z0: -3.5, z1: -1.5, ...win })
+  // Sill-height console ahead of the chair, and the chair itself.
+  addBox(g, BRIDGE_EYE.x, y0 + 0.48, BRIDGE_EYE.z + 1.15, 1.35, 0.92, 0.42, CONSOLE)
+  addBox(g, BRIDGE_EYE.x, BRIDGE_EYE.y - 0.62, BRIDGE_EYE.z - 0.28, 0.52, 0.1, 0.5, METAL_DARK)
+  addBox(g, BRIDGE_EYE.x, BRIDGE_EYE.y - 0.28, BRIDGE_EYE.z - 0.5, 0.5, 0.55, 0.08, METAL_DARK)
+  // Blue fascia, white roof, radar, and a short exhaust.
+  addBox(g, cx, y1 - 0.08, cz, x1 - x0 + 0.22, 0.16, z1 - z0 + 0.36, BLUE)
+  addBox(g, cx, y1 + 0.06, cz, x1 - x0 + 0.42, 0.1, z1 - z0 + 0.55, WHITE)
+  addCylinderBetween(g, 3.15, y1 + 0.12, -1.4, 3.15, y1 + 0.85, -1.4, 0.06, METAL)
+  addCylinderBetween(g, 3.15, y1 + 0.82, -1.4, 3.15, y1 + 1.05, -1.4, 0.38, WHITE)
+  addCylinderBetween(g, 1.7, y1 + 0.1, -3.2, 1.7, y1 + 1.55, -3.2, 0.16, METAL_DARK)
+  addCylinderBetween(g, 2.5, y1 + 0.12, 1.6, 2.5, y1 + 2.7, 1.6, 0.07, METAL)
+  addCylinderBetween(g, 2.05, y1 + 0.14, 3.4, 2.05, y1 + 1.7, 3.4, 0.03, METAL_DARK)
+  // Life ring on the forward face.
+  addCylinderBetween(g, x1 - 0.55, y0 + 1.05, z1 + 0.12, x1 - 0.55, y0 + 1.05, z1 + 0.24, 0.32, RED)
+  addCylinderBetween(g, x1 - 0.55, y0 + 1.05, z1 + 0.15, x1 - 0.55, y0 + 1.05, z1 + 0.26, 0.16, WHITE)
+}
+
+function addDressing(g: Geo) {
+  // Lane paint on the vehicle deck, clear of the grey used for the deck planks.
+  for (const x of [-1.55, -3.55]) {
+    addBox(g, x, DECK + 0.045, -1, 0.1, 0.03, 28, LANE)
+  }
+  // Bollards and a short stair up to the bridge door.
+  for (const z of [-12, 0, 12]) {
+    addCylinderBetween(g, -4.7, DECK, z, -4.7, DECK + 0.55, z, 0.12, METAL)
+  }
+  for (let i = 0; i < 4; i++) {
+    addBox(g, HOUSE.x0 - 0.55 - i * 0.28, DECK + 0.1 + i * 0.18, 1.05, 0.32, 0.1, 0.9, METAL)
+  }
+  // Navigation lights at both ends. Port is red, starboard is green.
+  for (const end of [1, -1]) {
+    const z = end * (HALF - 0.4)
+    addBox(g, 4.9, DECK + 2.35, z, 0.16, 0.16, 0.16, RED)
+    addBox(g, -4.9, DECK + 2.35, z, 0.16, 0.16, 0.16, GREEN)
+    addBox(g, 0, DECK + 2.55, end * (HALF + 0.15), 0.14, 0.14, 0.14, WHITE)
+  }
 }
 
 function addRails(g: Geo) {
@@ -292,6 +420,7 @@ export function buildFerry(): THREE.Mesh {
   addDeck(g)
   addRamps(g)
   addHouse(g)
+  addDressing(g)
   addRails(g)
   addFender(g)
   addStruts(g)
@@ -343,7 +472,7 @@ export function ferryShape(): BoatShape {
     { y0: -1.7, y1: 0.15, xz: rect(5.3, 19.5) },
     { y0: 0.15, y1: DECK, xz: rect(BEAM, HALF) },
     { y0: DECK, y1: DECK + 1.15, xz: rect(BEAM + 0.1, HALF + 0.4) },
-    { y0: DECK + 1.15, y1: DECK + 3.4, xz: new Float32Array([0.1, -6.4, 5.3, -6.4, 5.3, 7.6, 0.1, 7.6]) },
+    { y0: DECK + 1.15, y1: DECK + 2.9, xz: new Float32Array([0.4, -5.1, 4.9, -5.1, 4.9, 6.3, 0.4, 6.3]) },
   ]
   const skin: number[] = []
   const push = (x: number, y: number, z: number) => { skin.push(x, y, z) }
@@ -358,9 +487,9 @@ export function ferryShape(): BoatShape {
     push(BEAM, 0.4, z)
     push(-BEAM, 0.4, z)
   }
-  push(5.2, DECK + 3.2, 0)
-  push(0.2, DECK + 3.2, -6)
-  push(0.2, DECK + 3.2, 7)
+  push(4.7, DECK + 2.7, 0.5)
+  push(0.5, DECK + 2.7, -4.9)
+  push(0.5, DECK + 2.7, 6.0)
   let radius = 0
   for (let i = 0; i < skin.length; i += 3) radius = Math.max(radius, Math.hypot(skin[i], skin[i + 2]))
   radius = Math.max(radius, Math.hypot(BEAM + 0.2, HALF + 1.6))

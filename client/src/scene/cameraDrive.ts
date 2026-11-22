@@ -27,10 +27,15 @@ interface Movable {
   position: { x: number; y: number; z: number; set: (x: number, y: number, z: number) => void }
 }
 
-/** Apply and clear the pending nudge. Orbit controls read the camera afterwards and keep their limits. */
-export function applyCameraNudge(camera: Movable, target: { x: number; y: number; z: number }) {
+/** Take this frame's nudge. The chase camera and the bridge look both read it once. */
+export function consumeCameraNudge(): Nudge {
   const next = nudge
   nudge = { yaw: 0, height: 0, distance: 1 }
+  return next
+}
+
+/** Move the chase camera by a nudge that has already been taken off the queue. */
+export function applyNudge(camera: Movable, target: { x: number; y: number; z: number }, next: Nudge) {
   if (next.yaw === 0 && next.height === 0 && next.distance === 1) return
 
   if (next.yaw !== 0) {
@@ -52,4 +57,9 @@ export function applyCameraNudge(camera: Movable, target: { x: number; y: number
   }
   const y = clamp(target.y + dy + next.height, target.y + 0.2, target.y + 48)
   camera.position.set(target.x + dx, y, target.z + dz)
+}
+
+/** Apply and clear the pending nudge. Orbit controls read the camera afterwards and keep their limits. */
+export function applyCameraNudge(camera: Movable, target: { x: number; y: number; z: number }) {
+  applyNudge(camera, target, consumeCameraNudge())
 }

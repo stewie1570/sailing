@@ -211,7 +211,7 @@ export function Hud({ loading }: { loading: boolean }) {
         {loading
           ? 'Loading chart…'
           : ferry
-            ? 'Drag to look · pinch or scroll to zoom · place each pod lever'
+            ? 'Drag to look · scroll onto the deck for the bridge · place each pod lever'
             : 'Drag to look · pinch or scroll to zoom · the gear sets a controller'}
       </div>
 
