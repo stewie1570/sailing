@@ -8,7 +8,7 @@ import { applyNudge, consumeCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
 import { stepFerry } from './ferryDynamics'
-import { POD_Y, POD_Z, BRIDGE_EYE, FERRY_CARGO, buildFerry, buildPod, buildPodScrew, ferryShape } from './ferryGeometry'
+import { POD_Y, POD_Z, BRIDGE_EYE, FERRY_CARGO, buildFerry, buildPod, buildPodScrew, buildWheelhouse, ferryShape } from './ferryGeometry'
 import { bridgeExitLocal, bridgeLookDir, overFerryDeck, shipToWorld, worldToShip } from './ferryBridge'
 import { useChallenge } from '../challenge'
 import { Cars } from '../ChallengeView'
@@ -63,6 +63,7 @@ function disposeMesh(mesh: THREE.Mesh) {
 export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const cargoOnDeck = useChallenge().cargo === 'deck'
   const hull = useMemo(() => buildFerry(), [])
+  const house = useMemo(() => buildWheelhouse(), [])
   const bowPod = useMemo(() => buildPod(), [])
   const sternPod = useMemo(() => buildPod(), [])
   const bowScrew = useMemo(() => buildPodScrew(), [])
@@ -108,9 +109,9 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, bowPod, sternPod, bowScrew, sternScrew]) disposeMesh(mesh)
+      for (const mesh of [hull, house, bowPod, sternPod, bowScrew, sternScrew]) disposeMesh(mesh)
     }
-  }, [hull, bowPod, sternPod, bowScrew, sternScrew])
+  }, [hull, house, bowPod, sternPod, bowScrew, sternScrew])
 
   useEffect(() => {
     if (!import.meta.env.DEV) return
@@ -443,11 +444,15 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       prev.y = y
       prev.z = pose.z
     }
+    // The cabin is only the outside shell. From the chair it is left off,
+    // so the view is the deck and the lake.
+    house.visible = !bridge.current
   })
 
   return (
     <group ref={group} position={[pose.x, 0, pose.z]} rotation={[0, pose.yaw, 0]}>
       <primitive object={hull} />
+      <primitive object={house} />
       {cargoOnDeck && (
         <group position={[FERRY_CARGO.x, FERRY_CARGO.y, FERRY_CARGO.z]}>
           <Cars file />

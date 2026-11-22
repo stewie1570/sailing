@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { remoteShip, shipIsFresh, useRemoteShipIds, useShipKind } from '../../net/session'
-import { POD_Y, POD_Z, buildFerry, buildPod, buildPodScrew } from './ferryGeometry'
+import { POD_Y, POD_Z, buildFerry, buildPod, buildPodScrew, buildWheelhouse } from './ferryGeometry'
 import { swell } from './physics'
 import { sinkPitch } from './ram'
 import { RemoteBoat, makeNameSprite, retitle } from './RemoteBoat'
@@ -22,6 +22,7 @@ function disposeMesh(mesh: THREE.Mesh) {
  */
 export function RemoteFerry({ playerId }: { playerId: string }) {
   const hull = useMemo(() => buildFerry(), [])
+  const house = useMemo(() => buildWheelhouse(), [])
   const bowPod = useMemo(() => buildPod(), [])
   const sternPod = useMemo(() => buildPod(), [])
   const bowScrew = useMemo(() => buildPodScrew(), [])
@@ -37,12 +38,12 @@ export function RemoteFerry({ playerId }: { playerId: string }) {
 
   useEffect(() => {
     return () => {
-      for (const mesh of [hull, bowPod, sternPod, bowScrew, sternScrew]) disposeMesh(mesh)
+      for (const mesh of [hull, house, bowPod, sternPod, bowScrew, sternScrew]) disposeMesh(mesh)
       const material = nameTag.material as THREE.SpriteMaterial
       material.map?.dispose()
       material.dispose()
     }
-  }, [hull, bowPod, sternPod, bowScrew, sternScrew, nameTag])
+  }, [hull, house, bowPod, sternPod, bowScrew, sternScrew, nameTag])
 
   useFrame((state, delta) => {
     const ship = remoteShip(playerId)
@@ -88,6 +89,7 @@ export function RemoteFerry({ playerId }: { playerId: string }) {
   return (
     <group ref={group}>
       <primitive object={hull} />
+      <primitive object={house} />
       <primitive object={nameTag} />
       <group ref={bowRef} position={[0, POD_Y, POD_Z]}>
         <primitive object={bowPod} />

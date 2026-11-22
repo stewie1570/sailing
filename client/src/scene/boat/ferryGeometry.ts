@@ -51,10 +51,8 @@ const RED: RGB = [0.78, 0.16, 0.13]
 const GREEN: RGB = [0.16, 0.5, 0.28]
 const YELLOW: RGB = [0.9, 0.74, 0.16]
 const LANE: RGB = [0.78, 0.74, 0.46]
-const FLOOR: RGB = [0.4, 0.42, 0.45]
 const METAL: RGB = [0.28, 0.3, 0.33]
 const METAL_DARK: RGB = [0.16, 0.17, 0.19]
-const CONSOLE: RGB = [0.22, 0.24, 0.27]
 
 type RGB = readonly [number, number, number]
 
@@ -229,107 +227,40 @@ function addRamps(g: Geo) {
   }
 }
 
-function spans(cuts: number[]) {
-  const sorted = [...cuts].sort((a, b) => a - b)
-  const out: Array<[number, number]> = []
-  for (let i = 0; i < sorted.length - 1; i++) {
-    const a = sorted[i]
-    const b = sorted[i + 1]
-    if (b - a > 0.04 && (out.length === 0 || b - out[out.length - 1][1] > 0.02)) out.push([a, b])
-  }
-  return out
-}
-
-/** A wall of thickness 0.14 with rectangular openings. Each slab faces both ways. */
-function addWallZ(
+/** One face, normal following a, b, c. Used for glass that should not be seen from inside. */
+function addPane(
   g: Geo,
-  z: number,
-  x0: number, x1: number, y0: number, y1: number,
-  holes: Array<{ x0: number; x1: number; y0: number; y1: number }>,
+  ax: number, ay: number, az: number,
+  bx: number, by: number, bz: number,
+  cx: number, cy: number, cz: number,
+  dx: number, dy: number, dz: number,
   color: RGB,
 ) {
-  const cols = spans([x0, x1, ...holes.flatMap((hole) => [hole.x0, hole.x1])])
-  for (const [xa, xb] of cols) {
-    const mid = (xa + xb) / 2
-    const open = holes.filter((hole) => mid > hole.x0 && mid < hole.x1)
-    const bands = spans([y0, y1, ...open.flatMap((hole) => [hole.y0, hole.y1])])
-    for (const [ya, yb] of bands) {
-      const ym = (ya + yb) / 2
-      if (open.some((hole) => ym > hole.y0 && ym < hole.y1)) continue
-      addBox(g, mid, ym, z, xb - xa, yb - ya, 0.14, color)
-    }
-  }
+  const a = vert(g, ax, ay, az, color)
+  const b = vert(g, bx, by, bz, color)
+  const c = vert(g, cx, cy, cz, color)
+  const d = vert(g, dx, dy, dz, color)
+  quad(g, a, b, c, d)
 }
 
-function addWallX(
-  g: Geo,
-  x: number,
-  z0: number, z1: number, y0: number, y1: number,
-  holes: Array<{ z0: number; z1: number; y0: number; y1: number }>,
-  color: RGB,
-) {
-  const cols = spans([z0, z1, ...holes.flatMap((hole) => [hole.z0, hole.z1])])
-  for (const [za, zb] of cols) {
-    const mid = (za + zb) / 2
-    const open = holes.filter((hole) => mid > hole.z0 && mid < hole.z1)
-    const bands = spans([y0, y1, ...open.flatMap((hole) => [hole.y0, hole.y1])])
-    for (const [ya, yb] of bands) {
-      const ym = (ya + yb) / 2
-      if (open.some((hole) => ym > hole.y0 && ym < hole.y1)) continue
-      addBox(g, x, ym, mid, 0.14, yb - ya, zb - za, color)
-    }
-  }
-}
-
-function addWindowFrameZ(g: Geo, z: number, hole: { x0: number; x1: number; y0: number; y1: number }) {
-  const midX = (hole.x0 + hole.x1) / 2
-  const midY = (hole.y0 + hole.y1) / 2
-  addBox(g, midX, hole.y0 + 0.035, z, hole.x1 - hole.x0, 0.07, 0.05, WINDOW)
-  addBox(g, midX, hole.y1 - 0.035, z, hole.x1 - hole.x0, 0.07, 0.05, WINDOW)
-  addBox(g, hole.x0 + 0.035, midY, z, 0.07, hole.y1 - hole.y0, 0.05, WINDOW)
-  addBox(g, hole.x1 - 0.035, midY, z, 0.07, hole.y1 - hole.y0, 0.05, WINDOW)
-  addBox(g, midX, midY, z, 0.06, hole.y1 - hole.y0 - 0.1, 0.05, WINDOW)
-}
-
-function addWindowFrameX(g: Geo, x: number, hole: { z0: number; z1: number; y0: number; y1: number }) {
-  const midZ = (hole.z0 + hole.z1) / 2
-  const midY = (hole.y0 + hole.y1) / 2
-  addBox(g, x, hole.y0 + 0.035, midZ, 0.05, 0.07, hole.z1 - hole.z0, WINDOW)
-  addBox(g, x, hole.y1 - 0.035, midZ, 0.05, 0.07, hole.z1 - hole.z0, WINDOW)
-  addBox(g, x, midY, hole.z0 + 0.035, 0.05, hole.y1 - hole.y0, 0.07, WINDOW)
-  addBox(g, x, midY, hole.z1 - 0.035, 0.05, hole.y1 - hole.y0, 0.07, WINDOW)
-}
-
+/**
+ * A solid cabin. Faces point outward, and the glass is painted on the
+ * outside, so the room has no interior and you cannot see in.
+ */
 function addHouse(g: Geo) {
   const { x0, x1, z0, z1, y0, y1 } = HOUSE
-  const win = { y0: y0 + 1.02, y1: y0 + 1.86 }
   const cx = (x0 + x1) / 2
   const cz = (z0 + z1) / 2
-  // Floor you can see from the chair, then four walls with window openings.
-  addBox(g, cx, y0 + 0.03, cz, x1 - x0 - 0.2, 0.05, z1 - z0 - 0.2, FLOOR)
-  addWallZ(g, z1, x0, x1, y0, y1, [{ x0: x0 + 0.38, x1: x1 - 0.38, ...win }], WHITE)
-  addWallZ(g, z0, x0, x1, y0, y1, [{ x0: x0 + 0.38, x1: x1 - 0.38, ...win }], WHITE)
-  addWallX(g, x1, z0, z1, y0, y1, [
-    { z0: z0 + 1.3, z1: z0 + 3.5, ...win },
-    { z0: cz + 0.4, z1: z1 - 1.15, ...win },
-  ], WHITE)
-  // Lane side: a door forward of amidships, and a window aft of it.
-  addWallX(g, x0, z0, z1, y0, y1, [
-    { z0: 0.55, z1: 1.55, y0, y1: y0 + 1.95 },
-    { z0: -3.5, z1: -1.5, ...win },
-  ], WHITE)
-  addBox(g, x0 - 0.02, y0 + 0.98, 1.05, 0.06, 1.9, 0.86, CONSOLE)
-  const endHole = { x0: x0 + 0.38, x1: x1 - 0.38, ...win }
-  addWindowFrameZ(g, z1 + 0.08, endHole)
-  addWindowFrameZ(g, z0 - 0.08, endHole)
-  addWindowFrameX(g, x1 + 0.08, { z0: z0 + 1.3, z1: z0 + 3.5, ...win })
-  addWindowFrameX(g, x1 + 0.08, { z0: cz + 0.4, z1: z1 - 1.15, ...win })
-  addWindowFrameX(g, x0 - 0.08, { z0: -3.5, z1: -1.5, ...win })
-  // Sill-height console ahead of the chair, and the chair itself.
-  addBox(g, BRIDGE_EYE.x, y0 + 0.48, BRIDGE_EYE.z + 1.15, 1.35, 0.92, 0.42, CONSOLE)
-  addBox(g, BRIDGE_EYE.x, BRIDGE_EYE.y - 0.62, BRIDGE_EYE.z - 0.28, 0.52, 0.1, 0.5, METAL_DARK)
-  addBox(g, BRIDGE_EYE.x, BRIDGE_EYE.y - 0.28, BRIDGE_EYE.z - 0.5, 0.5, 0.55, 0.08, METAL_DARK)
-  // Blue fascia, white roof, radar, and a short exhaust.
+  const wy0 = y0 + 1.02
+  const wy1 = y0 + 1.86
+  const o = 0.04
+  addBox(g, cx, (y0 + y1) / 2, cz, x1 - x0, y1 - y0, z1 - z0, WHITE)
+  addPane(g, x0 + 0.4, wy0, z1 + o, x1 - 0.4, wy0, z1 + o, x1 - 0.4, wy1, z1 + o, x0 + 0.4, wy1, z1 + o, WINDOW)
+  addPane(g, x1 - 0.4, wy0, z0 - o, x0 + 0.4, wy0, z0 - o, x0 + 0.4, wy1, z0 - o, x1 - 0.4, wy1, z0 - o, WINDOW)
+  addPane(g, x1 + o, wy0, z0 + 3.5, x1 + o, wy0, z0 + 1.3, x1 + o, wy1, z0 + 1.3, x1 + o, wy1, z0 + 3.5, WINDOW)
+  addPane(g, x1 + o, wy0, z1 - 1.15, x1 + o, wy0, cz + 0.4, x1 + o, wy1, cz + 0.4, x1 + o, wy1, z1 - 1.15, WINDOW)
+  addPane(g, x0 - o, wy0, -3.5, x0 - o, wy0, -1.5, x0 - o, wy1, -1.5, x0 - o, wy1, -3.5, WINDOW)
+  addPane(g, x0 - o, y0 + 0.08, 0.55, x0 - o, y0 + 0.08, 1.55, x0 - o, y0 + 1.95, 1.55, x0 - o, y0 + 1.95, 0.55, METAL_DARK)
   addBox(g, cx, y1 - 0.08, cz, x1 - x0 + 0.22, 0.16, z1 - z0 + 0.36, BLUE)
   addBox(g, cx, y1 + 0.06, cz, x1 - x0 + 0.42, 0.1, z1 - z0 + 0.55, WHITE)
   addCylinderBetween(g, 3.15, y1 + 0.12, -1.4, 3.15, y1 + 0.85, -1.4, 0.06, METAL)
@@ -337,7 +268,6 @@ function addHouse(g: Geo) {
   addCylinderBetween(g, 1.7, y1 + 0.1, -3.2, 1.7, y1 + 1.55, -3.2, 0.16, METAL_DARK)
   addCylinderBetween(g, 2.5, y1 + 0.12, 1.6, 2.5, y1 + 2.7, 1.6, 0.07, METAL)
   addCylinderBetween(g, 2.05, y1 + 0.14, 3.4, 2.05, y1 + 1.7, 3.4, 0.03, METAL_DARK)
-  // Life ring on the forward face.
   addCylinderBetween(g, x1 - 0.55, y0 + 1.05, z1 + 0.12, x1 - 0.55, y0 + 1.05, z1 + 0.24, 0.32, RED)
   addCylinderBetween(g, x1 - 0.55, y0 + 1.05, z1 + 0.15, x1 - 0.55, y0 + 1.05, z1 + 0.26, 0.16, WHITE)
 }
@@ -419,12 +349,18 @@ export function buildFerry(): THREE.Mesh {
   addHull(g)
   addDeck(g)
   addRamps(g)
-  addHouse(g)
   addDressing(g)
   addRails(g)
   addFender(g)
   addStruts(g)
   return toMesh(g, 'ferry')
+}
+
+/** The cabin, drawn only from the outside. The chair view leaves it off. */
+export function buildWheelhouse(): THREE.Mesh {
+  const g: Geo = { pos: [], col: [], idx: [] }
+  addHouse(g)
+  return toMesh(g, 'wheelhouse')
 }
 
 /** Nacelle along +z, so a yaw of azimuth + π aims the screw opposite the push. */
