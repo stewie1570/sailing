@@ -222,6 +222,28 @@ function hullPoint(u: number, v: number): THREE.Vector3 {
   return new THREE.Vector3(x, y, z)
 }
 
+/**
+ * Parcel sits on the aft deck: behind the cockpit and inboard of the transom,
+ * where the chase camera looks down onto the planks.
+ */
+function aftDeckPoint() {
+  let best = hullPoint(0.14, 1)
+  let score = Infinity
+  for (let i = 1; i < 50; i++) {
+    const p = hullPoint(i / 120, 1)
+    if (p.z < -5.8 || p.z > -3.6) continue
+    const next = Math.abs(p.z + 4.4)
+    if (next < score) {
+      score = next
+      best = p
+    }
+  }
+  return best
+}
+
+const aftDeck = aftDeckPoint()
+export const CARGO_DECK = { x: 0, y: aftDeck.y, z: aftDeck.z }
+
 function hullColor(y: number): RGB {
   if (y < -0.04) return BOTTOM
   if (y < 0.09) return BOOT
