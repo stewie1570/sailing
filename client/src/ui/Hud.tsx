@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { leaveGame, useSession } from '../net/session'
+import { useVessel } from '../scene/boat/vessel'
 import { speedKnots, telemetry } from '../scene/boat/telemetry'
 import { HelmDock } from './HelmDock'
 import { AisNote } from './AisNote'
@@ -97,6 +98,7 @@ function RoomChip() {
 
 export function Hud({ loading }: { loading: boolean }) {
   const session = useSession()
+  const ferry = useVessel() === 'ferry'
   const [stats, setStats] = useState({ fps: 0, drawCalls: 0, triangles: 0 })
   const [confirmLeave, setConfirmLeave] = useState(false)
 
@@ -156,7 +158,9 @@ export function Hud({ loading }: { loading: boolean }) {
       <div className="hud hud-bottom">
         {loading
           ? 'Loading chart…'
-          : 'Drag to look · pinch or scroll to zoom · the gear sets a controller'}
+          : ferry
+            ? 'Drag to look · pinch or scroll to zoom · dial, then lever'
+            : 'Drag to look · pinch or scroll to zoom · the gear sets a controller'}
       </div>
 
       <NavMap />

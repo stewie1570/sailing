@@ -5,8 +5,11 @@ import * as THREE from 'three'
 import { loadMapData, type MapData } from '../map/mapData'
 import { useMySlot } from '../net/session'
 import { Boat } from './boat/Boat'
-import { RemoteFleet } from './boat/RemoteBoat'
-import { chaseOffset, spawnPose } from './boat/physics'
+import { Ferry } from './boat/Ferry'
+import { RemoteFleet } from './boat/RemoteFerry'
+import { chaseOffset, MOTION, spawnPose } from './boat/physics'
+import { stepWind } from './boat/wind'
+import { useVessel, vesselView } from './boat/vessel'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
@@ -87,19 +90,29 @@ function Lighting() {
   )
 }
 
+/** The breeze is the room's, not the hull's. A ferry host still has to advance it. */
+function WindClock() {
+  useFrame((_, delta) => {
+    stepWind(Math.min(Math.max(delta, 0), MOTION.maxFrame))
+  })
+  return null
+}
+
 function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
   const map = use(mapPromise)
   const slot = useMySlot()
+  const vessel = useVessel()
+  const view = vesselView(vessel)
 
   // Start just astern of the boat, close enough to read the hull. The boat keeps this
   // offset, and the view yaws with the helm about a second behind.
   const spawn = useMemo(() => spawnPose(map), [map])
-  const target = useMemo(() => new THREE.Vector3(spawn.x, 1.15, spawn.z), [spawn])
+  const target = useMemo(() => new THREE.Vector3(spawn.x, view.look, spawn.z), [spawn, view.look])
 
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls)
   useEffect(() => {
-    const off = chaseOffset(spawn.yaw)
+    const off = chaseOffset(spawn.yaw, view.back, view.height)
     camera.position.set(spawn.x + off.x, off.y, spawn.z + off.z)
     const c = controls as unknown as { target?: THREE.Vector3; update?: () => void } | null
     if (c?.target) {
@@ -108,7 +121,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
     } else {
       camera.lookAt(target)
     }
-  }, [camera, controls, spawn, target])
+  }, [camera, controls, spawn, target, view.back, view.height])
 
   // Dev-only handle for inspecting the scene from the browser console / automation.
   useEffect(() => {
@@ -135,7 +148,8 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
       <Trees map={map} />
       <Buoys map={map} />
       <Harbors map={map} />
-      <Boat map={map} slot={slot} />
+      <WindClock />
+      {vessel === 'ferry' ? <Ferry map={map} slot={slot} /> : <Boat map={map} slot={slot} />}
       <RemoteFleet map={map} />
       <OrbitControls
         makeDefault
@@ -144,7 +158,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
         dampingFactor={0.08}
         rotateSpeed={0.6}
         zoomSpeed={0.8}
-        minDistance={4.5}
+        minDistance={view.minDistance}
         maxDistance={9000}
         // keep the camera above the surface
         maxPolarAngle={Math.PI / 2 - 0.015}

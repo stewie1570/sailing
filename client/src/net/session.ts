@@ -1,7 +1,9 @@
 import * as signalR from '@microsoft/signalr'
 import { useSyncExternalStore } from 'react'
 import { resetHelm } from '../scene/boat/helm'
+import { resetPods } from '../scene/boat/pods'
 import { resetSail } from '../scene/boat/sail'
+import { getVessel, vesselKind } from '../scene/boat/vessel'
 import { followWind, getWind, releaseWind, resetWind } from '../scene/boat/wind'
 import { exitFullscreen } from '../ui/fullscreen'
 import { clearAis, receiveAis } from './aisMail'
@@ -90,6 +92,21 @@ const ships = new Map<string, RemoteShip>()
 let shipOrder: readonly string[] = []
 const shipListeners = new Set<() => void>()
 
+/** '' until the first packet. After that, the hull they are actually driving. */
+export function useShipKind(playerId: string): '' | 'sail' | 'ferry' {
+  return useSyncExternalStore(
+    (cb) => {
+      shipListeners.add(cb)
+      return () => shipListeners.delete(cb)
+    },
+    () => {
+      const ship = ships.get(playerId)
+      if (!ship) return ''
+      return ship.kind === 'ferry' ? 'ferry' : 'sail'
+    },
+  )
+}
+
 export function useRemoteShipIds(): readonly string[] {
   return useSyncExternalStore(
     (cb) => {
@@ -119,6 +136,7 @@ export function eachFreshShip(visit: (ship: ShipMessage) => void) {
 
 const localShip: ShipVisual & { fresh: boolean } = {
   fresh: false,
+  kind: 'sail',
   x: 0,
   z: 0,
   yaw: 0,
@@ -138,49 +156,38 @@ const localShip: ShipVisual & { fresh: boolean } = {
   sway: 0,
   sink: 0,
   ram: '',
+  bowAz: 0,
+  sternAz: 0,
+  bowThrust: 0,
+  sternThrust: 0,
 }
 
 /** Written every sim frame. The network loop copies it; the sim does not wait on the socket. */
-export function noteLocalShip(
-  x: number,
-  z: number,
-  yaw: number,
-  rudder: number,
-  port: number,
-  starboard: number,
-  hoist: number,
-  boom: number,
-  jibHoist: number,
-  clew: number,
-  vane: number,
-  luff: number,
-  jibLuff: number,
-  spinHoist: number,
-  spinLuff: number,
-  speed: number,
-  sway: number,
-  sink: number,
-  ram: string,
-) {
-  localShip.x = x
-  localShip.z = z
-  localShip.yaw = yaw
-  localShip.rudder = rudder
-  localShip.port = port
-  localShip.starboard = starboard
-  localShip.hoist = hoist
-  localShip.boom = boom
-  localShip.jibHoist = jibHoist
-  localShip.clew = clew
-  localShip.vane = vane
-  localShip.luff = luff
-  localShip.jibLuff = jibLuff
-  localShip.spinHoist = spinHoist
-  localShip.spinLuff = spinLuff
-  localShip.speed = speed
-  localShip.sway = sway
-  localShip.sink = sink
-  localShip.ram = ram
+export function noteLocalShip(visual: ShipVisual) {
+  localShip.kind = vesselKind(visual.kind ?? getVessel())
+  localShip.x = visual.x
+  localShip.z = visual.z
+  localShip.yaw = visual.yaw
+  localShip.rudder = visual.rudder
+  localShip.port = visual.port
+  localShip.starboard = visual.starboard
+  localShip.hoist = visual.hoist
+  localShip.boom = visual.boom
+  localShip.jibHoist = visual.jibHoist
+  localShip.clew = visual.clew
+  localShip.vane = visual.vane
+  localShip.luff = visual.luff
+  localShip.jibLuff = visual.jibLuff
+  localShip.spinHoist = visual.spinHoist
+  localShip.spinLuff = visual.spinLuff
+  localShip.speed = visual.speed
+  localShip.sway = visual.sway
+  localShip.sink = visual.sink
+  localShip.ram = visual.ram
+  localShip.bowAz = visual.bowAz ?? 0
+  localShip.sternAz = visual.sternAz ?? 0
+  localShip.bowThrust = visual.bowThrust ?? 0
+  localShip.sternThrust = visual.sternThrust ?? 0
   localShip.fresh = true
 }
 
@@ -246,11 +253,21 @@ function rememberShip(ship: ShipMessage) {
     known.sway = ship.sway
     known.sink = Number.isFinite(ship.sink) ? ship.sink : 0
     known.ram = typeof ship.ram === 'string' ? ship.ram : ''
+    known.kind = vesselKind(ship.kind)
+    known.bowAz = ship.bowAz || 0
+    known.sternAz = ship.sternAz || 0
+    known.bowThrust = ship.bowThrust || 0
+    known.sternThrust = ship.sternThrust || 0
     known.at = performance.now()
     return
   }
   ships.set(ship.playerId, {
     ...ship,
+    kind: vesselKind(ship.kind),
+    bowAz: ship.bowAz || 0,
+    sternAz: ship.sternAz || 0,
+    bowThrust: ship.bowThrust || 0,
+    sternThrust: ship.sternThrust || 0,
     sink: Number.isFinite(ship.sink) ? ship.sink : 0,
     ram: typeof ship.ram === 'string' ? ship.ram : '',
     at: performance.now(),
@@ -433,6 +450,11 @@ async function sendShip() {
     sway: round(localShip.sway, 2),
     sink: round(localShip.sink, 2),
     ram: localShip.ram,
+    kind: localShip.kind === 'ferry' ? 'ferry' : 'sail',
+    bowAz: round(localShip.bowAz ?? 0, 4),
+    sternAz: round(localShip.sternAz ?? 0, 4),
+    bowThrust: round(localShip.bowThrust ?? 0, 3),
+    sternThrust: round(localShip.sternThrust ?? 0, 3),
   }
   try {
     await conn.invoke('Ship', message)
@@ -681,6 +703,7 @@ async function connect(token: number): Promise<signalR.HubConnection> {
 function prepareBoat() {
   localShip.fresh = false
   resetHelm()
+  resetPods()
   resetSail()
   clearAis()
 }

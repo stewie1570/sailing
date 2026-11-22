@@ -87,7 +87,7 @@ World units are metres; origin at the map centre, +x east, +z south, water at y 
 
 ## Play
 
-The first screen is the menu.
+The first screen is the menu. Pick a sailboat or a vehicle ferry before you leave it. The ferry is a double-ended hull with one bow pod and one stern pod; its bridge is a single panel, not the engine and sailing tabs.
 
 - **Sail alone** never opens a socket. The boat, the breeze, and the chart stay on this device.
 - **Host a room** picks a 4-character code. That browser is the source of truth for the room: who is in it, and the breeze. It is also the source of truth for the host's own boat.

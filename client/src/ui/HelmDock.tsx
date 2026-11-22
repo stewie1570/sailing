@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom'
 import { setHelmMode, useController, useControllerLoop } from '../input/controller'
 import { useHelm, useHelmKeyboard } from '../scene/boat/helm'
 import { enginesRunning } from '../scene/boat/telemetry'
+import { useVessel } from '../scene/boat/vessel'
 import { ControllerSetup } from './ControllerSetup'
+import { PodPanel } from './PodPanel'
 import { SailingControls } from './SailingControls'
 import { Throttles } from './Throttles'
 
@@ -19,6 +21,18 @@ function GearIcon() {
 }
 
 export function HelmDock() {
+  const vessel = useVessel()
+  if (vessel === 'ferry') {
+    return (
+      <div className="hud throttles mode-pods">
+        <PodPanel />
+      </div>
+    )
+  }
+  return <SailHelm />
+}
+
+function SailHelm() {
   const { helmMode } = useController()
   const helm = useHelm()
   const enginesOn = enginesRunning(helm.port, helm.starboard)

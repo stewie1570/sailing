@@ -1388,10 +1388,29 @@ html:-webkit-full-screen {
   color: rgba(232, 238, 244, 0.55);
 }
 .menu-lead {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   color: rgba(232, 238, 244, 0.78);
   font-size: 15px;
   line-height: 1.45;
+}
+.menu-vessel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.menu-vessel button {
+  font: inherit;
+  color: inherit;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+}
+.menu-vessel button.on {
+  background: rgba(61, 220, 132, 0.22);
+  border-color: rgba(61, 220, 132, 0.7);
 }
 .menu-field {
   display: flex;
@@ -1781,4 +1800,169 @@ html:-webkit-full-screen {
   .hud.navmap.wide {
     top: calc(max(8px, env(safe-area-inset-top)) + 108px);
   }
+}
+
+/* Azimuth-pod panel. One console, bow and stern, no engine or sailing tab. */
+.pod-panel { width: min(460px, calc(100vw - 36px)); }
+.pod-units { display: flex; gap: 16px; }
+.pod-unit { flex: 1; min-width: 0; }
+.pod-name {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: center;
+  margin-bottom: 6px;
+  color: rgba(232, 238, 244, 0.82);
+}
+.pod-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.pod-dial {
+  position: relative;
+  width: 148px;
+  height: 148px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid rgba(186, 198, 210, 0.55);
+  background:
+    radial-gradient(circle at 50% 46%, rgba(36, 52, 68, 0.2), rgba(4, 10, 18, 0.72) 72%);
+  box-shadow: inset 0 0 0 7px rgba(8, 14, 22, 0.55), 0 1px 0 rgba(255, 255, 255, 0.16);
+  touch-action: none;
+  cursor: grab;
+}
+.pod-dial:active { cursor: grabbing; }
+.pod-tick {
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 1px;
+  height: 8px;
+  margin-left: -0.5px;
+  background: rgba(232, 238, 244, 0.45);
+  transform-origin: 50% 67px;
+}
+.pod-tick.cardinal { height: 12px; background: rgba(245, 194, 66, 0.9); }
+.pod-card {
+  position: absolute;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 244, 0.72);
+  pointer-events: none;
+}
+.pod-card.ahead { top: 18px; left: 50%; transform: translateX(-50%); }
+.pod-card.port { left: 16px; top: 50%; transform: translateY(-50%); }
+.pod-card.stbd { right: 14px; top: 50%; transform: translateY(-50%); }
+.pod-ship {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 16px solid rgba(244, 247, 251, 0.9);
+  transform: translate(-50%, -70%);
+  pointer-events: none;
+}
+.pod-azimuth {
+  position: absolute;
+  inset: 22px;
+  pointer-events: none;
+}
+.pod-arm {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  bottom: 50%;
+  width: 3px;
+  margin-left: -1.5px;
+  background: #f0b429;
+  border-radius: 2px;
+}
+.pod-wedge {
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #f0b429;
+}
+.pod-wedge.astern { top: auto; bottom: 2px; transform: rotate(180deg); }
+.pod-thrust {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 148px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 244, 0.7);
+}
+.pod-lever {
+  position: relative;
+  width: 36px;
+  flex: 1;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  touch-action: none;
+  cursor: grab;
+}
+.pod-lever.dragging { cursor: grabbing; }
+.pod-lever-gate {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.pod-knob {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 4px;
+  background: linear-gradient(#f4f7fb, #c5ced6);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 2px 0 #f0b429;
+}
+.pod-lever.in-stop .pod-knob { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 2px 0 #f5c242; }
+.pod-read {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: rgba(232, 238, 244, 0.86);
+}
+.pod-read span:last-child { color: #f0b429; }
+
+@media (max-width: 720px), (max-height: 760px) {
+  .throttles.mode-pods {
+    width: min(196px, calc(100vw - 184px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+    overflow-y: auto;
+    padding: 8px;
+  }
+  .pod-panel { width: auto; }
+  .pod-units { flex-direction: column; gap: 8px; }
+  .pod-dial { width: 112px; height: 112px; }
+  .pod-tick { transform-origin: 50% 49px; }
+  .pod-thrust { height: 112px; }
+  .pod-card { font-size: 8px; }
+  .pod-card.ahead { top: 14px; }
+}
+@media (max-width: 500px), (max-height: 500px) and (max-width: 950px) {
+  .throttles.mode-pods {
+    width: min(210px, calc(100vw - 24px));
+    background: rgba(8, 18, 30, 0.72);
+  }
+  .pod-dial { width: 96px; height: 96px; }
+  .pod-tick { transform-origin: 50% 41px; top: 5px; }
+  .pod-thrust { height: 96px; }
+  .pod-card.ahead { display: none; }
 }

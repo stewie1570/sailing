@@ -2,7 +2,7 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
-import { remoteShip, shipIsFresh, useRemoteShipIds } from '../../net/session'
+import { remoteShip, shipIsFresh } from '../../net/session'
 import { inHarbor } from '../harborLayout'
 import { RUDDER_LOCK, WHEEL_LOCK } from './dynamics'
 import {
@@ -206,17 +206,6 @@ export function RemoteBoat({ playerId, map }: { playerId: string; map: MapData }
   )
 }
 
-export function RemoteFleet({ map }: { map: MapData }) {
-  const ids = useRemoteShipIds()
-  return (
-    <>
-      {ids.map((id) => (
-        <RemoteBoat key={id} playerId={id} map={map} />
-      ))}
-    </>
-  )
-}
-
 function disposeMesh(mesh: THREE.Mesh) {
   mesh.geometry.dispose()
   const material = mesh.material
@@ -224,7 +213,7 @@ function disposeMesh(mesh: THREE.Mesh) {
   else material.dispose()
 }
 
-function makeNameSprite(text: string) {
+export function makeNameSprite(text: string, y = 17.2, width = 7.2) {
   const canvas = document.createElement('canvas')
   canvas.width = 256
   canvas.height = 64
@@ -234,13 +223,13 @@ function makeNameSprite(text: string) {
   texture.colorSpace = THREE.SRGBColorSpace
   const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })
   const sprite = new THREE.Sprite(material)
-  sprite.position.set(0, 17.2, 0.4)
-  sprite.scale.set(7.2, 1.8, 1)
+  sprite.position.set(0, y, 0.4)
+  sprite.scale.set(width, width / 4, 1)
   sprite.renderOrder = 2
   return sprite
 }
 
-function retitle(sprite: THREE.Sprite, text: string) {
+export function retitle(sprite: THREE.Sprite, text: string) {
   const material = sprite.material as THREE.SpriteMaterial
   const canvas = material.map?.image as HTMLCanvasElement | undefined
   const ctx = canvas?.getContext('2d')
