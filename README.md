@@ -87,7 +87,7 @@ World units are metres; origin at the map centre, +x east, +z south, water at y 
 
 ## Play
 
-The first screen is the menu. Pick a sailboat or a vehicle ferry before you leave it. The ferry is a double-ended hull with one bow pod and one stern pod; its bridge is a single panel, not the engine and sailing tabs.
+The first screen is the menu. Pick a sailboat or a vehicle ferry before you leave it. The ferry is a double-ended hull with one bow pod and one stern pod; its bridge is a single panel, not the engine and sailing tabs. Each pod is one lever on a dome: where you place it is the direction and the amount of thrust. The pod takes a couple of seconds to turn onto that heading, and a mark on the dome shows where it is pointing while it catches up. A gamepad does the same thing, the left stick for the bow pod and the right stick for the stern. The sailboat's challenge is still one package. The ferry's is three cars.
 
 - **Sail alone** never opens a socket. The boat, the breeze, and the chart stay on this device.
 - **Host a room** picks a 4-character code. That browser is the source of truth for the room: who is in it, and the breeze. It is also the source of truth for the host's own boat.

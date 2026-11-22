@@ -10,8 +10,8 @@ import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } f
 import { stepFerry } from './ferryDynamics'
 import { POD_Y, POD_Z, FERRY_CARGO, buildFerry, buildPod, buildPodScrew, ferryShape } from './ferryGeometry'
 import { useChallenge } from '../challenge'
-import { Crate } from '../ChallengeView'
-import { getPods, updatePods } from './pods'
+import { Cars } from '../ChallengeView'
+import { getPods, stepPods, updatePods } from './pods'
 import {
   chaseYaw,
   CHASE_YAW_LAG,
@@ -142,7 +142,6 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
   }, [pose, camera, controls, view.look])
 
   useFrame((state, delta) => {
-    const command = getPods()
     const time = state.clock.elapsedTime
     const wreck = wreckRef.current
     if (wreck.phase !== 'sail') {
@@ -205,7 +204,8 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
         }
         return false
       }, (body, step) => {
-        stepFerry(body, command, step)
+        stepPods(step)
+        stepFerry(body, getPods(), step)
       }, (x, z, yaw) => hullOverlap(world, x, z, yaw, swell(x, z, time), shape))
       const here = swell(pose.x, pose.z, time)
       const contacts: RamContact[] = []
@@ -251,6 +251,9 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       }
     }
     publishTelemetry(pose)
+    const command = getPods()
+    const bowAim = command.bowAim ?? command.bowAz
+    const sternAim = command.sternAim ?? command.sternAz
     noteLocalShip({
       kind: 'ferry',
       x: pose.x,
@@ -272,16 +275,16 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       sway: pose.sway,
       sink: wreck.depth,
       ram: activeClaim(wreck, performance.now()),
-      bowAz: command.bowAz,
-      sternAz: command.sternAz,
+      bowAz: bowAim,
+      sternAz: sternAim,
       bowThrust: command.bowThrust,
       sternThrust: command.sternThrust,
     })
 
     const spin = Math.min(Math.max(delta, 0), 0.1)
     // The screw faces opposite the push, so ahead thrust drives the hull forward.
-    if (bowRef.current) bowRef.current.rotation.y = command.bowAz + Math.PI
-    if (sternRef.current) sternRef.current.rotation.y = command.sternAz + Math.PI
+    if (bowRef.current) bowRef.current.rotation.y = bowAim + Math.PI
+    if (sternRef.current) sternRef.current.rotation.y = sternAim + Math.PI
     if (bowSpinRef.current) bowSpinRef.current.rotation.z += command.bowThrust * 14 * spin
     if (sternSpinRef.current) sternSpinRef.current.rotation.z += command.sternThrust * 14 * spin
 
@@ -320,7 +323,7 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       <primitive object={hull} />
       {cargoOnDeck && (
         <group position={[FERRY_CARGO.x, FERRY_CARGO.y, FERRY_CARGO.z]}>
-          <Crate />
+          <Cars file />
         </group>
       )}
       <group ref={bowRef} position={[0, POD_Y, POD_Z]}>

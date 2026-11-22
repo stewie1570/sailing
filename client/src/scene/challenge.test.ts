@@ -159,6 +159,7 @@ describe('challenge run', () => {
     expect(startChallenge(5_000, () => 0, WEST)).toBe(true)
     const pickup = getChallenge()
     expect(pickup.phase).toBe('pickup')
+    expect(pickup.kind).toBe('sail')
     expect(pickup.target?.harbor).toBe(0)
     expect(pickup.cargo).toBe('dock')
     expect(pickup.dockCargo).not.toBeNull()
@@ -247,10 +248,11 @@ describe('ferry linkspans', () => {
     expect(besidePackage(berth, { ...pose, engines: true }, 'ferry')).toBe(false)
   })
 
-  it('carries the parcel from one harbour to the other', () => {
+  it('carries the cars from one harbour to the other', () => {
     resetChallenge()
     bindChallengeChart(CHART)
     expect(startChallenge(1_000, () => 0, WEST, 'ferry')).toBe(true)
+    expect(getChallenge().kind).toBe('ferry')
     expect(getChallenge().target?.harbor).toBe(0)
     const pose = bowIn(getChallenge().target!)
     for (let i = 0; i < 12; i++) stepChallenge(pose, 0.1, 2_000)

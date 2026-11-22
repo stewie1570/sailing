@@ -18,9 +18,14 @@ export function ChallengeBanner() {
   const running = challenge.phase === 'pickup' || challenge.phase === 'carry'
   const elapsed = useElapsed(running, challenge.startedAt, challenge.finishedAt)
   if (!running) return null
-  const task = challenge.phase === 'pickup'
-    ? `Pick up the package at ${challenge.harborName}`
-    : `Deliver the package to ${challenge.harborName}`
+  const cars = challenge.kind === 'ferry'
+  const task = cars
+    ? challenge.phase === 'pickup'
+      ? `Pick up the cars at ${challenge.harborName}`
+      : `Deliver the cars to ${challenge.harborName}`
+    : challenge.phase === 'pickup'
+      ? `Pick up the package at ${challenge.harborName}`
+      : `Deliver the package to ${challenge.harborName}`
   return (
     <div className="hud challenge-banner" aria-live="polite">
       <div className="challenge-kicker">Challenge</div>
@@ -50,10 +55,12 @@ export function ChallengeResult() {
         tabIndex={-1}
       >
         <p className="challenge-kicker">Challenge complete</p>
-        <h2 id="challenge-title">Package delivered</h2>
+        <h2 id="challenge-title">{challenge.kind === 'ferry' ? 'Cars delivered' : 'Package delivered'}</h2>
         <p className="challenge-time">{took}</p>
         <p className="challenge-note">
-          That’s how long it took to pick the package up and put it on the other dock.
+          {challenge.kind === 'ferry'
+            ? 'That’s how long it took to load the cars and put them on the other dock.'
+            : 'That’s how long it took to pick the package up and put it on the other dock.'}
         </p>
         <button type="button" onClick={() => dismissChallenge()}>
           Done

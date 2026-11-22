@@ -39,9 +39,11 @@ export interface ChallengeView {
   finishedAt: number | null
   /** Finger to paint. The pickup while collecting, then the delivery. */
   target: Berth | null
-  /** Where the parcel is drawn. */
+  /** Where the cargo is drawn. A sailboat carries one parcel; a ferry carries cars. */
   cargo: 'none' | 'dock' | 'deck'
   dockCargo: DockCargo | null
+  /** Which hull started the run. The sailboat path stays a parcel. */
+  kind: VesselKind
 }
 
 interface ChartSize {
@@ -104,6 +106,7 @@ const IDLE: ChallengeView = {
   target: null,
   cargo: 'none',
   dockCargo: null,
+  kind: 'sail',
 }
 
 let sailBerths: readonly Berth[] | null = null
@@ -270,6 +273,7 @@ function toView(current: ChallengeRun | null): ChallengeView {
     target,
     cargo: current.phase === 'carry' ? 'deck' : 'dock',
     dockCargo: target && current.phase !== 'carry' ? packageWorld(target) : null,
+    kind: current.kind,
   }
 }
 

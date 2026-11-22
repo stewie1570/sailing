@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { boatShape } from './geometry'
 import { stepFerry, type FerryPose } from './ferryDynamics'
 import { buildFerry, ferryShape } from './ferryGeometry'
-import { azimuthFromPointer, formatAzimuth, resetPods, updatePods, getPods } from './pods'
+import { azimuthFromPointer, ferryStickPatch, formatAzimuth, formatOrder, getPods, podFromStick, resetPods, stepPods, updatePods, type StickMemory } from './pods'
 
 function rest(): FerryPose {
   return { x: 0, z: 0, yaw: 0, speed: 0, sway: 0, yawRate: 0 }
@@ -30,6 +30,48 @@ describe('azimuth pods', () => {
     expect(formatAzimuth(-Math.PI / 4)).toBe('Stbd 45°')
   })
 
+  it('reads a stick as a point on the dome', () => {
+    const ahead = podFromStick(0, -1)
+    expect(ahead?.az).toBeCloseTo(0, 5)
+    expect(ahead?.thrust).toBeCloseTo(1, 5)
+    expect(podFromStick(-1, 0)?.az).toBeCloseTo(Math.PI / 2, 5)
+    expect(podFromStick(1, 0)?.az).toBeCloseTo(-Math.PI / 2, 5)
+    expect(Math.abs(podFromStick(0, 1)?.az ?? 0)).toBeCloseTo(Math.PI, 5)
+    expect(podFromStick(0, 0)).toBeNull()
+    expect(podFromStick(0.1, -0.1)).toBeNull()
+    expect(formatOrder(0)).toBe('Stop')
+    expect(formatOrder(1)).toBe('Full')
+    expect(formatOrder(0.5)).toBe('Slow')
+  })
+
+  it('puts the left stick on the bow pod and the right stick on the stern', () => {
+    const memory: StickMemory = { bow: false, stern: false }
+    const idle = { bow: false, stern: false }
+    const fullAhead = ferryStickPatch([0, -1, 0, 0], memory, idle)
+    expect(fullAhead.bowAz).toBeCloseTo(0, 5)
+    expect(fullAhead.bowThrust).toBeCloseTo(1, 5)
+    expect(fullAhead.sternThrust).toBeUndefined()
+
+    const port = ferryStickPatch([-1, 0, 0.7, 0], memory, idle)
+    expect(port.bowAz).toBeCloseTo(Math.PI / 2, 5)
+    expect(port.bowThrust).toBeCloseTo(1, 5)
+    expect(port.sternAz).toBeCloseTo(-Math.PI / 2, 5)
+    expect(port.sternThrust).toBeGreaterThan(0.5)
+
+    const released = ferryStickPatch([0, 0, 0, 0], memory, idle)
+    expect(released.bowThrust).toBe(0)
+    expect(released.sternThrust).toBe(0)
+    expect(released.bowAz).toBeUndefined()
+
+    const resting = ferryStickPatch([0, 0, 0, 0], memory, idle)
+    expect(resting).toEqual({})
+
+    memory.bow = true
+    const held = ferryStickPatch([0, -1, 0, 0], memory, { bow: true, stern: false })
+    expect(held.bowThrust).toBeUndefined()
+    expect(memory.bow).toBe(true)
+  })
+
   it('keeps thrust on the current azimuth and wraps the dial', () => {
     resetPods()
     updatePods({ bowAz: Math.PI * 3, bowThrust: 2, sternThrust: -2 })
@@ -38,6 +80,28 @@ describe('azimuth pods', () => {
     expect(pods.bowThrust).toBe(1)
     expect(pods.sternThrust).toBe(-1)
     expect(pods.sternAz).toBe(0)
+    expect(pods.bowAim).toBe(0)
+  })
+
+  it('slews the pod toward the lever the short way', () => {
+    resetPods()
+    updatePods({ bowAz: Math.PI / 2, sternAz: -Math.PI / 2 })
+    stepPods(0.1)
+    stepPods(0.1)
+    const moved = getPods()
+    expect(moved.bowAim ?? 0).toBeGreaterThan(0.2)
+    expect(moved.bowAim ?? 0).toBeLessThan(Math.PI / 2)
+    expect(moved.sternAim ?? 0).toBeLessThan(-0.2)
+    expect(moved.sternAim ?? 0).toBeGreaterThan(-Math.PI / 2)
+
+    const before = Math.PI - 0.1
+    updatePods({ bowAim: before, bowAz: -Math.PI + 0.1 })
+    stepPods(0.05)
+    expect(getPods().bowAim ?? 0).toBeGreaterThan(before)
+
+    for (let i = 0; i < 30; i++) stepPods(0.1)
+    expect(getPods().bowAim).toBeCloseTo(-Math.PI + 0.1, 5)
+    expect(getPods().sternAim).toBeCloseTo(-Math.PI / 2, 5)
   })
 })
 
@@ -51,6 +115,20 @@ describe('ferry dynamics', () => {
     const back = run(rest(), { ...stopped, bowThrust: -1, sternThrust: -1 }, 8)
     expect(back.speed).toBeLessThan(-1.2)
     expect(Math.abs(back.yaw)).toBeLessThan(0.02)
+  })
+
+  it('pushes along the pod until the pod has caught the lever', () => {
+    const pose = rest()
+    stepFerry(pose, {
+      bowAz: Math.PI / 2,
+      sternAz: Math.PI / 2,
+      bowThrust: 1,
+      sternThrust: 1,
+      bowAim: 0,
+      sternAim: 0,
+    }, 0.05)
+    expect(pose.speed).toBeGreaterThan(0)
+    expect(Math.abs(pose.sway)).toBeLessThan(0.02)
   })
 
   it('reverses the push at a fixed azimuth', () => {

@@ -10,7 +10,7 @@ export { POD_Z }
  * so a vehicle lane runs to starboard, ramps at both ends, one azimuth pod
  * under each end. Local space matches the sloop: +z bow, +x port, y = 0 at
  * the waterline. The hull is one Lambert mesh. Each pod is its own mesh so
- * the dial can yaw it and the screw can spin.
+ * the lever can yaw it and the screw can spin.
  *
  * The collision outline is a handful of boxes. A ferry this shape does not
  * need the sloop's dense loft, and a remote helm only tests this outline
@@ -21,7 +21,7 @@ const HALF = FERRY_LOA / 2 - 1.4
 const BEAM = FERRY_BEAM / 2 - 0.15
 const DECK = 2.12
 
-/** Parcel on the open lane, clear of the wheelhouse. */
+/** Middle of the three cars on the open lane, clear of the wheelhouse. */
 export const FERRY_CARGO = { x: -2.4, y: DECK + 0.02, z: -2 }
 
 const BLUE: RGB = [0.22, 0.55, 0.78]

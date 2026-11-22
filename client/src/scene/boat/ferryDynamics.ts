@@ -62,15 +62,21 @@ function podPush(azimuth: number, thrust: number) {
   }
 }
 
+/** The pod's heading when it has one, otherwise the lever. */
+function podHeading(azimuth: number, aim: number | undefined) {
+  return aim == null || !Number.isFinite(aim) ? azimuth : aim
+}
+
 /**
  * One explicit step. `pose` is mutated. Collision is the caller's job.
- * The command is applied as-is: the dial is the pod.
+ * Thrust follows the pod's current heading. A lever that has moved ahead
+ * of the pod does not push until the pod has turned to meet it.
  */
 export function stepFerry(pose: FerryPose, command: Pods, dt: number) {
   const step = Math.min(Math.max(dt, 0), 0.1)
   if (step === 0) return
-  const bow = podPush(command.bowAz, command.bowThrust)
-  const stern = podPush(command.sternAz, command.sternThrust)
+  const bow = podPush(podHeading(command.bowAz, command.bowAim), command.bowThrust)
+  const stern = podPush(podHeading(command.sternAz, command.sternAim), command.sternThrust)
   let surge = bow.surge + stern.surge
   let sway = bow.sway + stern.sway
   // A push to port on the bow swings the bow to port. The same push on the stern swings it back.

@@ -1,6 +1,8 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { nudgeCamera } from '../scene/cameraDrive'
 import { controlDrag, getHelm, updateHelm, type Helm, type HelmMode } from '../scene/boat/helm'
+import { ferryStickPatch, podDrag, updatePods, type StickMemory } from '../scene/boat/pods'
+import { getVessel } from '../scene/boat/vessel'
 import {
   actionsFor,
   axisLever,
@@ -364,7 +366,60 @@ function rising(id: ActionId, pads: readonly PadSample[], prev: Map<ActionId, nu
   return was < 0.5 && value >= 0.5
 }
 
+const stickMemory: StickMemory = { bow: false, stern: false }
+
+/** The pad the sailor's map is on, or the only standard pad that is plugged in. */
+function drivingPad(pads: readonly PadSample[]) {
+  const bound = Object.values(state.bindings.shared).find((binding) => binding)
+  if (bound) {
+    const pad = padFor(bound, pads)
+    if (pad) return pad
+  }
+  return pads.find((pad) => pad.mapping === 'standard') ?? (pads.length === 1 ? pads[0] : undefined)
+}
+
+/**
+ * Left stick places the bow lever, right stick the stern. Camera buttons
+ * still look around. The sailboat's wheel, levers, and sheets are left alone.
+ */
+function applyFerryPods(pads: readonly PadSample[]) {
+  const pad = drivingPad(pads)
+  if (!pad) {
+    if (stickMemory.bow || stickMemory.stern) {
+      updatePods({
+        ...(stickMemory.bow ? { bowThrust: 0 } : null),
+        ...(stickMemory.stern ? { sternThrust: 0 } : null),
+      })
+    }
+    stickMemory.bow = false
+    stickMemory.stern = false
+    return
+  }
+  const patch = ferryStickPatch(pad.axes, stickMemory, { bow: podDrag('bow'), stern: podDrag('stern') })
+  if (patch.bowAz != null || patch.sternAz != null || patch.bowThrust != null || patch.sternThrust != null) {
+    updatePods(patch)
+  }
+}
+
+function applyLook(pads: readonly PadSample[], dt: number) {
+  const zoom = readAction('zoomOut', pads) - readAction('zoomIn', pads)
+  const look = readAction('lookStbd', pads) - readAction('lookPort', pads)
+  const lift = readAction('lookUp', pads) - readAction('lookDown', pads)
+  if (zoom !== 0 || look !== 0 || lift !== 0) {
+    nudgeCamera({
+      distance: zoom !== 0 ? Math.exp(zoom * RATE.zoom * dt) : 1,
+      yaw: look * RATE.lookYaw * dt,
+      height: lift * RATE.lookHeight * dt,
+    })
+  }
+}
+
 function apply(pads: readonly PadSample[], dt: number) {
+  if (getVessel() === 'ferry') {
+    applyFerryPods(pads)
+    applyLook(pads, dt)
+    return
+  }
   const helm = getHelm()
   const patch: Partial<Helm> = {}
   const mode = state.helmMode
@@ -405,17 +460,7 @@ function apply(pads: readonly PadSample[], dt: number) {
     patch.jibStarboard = lever(helm.jibStarboard, 'jibStbdHaul', 'jibStbdEase', RATE.sheet, 'jibStarboard', 0, 1, null)
   }
   updateHelm(patch)
-
-  const zoom = readAction('zoomOut', pads) - readAction('zoomIn', pads)
-  const look = readAction('lookStbd', pads) - readAction('lookPort', pads)
-  const lift = readAction('lookUp', pads) - readAction('lookDown', pads)
-  if (zoom !== 0 || look !== 0 || lift !== 0) {
-    nudgeCamera({
-      distance: zoom !== 0 ? Math.exp(zoom * RATE.zoom * dt) : 1,
-      yaw: look * RATE.lookYaw * dt,
-      height: lift * RATE.lookHeight * dt,
-    })
-  }
+  applyLook(pads, dt)
 }
 
 /** Poll pads. While a function is selected, the next press binds it and moves on. */
@@ -455,8 +500,10 @@ export function useControllerLoop() {
         return
       }
       seen.clear()
-      if (helmEdge) setHelmMode(state.helmMode === 'engine' ? 'sailing' : 'engine')
-      if (state.helmMode === 'engine' && activeEdge) setActiveThrottles(!state.activeThrottles)
+      if (getVessel() !== 'ferry') {
+        if (helmEdge) setHelmMode(state.helmMode === 'engine' ? 'sailing' : 'engine')
+        if (state.helmMode === 'engine' && activeEdge) setActiveThrottles(!state.activeThrottles)
+      }
       apply(pads, dt)
     }
     const onPadChange = () => {

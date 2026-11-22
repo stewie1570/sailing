@@ -22,14 +22,17 @@ function GearIcon() {
 
 export function HelmDock() {
   const vessel = useVessel()
-  if (vessel === 'ferry') {
-    return (
-      <div className="hud throttles mode-pods">
-        <PodPanel />
-      </div>
-    )
-  }
+  if (vessel === 'ferry') return <FerryHelm />
   return <SailHelm />
+}
+
+function FerryHelm() {
+  useControllerLoop()
+  return (
+    <div className="hud throttles mode-pods">
+      <PodPanel />
+    </div>
+  )
 }
 
 function SailHelm() {
