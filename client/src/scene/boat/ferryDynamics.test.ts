@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { boatShape } from './geometry'
 import { stepFerry, type FerryPose } from './ferryDynamics'
-import { ferryShape } from './ferryGeometry'
+import { buildFerry, ferryShape } from './ferryGeometry'
 import { azimuthFromPointer, formatAzimuth, resetPods, updatePods, getPods } from './pods'
 
 function rest(): FerryPose {
@@ -87,6 +87,37 @@ describe('ferry dynamics', () => {
     const cruise = run(rest(), { ...stopped, bowThrust: 1, sternThrust: 1 }, 40)
     expect(cruise.speed).toBeGreaterThan(3.5)
     expect(cruise.speed).toBeLessThan(6.5)
+  })
+})
+
+describe('ferry deck', () => {
+  it('faces upward so the water does not show through', () => {
+    const mesh = buildFerry()
+    const pos = mesh.geometry.getAttribute('position')
+    const col = mesh.geometry.getAttribute('color')
+    const index = mesh.geometry.getIndex()
+    expect(index).not.toBeNull()
+    let faces = 0
+    let upward = 0
+    for (let i = 0; i < index!.count; i += 3) {
+      const ia = index!.getX(i)
+      const ib = index!.getX(i + 1)
+      const ic = index!.getX(i + 2)
+      const grey = [ia, ib, ic].every((v) => Math.abs(col.getX(v) - 0.55) < 0.02 && col.getY(v) > 0.5)
+      if (!grey) continue
+      faces++
+      const abx = pos.getX(ib) - pos.getX(ia)
+      const abz = pos.getZ(ib) - pos.getZ(ia)
+      const acx = pos.getX(ic) - pos.getX(ia)
+      const acz = pos.getZ(ic) - pos.getZ(ia)
+      if (abz * acx - abx * acz > 0) upward++
+    }
+    expect(faces).toBeGreaterThan(0)
+    expect(upward).toBe(faces)
+    mesh.geometry.dispose()
+    const material = mesh.material
+    if (Array.isArray(material)) material.forEach((item) => item.dispose())
+    else material.dispose()
   })
 })
 

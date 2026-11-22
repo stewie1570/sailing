@@ -168,12 +168,13 @@ function addDeck(g: Geo) {
     const y = Math.max(a.y, b.y) + 0.02
     const c0 = vert(g, 0, y, a.z, DECK_GREY)
     const c1 = vert(g, 0, y, b.z, DECK_GREY)
-    const s0 = vert(g, a.x * 0.98, y, a.z, DECK_GREY)
-    const s1 = vert(g, b.x * 0.98, y, b.z, DECK_GREY)
-    const p0 = vert(g, -a.x * 0.98, y, a.z, DECK_GREY)
-    const p1 = vert(g, -b.x * 0.98, y, b.z, DECK_GREY)
-    quad(g, c0, s0, s1, c1)
-    quad(g, p0, c0, c1, p1)
+    const s0 = vert(g, a.x, y, a.z, DECK_GREY)
+    const s1 = vert(g, b.x, y, b.z, DECK_GREY)
+    const p0 = vert(g, -a.x, y, a.z, DECK_GREY)
+    const p1 = vert(g, -b.x, y, b.z, DECK_GREY)
+    // Front faces point up. The other order is culled, so the water shows through the hull.
+    quad(g, c0, c1, s1, s0)
+    quad(g, p0, p1, c1, c0)
   }
 }
 
