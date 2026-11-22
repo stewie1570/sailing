@@ -48,7 +48,6 @@ const DECK_GREY: RGB = [0.55, 0.57, 0.6]
 const WINDOW: RGB = [0.1, 0.16, 0.22]
 const RAIL: RGB = [0.86, 0.88, 0.9]
 const RED: RGB = [0.78, 0.16, 0.13]
-const GREEN: RGB = [0.16, 0.5, 0.28]
 const YELLOW: RGB = [0.9, 0.74, 0.16]
 const LANE: RGB = [0.78, 0.74, 0.46]
 const METAL: RGB = [0.28, 0.3, 0.33]
@@ -200,27 +199,67 @@ function addDeck(g: Geo) {
   }
 }
 
+const STEEL: RGB = [0.62, 0.64, 0.66]
+const STEEL_DARK: RGB = [0.34, 0.36, 0.38]
+
 function addRamps(g: Geo) {
   for (const end of [1, -1]) {
-    const z0 = end * (HALF - 1.6)
-    const z1 = end * (HALF + 1.55)
-    const y = DECK + 0.08
-    const lip = y - 0.35
-    const x = 5.15
-    const a = vert(g, -x, y, z0, BLUE)
-    const b = vert(g, x, y, z0, BLUE)
-    const c = vert(g, x * 0.92, lip, z1, BLUE)
-    const d = vert(g, -x * 0.92, lip, z1, BLUE)
-    if (end > 0) quad(g, a, d, c, b)
-    else quad(g, a, b, c, d)
+    const zIn = end * (HALF - 1.6)
+    const zOut = end * (HALF + 1.55)
+    const yIn = DECK + 0.1
+    const yOut = yIn - 0.48
+    const x = 5.05
+    const lipX = x * 0.9
+    const thick = 0.14
+    const top = (px: number, py: number, pz: number) => vert(g, px, py, pz, STEEL)
+    const bot = (px: number, py: number, pz: number) => vert(g, px, py, pz, STEEL_DARK)
+    const t0 = top(-x, yIn, zIn)
+    const t1 = top(x, yIn, zIn)
+    const t2 = top(lipX, yOut, zOut)
+    const t3 = top(-lipX, yOut, zOut)
+    const b0 = bot(-x, yIn - thick, zIn)
+    const b1 = bot(x, yIn - thick, zIn)
+    const b2 = bot(lipX, yOut - thick, zOut)
+    const b3 = bot(-lipX, yOut - thick, zOut)
+    // Plate, hinge edge, and the sloping underside.
+    if (end > 0) {
+      quad(g, t0, t3, t2, t1)
+      quad(g, b0, b1, b2, b3)
+    } else {
+      quad(g, t0, t1, t2, t3)
+      quad(g, b0, b3, b2, b1)
+    }
+    quad(g, t0, b0, b3, t3)
+    quad(g, t1, t2, b2, b1)
+    quad(g, t3, b3, b2, t2)
+    // Hinge barrels where the ramp meets the deck.
+    addCylinderBetween(g, -x * 0.72, yIn, zIn, x * 0.72, yIn, zIn, 0.1, METAL_DARK)
+    // Treads and a yellow lip, sitting on the slope.
+    for (let i = 1; i <= 4; i++) {
+      const t = i / 5
+      const z = zIn + (zOut - zIn) * t
+      const y = yIn + (yOut - yIn) * t
+      const half = x * (1 - 0.08 * t) * 0.86
+      addBox(g, 0, y + 0.045, z, half * 2, 0.05, 0.14, STEEL_DARK)
+    }
+    addBox(g, 0, yOut + 0.04, zOut - end * 0.22, lipX * 1.7, 0.045, 0.32, YELLOW)
+    // Curbs along each edge of the roadway.
+    for (const side of [1, -1]) {
+      addCylinderBetween(
+        g,
+        side * x * 0.98, yIn + 0.16, zIn + end * 0.15,
+        side * lipX * 0.98, yOut + 0.16, zOut - end * 0.12,
+        0.07, RAIL,
+      )
+    }
     // Wing gates, the blue cheeks beside each ramp.
     for (const side of [1, -1]) {
       const x0 = side * 4.7
       const x1 = side * 5.45
-      const g0 = vert(g, x0, y, z0, BLUE_DARK)
-      const g1 = vert(g, x1, y + 1.35, z0 + end * 0.4, BLUE_DARK)
-      const g2 = vert(g, x1, lip + 0.9, z1, BLUE_DARK)
-      const g3 = vert(g, x0, lip, z1, BLUE_DARK)
+      const g0 = vert(g, x0, yIn, zIn, BLUE_DARK)
+      const g1 = vert(g, x1, yIn + 1.35, zIn + end * 0.4, BLUE_DARK)
+      const g2 = vert(g, x1, yOut + 0.9, zOut, BLUE_DARK)
+      const g3 = vert(g, x0, yOut, zOut, BLUE_DARK)
       if (side > 0) quad(g, g0, g1, g2, g3)
       else quad(g, g0, g3, g2, g1)
     }
@@ -277,19 +316,8 @@ function addDressing(g: Geo) {
   for (const x of [-1.55, -3.55]) {
     addBox(g, x, DECK + 0.045, -1, 0.1, 0.03, 28, LANE)
   }
-  // Bollards and a short stair up to the bridge door.
   for (const z of [-12, 0, 12]) {
     addCylinderBetween(g, -4.7, DECK, z, -4.7, DECK + 0.55, z, 0.12, METAL)
-  }
-  for (let i = 0; i < 4; i++) {
-    addBox(g, HOUSE.x0 - 0.55 - i * 0.28, DECK + 0.1 + i * 0.18, 1.05, 0.32, 0.1, 0.9, METAL)
-  }
-  // Navigation lights at both ends. Port is red, starboard is green.
-  for (const end of [1, -1]) {
-    const z = end * (HALF - 0.4)
-    addBox(g, 4.9, DECK + 2.35, z, 0.16, 0.16, 0.16, RED)
-    addBox(g, -4.9, DECK + 2.35, z, 0.16, 0.16, 0.16, GREEN)
-    addBox(g, 0, DECK + 2.55, end * (HALF + 0.15), 0.14, 0.14, 0.14, WHITE)
   }
 }
 
