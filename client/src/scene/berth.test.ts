@@ -8,7 +8,7 @@ import {
   dockBoxes,
   inHarbor,
   randomBerth,
-  type Berth,
+  type Slip,
 } from './harborLayout'
 
 const map = {
@@ -38,7 +38,7 @@ function insideDock(x: number, z: number) {
 }
 
 /** Inset corners of the hull that should be lying in clear water. */
-function samples(berth: Berth) {
+function samples(berth: Slip) {
   const loa = berth.kind === 'ferry' ? FERRY_LOA : SAIL_LOA
   const beam = berth.kind === 'ferry' ? FERRY_BEAM : SAIL_BEAM
   const halfL = loa / 2 - 1

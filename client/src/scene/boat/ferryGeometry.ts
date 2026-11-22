@@ -21,6 +21,9 @@ const HALF = FERRY_LOA / 2 - 1.4
 const BEAM = FERRY_BEAM / 2 - 0.15
 const DECK = 2.12
 
+/** Parcel on the open lane, clear of the wheelhouse. */
+export const FERRY_CARGO = { x: -2.4, y: DECK + 0.02, z: -2 }
+
 const BLUE: RGB = [0.22, 0.55, 0.78]
 const BLUE_DARK: RGB = [0.13, 0.38, 0.58]
 const WHITE: RGB = [0.93, 0.94, 0.95]

@@ -7,6 +7,8 @@ import { useMySlot } from '../net/session'
 import { Boat } from './boat/Boat'
 import { Ferry } from './boat/Ferry'
 import { RemoteFleet } from './boat/RemoteFerry'
+import { bindChallengeChart } from './challenge'
+import { ChallengeDirector, ChallengeMarkers } from './ChallengeView'
 import { chaseOffset, MOTION, spawnPose } from './boat/physics'
 import { stepWind } from './boat/wind'
 import { useVessel, vesselView } from './boat/vessel'
@@ -150,6 +152,8 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
       <Harbors map={map} />
       <WindClock />
       {vessel === 'ferry' ? <Ferry map={map} slot={slot} /> : <Boat map={map} slot={slot} />}
+      <ChallengeMarkers />
+      <ChallengeDirector />
       <RemoteFleet map={map} />
       <OrbitControls
         makeDefault
@@ -175,7 +179,11 @@ export function Scene({ onReady }: { onReady?: () => void }) {
 
   useEffect(() => {
     let cancelled = false
-    mapPromise.then(() => { if (!cancelled) onReady?.() })
+    mapPromise.then((map) => {
+      if (cancelled) return
+      bindChallengeChart(map)
+      onReady?.()
+    })
     return () => { cancelled = true }
   }, [mapPromise, onReady])
 

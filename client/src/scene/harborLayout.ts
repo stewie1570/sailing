@@ -108,6 +108,10 @@ export interface HarborPiece {
   /** Metres across the piece. */
   thickness: number
   kind: Kind
+  /** Index into the marina list. 0 is west, 1 is east, matching the chart harbors. */
+  harbor: number
+  /** A sail finger a sloop can lie against. Linkspan wings are not slips. */
+  slip?: 'sail'
 }
 
 interface FingerSpot {
@@ -172,6 +176,8 @@ function combFingers(comb: Comb, basin: [number, number]): FingerSpot[] {
  */
 interface Terminal {
   id: string
+  /** Same index as the marina this landing sits in. */
+  harbor: number
   x: number
   y: number
   ax: number
@@ -192,6 +198,7 @@ const FERRY_WALL = 8
 const TERMINALS: Terminal[] = [
   {
     id: 'west',
+    harbor: 0,
     x: 136.2,
     y: 246,
     ax: -1,
@@ -205,6 +212,7 @@ const TERMINALS: Terminal[] = [
   },
   {
     id: 'east',
+    harbor: 1,
     x: 878,
     y: 505.2,
     ax: 0,
@@ -232,6 +240,7 @@ function terminalPieces(terminal: Terminal, mpp: number): HarborPiece[] {
     y1: terminal.y + terminal.by * headHalf,
     thickness: terminal.wall,
     kind: 'deck',
+    harbor: terminal.harbor,
   }]
   const along = px(terminal.wall / 2 + terminal.clearLength / 2)
   const wingHalf = px(wingMetres) / 2
@@ -246,6 +255,7 @@ function terminalPieces(terminal: Terminal, mpp: number): HarborPiece[] {
       y1: cy + terminal.ay * wingHalf,
       thickness: terminal.wall,
       kind: 'finger',
+      harbor: terminal.harbor,
     })
   }
   return out
@@ -254,10 +264,10 @@ function terminalPieces(terminal: Terminal, mpp: number): HarborPiece[] {
 /** Moles, walkways, sail fingers and ferry linkspans. The meshes, the collision and the chart share this list. */
 export function harborPieces(metersPerPixel = CHART_MPP): HarborPiece[] {
   const out: HarborPiece[] = []
-  for (const marina of MARINAS) {
-    for (const seg of marina.segments) out.push(seg)
+  MARINAS.forEach((marina, harbor) => {
+    for (const seg of marina.segments) out.push({ ...seg, harbor })
     for (const comb of marina.combs) {
-      out.push({ x0: comb.x0, y0: comb.y0, x1: comb.x1, y1: comb.y1, thickness: WALK, kind: 'deck' })
+      out.push({ x0: comb.x0, y0: comb.y0, x1: comb.x1, y1: comb.y1, thickness: WALK, kind: 'deck', harbor })
       for (const finger of combFingers(comb, marina.basin)) {
         out.push({
           x0: finger.bx,
@@ -266,15 +276,17 @@ export function harborPieces(metersPerPixel = CHART_MPP): HarborPiece[] {
           y1: finger.ty,
           thickness: FINGER,
           kind: 'finger',
+          harbor,
+          slip: 'sail',
         })
       }
     }
-  }
+  })
   for (const terminal of TERMINALS) out.push(...terminalPieces(terminal, metersPerPixel))
   return out
 }
 
-export interface Berth {
+export interface Slip {
   id: string
   kind: VesselKind
   /** Chart-pixel centre of the hull when it is lying in the slip. */
@@ -293,8 +305,8 @@ function bowYaw(nx: number, ny: number) {
 }
 
 /** Sail slips are the water between adjacent fingers. Ferry slips are the linkspan pockets. */
-export function berths(metersPerPixel = CHART_MPP): Berth[] {
-  const out: Berth[] = []
+export function berths(metersPerPixel = CHART_MPP): Slip[] {
+  const out: Slip[] = []
   for (const marina of MARINAS) {
     marina.combs.forEach((comb, combIndex) => {
       const frame = combFrame(comb, marina.basin)
@@ -342,7 +354,7 @@ export function berths(metersPerPixel = CHART_MPP): Berth[] {
   return out
 }
 
-export function berthsFor(kind: VesselKind, metersPerPixel = CHART_MPP): Berth[] {
+export function berthsFor(kind: VesselKind, metersPerPixel = CHART_MPP): Slip[] {
   return berths(metersPerPixel).filter((berth) => berth.kind === kind)
 }
 
@@ -350,16 +362,100 @@ export function berthsFor(kind: VesselKind, metersPerPixel = CHART_MPP): Berth[]
  * One slip of this class. Challenges draw from this so a sloop is not sent to
  * a linkspan, and a ferry is not sent into a finger gap.
  */
-export function randomBerth(kind: VesselKind, random: () => number = Math.random, metersPerPixel = CHART_MPP): Berth {
+export function randomBerth(kind: VesselKind, random: () => number = Math.random, metersPerPixel = CHART_MPP): Slip {
   const list = berthsFor(kind, metersPerPixel)
   const index = Math.min(list.length - 1, Math.max(0, Math.floor(random() * list.length)))
   return list[index]
 }
 
 /** The slip is big enough for that hull, with water left on every side. */
-export function berthFits(berth: Berth) {
+export function berthFits(berth: Slip) {
   if (berth.kind === 'ferry') return berth.length >= FERRY_LOA + 4 && berth.width >= FERRY_BEAM + 4
   return berth.length >= SAIL_LOA + 4 && berth.width >= SAIL_BEAM + 4
+}
+
+/**
+ * A dock a hull stops against. Local +X runs along the piece. Fingers run
+ * from the walkway toward the tip. A linkspan head runs along the row of slips.
+ */
+export interface Berth {
+  harbor: number
+  name: string
+  x: number
+  z: number
+  y: number
+  rotationY: number
+  length: number
+  height: number
+  thickness: number
+}
+
+interface ChartSize {
+  metersPerPixel: number
+  width: number
+  height: number
+  harbors?: readonly { name: string }[]
+}
+
+function pieceBerth(seg: HarborPiece, map: ChartSize, lengthBonus: number): Berth | null {
+  const dx = seg.x1 - seg.x0
+  const dy = seg.y1 - seg.y0
+  const lenPx = Math.hypot(dx, dy)
+  if (lenPx < 0.4) return null
+  const m = map.metersPerPixel
+  const cx = (seg.x0 + seg.x1) / 2
+  const cy = (seg.y0 + seg.y1) / 2
+  return {
+    harbor: seg.harbor,
+    name: map.harbors?.[seg.harbor]?.name ?? 'Harbor',
+    x: (cx - map.width / 2) * m,
+    z: (cy - map.height / 2) * m,
+    y: 0.2,
+    rotationY: -Math.atan2(dy, dx),
+    length: lenPx * m + lengthBonus,
+    height: 0.7,
+    thickness: seg.thickness,
+  }
+}
+
+/** Finger pontoons a sloop can lie alongside. Same world box as the finger meshes. */
+export function fingerBerths(map: ChartSize): Berth[] {
+  const out: Berth[] = []
+  for (const seg of harborPieces(map.metersPerPixel)) {
+    if (seg.slip !== 'sail') continue
+    const berth = pieceBerth(seg, map, 1.5)
+    if (berth) out.push(berth)
+  }
+  return out
+}
+
+/**
+ * The linkspan head of each ferry slip. The hull noses up to this face.
+ * One per pocket, so a challenge can pick a single berth in either basin.
+ */
+export function linkspanBerths(map: ChartSize): Berth[] {
+  const out: Berth[] = []
+  const m = map.metersPerPixel
+  const pitch = FERRY_CLEAR_W + FERRY_WALL
+  for (const terminal of TERMINALS) {
+    for (let i = 0; i < terminal.count; i++) {
+      const offset = (i - (terminal.count - 1) / 2) * pitch
+      const hx = terminal.x + terminal.bx * (offset / m)
+      const hy = terminal.y + terminal.by * (offset / m)
+      out.push({
+        harbor: terminal.harbor,
+        name: map.harbors?.[terminal.harbor]?.name ?? 'Harbor',
+        x: (hx - map.width / 2) * m,
+        z: (hy - map.height / 2) * m,
+        y: 0.2,
+        rotationY: -Math.atan2(terminal.by, terminal.bx),
+        length: terminal.clearWidth,
+        height: 0.7,
+        thickness: terminal.wall,
+      })
+    }
+  }
+  return out
 }
 
 export interface DockBox {

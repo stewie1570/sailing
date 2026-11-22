@@ -25,7 +25,10 @@ import {
   rigFrame,
   spinFrame,
   WHEEL_RADIUS,
+  CARGO_DECK,
 } from './geometry'
+import { useChallenge } from '../challenge'
+import { Crate } from '../ChallengeView'
 import { getHelm, updateHelm } from './helm'
 import {
   chaseYaw,
@@ -83,6 +86,7 @@ function disposeMesh(mesh: THREE.Mesh) {
  * relative to the hull.
  */
 export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
+  const cargoOnDeck = useChallenge().cargo === 'deck'
   const hull = useMemo(() => buildSailboat(), [])
   const fenders = useMemo(() => buildFenders(), [])
   const [fendersHung, setFendersHung] = useState(false)
@@ -484,6 +488,11 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   return (
     <group ref={group} position={[pose.x, 0, pose.z]} rotation={[0, pose.yaw, 0]}>
       <primitive object={hull} />
+      {cargoOnDeck && (
+        <group position={[CARGO_DECK.x, CARGO_DECK.y + 0.04, CARGO_DECK.z]}>
+          <Crate />
+        </group>
+      )}
       <primitive object={fenders} visible={fendersHung} />
       <group ref={boomRef} position={[rig.boomX, rig.boomY, rig.boomZ]}>
         <primitive object={boomMesh} />

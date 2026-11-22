@@ -8,7 +8,9 @@ import { applyCameraNudge } from '../cameraDrive'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
 import { stepFerry } from './ferryDynamics'
-import { POD_Y, POD_Z, buildFerry, buildPod, buildPodScrew, ferryShape } from './ferryGeometry'
+import { POD_Y, POD_Z, FERRY_CARGO, buildFerry, buildPod, buildPodScrew, ferryShape } from './ferryGeometry'
+import { useChallenge } from '../challenge'
+import { Crate } from '../ChallengeView'
 import { getPods, updatePods } from './pods'
 import {
   chaseYaw,
@@ -53,6 +55,7 @@ function disposeMesh(mesh: THREE.Mesh) {
  * step them. Another sailor is a published pose and a static outline.
  */
 export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
+  const cargoOnDeck = useChallenge().cargo === 'deck'
   const hull = useMemo(() => buildFerry(), [])
   const bowPod = useMemo(() => buildPod(), [])
   const sternPod = useMemo(() => buildPod(), [])
@@ -315,6 +318,11 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
   return (
     <group ref={group} position={[pose.x, 0, pose.z]} rotation={[0, pose.yaw, 0]}>
       <primitive object={hull} />
+      {cargoOnDeck && (
+        <group position={[FERRY_CARGO.x, FERRY_CARGO.y, FERRY_CARGO.z]}>
+          <Crate />
+        </group>
+      )}
       <group ref={bowRef} position={[0, POD_Y, POD_Z]}>
         <primitive object={bowPod} />
         <group ref={bowSpinRef} position={[0, 0, 1.05]}>
