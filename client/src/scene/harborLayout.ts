@@ -195,6 +195,24 @@ const FERRY_CLEAR_L = 56
 const FERRY_WALL = 8
 
 /**
+ * Where the shore laps over a quay, a short lip on the water side of that
+ * stretch only. The rest of the quay stays put. The lip reaches just past
+ * the beach so a hull meets the dock before the bank.
+ */
+const QUAY_LIPS: { id: string; from: number; to: number; extra: number }[] = [
+  { id: 'west', from: -80, to: -22, extra: 10 },
+  { id: 'east', from: 132, to: 156, extra: 10 },
+]
+
+function quayLip(id: string, along: number, pad = 0) {
+  let extra = 0
+  for (const lip of QUAY_LIPS) {
+    if (lip.id === id && along >= lip.from - pad && along <= lip.to + pad) extra = Math.max(extra, lip.extra)
+  }
+  return extra
+}
+
+/**
  * The quay runs along the shore opposite the inlet: the town shore on the
  * west side of West Harbor, and the town shore on the east side of East
  * Harbor. The ferry approaches from the water inside the basin.
@@ -246,6 +264,24 @@ function terminalPieces(terminal: Terminal, mpp: number): HarborPiece[] {
     kind: 'deck',
     harbor: terminal.harbor,
   }]
+  for (const lip of QUAY_LIPS) {
+    if (lip.id !== terminal.id) continue
+    // The collision box adds 6 m of length, so the drawn line is that much shorter.
+    const mid = (lip.from + lip.to) / 2
+    const half = px(lip.to - lip.from - 6) / 2
+    const shift = px(terminal.wall / 2 + lip.extra / 2)
+    const cx = terminal.x + terminal.bx * px(mid) + terminal.ax * shift
+    const cy = terminal.y + terminal.by * px(mid) + terminal.ay * shift
+    out.push({
+      x0: cx - terminal.bx * half,
+      y0: cy - terminal.by * half,
+      x1: cx + terminal.bx * half,
+      y1: cy + terminal.by * half,
+      thickness: lip.extra,
+      kind: 'deck',
+      harbor: terminal.harbor,
+    })
+  }
   const along = px(terminal.wall / 2 + terminal.clearLength / 2)
   const wingHalf = px(wingMetres) / 2
   for (let i = 0; i <= terminal.count; i++) {
@@ -340,14 +376,15 @@ export function berths(metersPerPixel = CHART_MPP): Slip[] {
   }
   const pitch = FERRY_CLEAR_W + FERRY_WALL
   for (const terminal of TERMINALS) {
-    const along = (terminal.wall / 2 + terminal.clearLength / 2) / metersPerPixel
     for (let i = 0; i < terminal.count; i++) {
-      const offset = (i - (terminal.count - 1) / 2) * pitch / metersPerPixel
+      const metres = (i - (terminal.count - 1) / 2) * pitch
+      const offset = metres / metersPerPixel
+      const reach = (terminal.wall / 2 + terminal.clearLength / 2 + quayLip(terminal.id, metres, 8)) / metersPerPixel
       out.push({
         id: `ferry-${terminal.id}-${i}`,
         kind: 'ferry',
-        px: terminal.x + terminal.bx * offset + terminal.ax * along,
-        py: terminal.y + terminal.by * offset + terminal.ay * along,
+        px: terminal.x + terminal.bx * offset + terminal.ax * reach,
+        py: terminal.y + terminal.by * offset + terminal.ay * reach,
         // Made fast bow-in: the bow points at the linkspan, opposite the approach.
         yaw: bowYaw(-terminal.ax, -terminal.ay),
         length: terminal.clearLength,
@@ -444,8 +481,9 @@ export function linkspanBerths(map: ChartSize): Berth[] {
   for (const terminal of TERMINALS) {
     for (let i = 0; i < terminal.count; i++) {
       const offset = (i - (terminal.count - 1) / 2) * pitch
-      const hx = terminal.x + terminal.bx * (offset / m)
-      const hy = terminal.y + terminal.by * (offset / m)
+      const extra = quayLip(terminal.id, offset, 8)
+      const hx = terminal.x + terminal.bx * (offset / m) + terminal.ax * (extra / 2 / m)
+      const hy = terminal.y + terminal.by * (offset / m) + terminal.ay * (extra / 2 / m)
       out.push({
         harbor: terminal.harbor,
         name: map.harbors?.[terminal.harbor]?.name ?? 'Harbor',
@@ -455,7 +493,7 @@ export function linkspanBerths(map: ChartSize): Berth[] {
         rotationY: -Math.atan2(terminal.by, terminal.bx),
         length: terminal.clearWidth,
         height: 0.7,
-        thickness: terminal.wall,
+        thickness: terminal.wall + extra,
       })
     }
   }

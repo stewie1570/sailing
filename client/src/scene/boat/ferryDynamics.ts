@@ -32,8 +32,9 @@ const HULL = {
   /** Newtons from one pod at full ahead. Astern is a large fraction of that. */
   ahead: 78000,
   astern: 0.82,
-  dragLin: 14000,
-  dragQuad: 3800,
+  // Tuned so full ahead settles near 8.4 m/s, about three quarters faster than before.
+  dragLin: 5630,
+  dragQuad: 1530,
   swayLin: 85000,
   swayQuad: 26000,
   yawLin: 7.5e6,
@@ -97,7 +98,7 @@ export function stepFerry(pose: FerryPose, command: Pods, dt: number) {
   let nu = u + (surge / HULL.mass + v * r) * step
   let nv = v + (sway / HULL.mass - u * r) * step
   let nr = r + (yaw / HULL.inertia) * step
-  nu = clamp(nu, -4, 8)
+  nu = clamp(nu, -7, 14)
   nv = clamp(nv, -2.2, 2.2)
   nr = clamp(nr, -0.5, 0.5)
   if (idle) {

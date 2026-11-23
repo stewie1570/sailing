@@ -188,8 +188,8 @@ describe('ferry dynamics', () => {
     expect(moving.yawRate).toBe(0)
 
     const cruise = run(rest(), { ...stopped, bowThrust: 1, sternThrust: 1 }, 40)
-    expect(cruise.speed).toBeGreaterThan(3.5)
-    expect(cruise.speed).toBeLessThan(6.5)
+    expect(cruise.speed).toBeGreaterThan(7)
+    expect(cruise.speed).toBeLessThan(9.5)
   })
 })
 
