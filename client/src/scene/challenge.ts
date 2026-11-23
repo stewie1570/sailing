@@ -4,12 +4,14 @@ import { FERRY_BEAM, FERRY_LOA, getVessel, type VesselKind } from './boat/vessel
 import { fingerBerths, linkspanBerths, type Berth } from './harborLayout'
 
 /**
- * A delivery run between the two harbours. A sloop picks up at a finger in
- * whichever harbour it is nearer, and a ferry noses up to a linkspan there.
+ * A delivery run between the two harbours. Pickup is a random dock in the
+ * harbour the boat is nearest: a finger for a sloop, a linkspan for a ferry.
  * Stopping beside the parcel, with the drive at stop and any sails furled,
  * puts it on deck. The run then points at the other harbour. Stopping there
- * the same way sets the parcel down and freezes the clock. Docks buried in
- * the shore, or with no open side, are left out of the draw.
+ * the same way sets the parcel down and freezes the clock. A finger whose
+ * deck is on the shore is left out, and so is any dock with no open side.
+ * A linkspan may sit on the beach; it stays in the draw when the boat can
+ * meet it from the water.
  */
 
 export interface BoatSample {
@@ -124,17 +126,19 @@ function onShore(ground: Ground, x: number, z: number) {
 }
 
 /**
- * A finger the boat can use. The pontoon where she would lie is in the water,
- * and at least one side has open water out to the fairway. Land or a bank on
- * the dock, or on both approaches, leaves it out of the draw.
+ * A dock the boat can use. A finger has to lie in the water. A linkspan is a
+ * quay, so its deck may be on the beach; the boat only needs open water on
+ * the side it approaches from. Land on both sides leaves either one out.
  */
-export function berthReachable(berth: Berth, ground: Ground) {
+export function berthReachable(berth: Berth, ground: Ground, landing: 'finger' | 'quay' = 'finger') {
   const parcel = packageAlong(berth)
   const limit = berth.length / 2 - 1
   const clamp = (along: number) => Math.min(limit, Math.max(-limit, along))
-  for (let along = parcel - 7; along <= parcel + 7; along += 3.5) {
-    const p = dockPoint(berth, clamp(along))
-    if (onShore(ground, p.x, p.z)) return false
+  if (landing === 'finger') {
+    for (let along = parcel - 7; along <= parcel + 7; along += 3.5) {
+      const p = dockPoint(berth, clamp(along))
+      if (onShore(ground, p.x, p.z)) return false
+    }
   }
   const face = berth.thickness / 2
   const sideClear = (side: 1 | -1) => {
@@ -149,8 +153,8 @@ export function berthReachable(berth: Berth, ground: Ground) {
   return sideClear(1) || sideClear(-1)
 }
 
-function usable(berths: readonly Berth[], ground: Ground | null) {
-  return ground ? berths.filter((berth) => berthReachable(berth, ground)) : berths
+function usable(berths: readonly Berth[], ground: Ground | null, landing: 'finger' | 'quay') {
+  return ground ? berths.filter((berth) => berthReachable(berth, ground, landing)) : berths
 }
 
 export function bindChallengeChart(map: ChartSize | null) {
@@ -163,9 +167,24 @@ export function bindChallengeChart(map: ChartSize | null) {
   const ground = map.isLand && map.heightAt
     ? { isLand: map.isLand.bind(map), heightAt: map.heightAt.bind(map) }
     : null
-  sailBerths = usable(fingerBerths(map), ground)
-  ferryBerths = usable(linkspanBerths(map), ground)
+  sailBerths = usable(fingerBerths(map), ground, 'finger')
+  ferryBerths = usable(linkspanBerths(map), ground, 'quay')
   harborMarks = map.harbors ?? []
+}
+
+/** Harbour mark nearest the boat. Falls back when the chart has no positions. */
+function harborNear(berths: readonly Berth[], x: number, z: number) {
+  let best: number | null = null
+  let bestD = Infinity
+  harborMarks.forEach((mark, id) => {
+    if (typeof mark.x !== 'number' || typeof mark.z !== 'number') return
+    const d = Math.hypot(mark.x - x, mark.z - z)
+    if (d < bestD) {
+      bestD = d
+      best = id
+    }
+  })
+  return best ?? nearestHarbor(berths, x, z)
 }
 
 /** Harbour whose marked centre, or the middle of its slips, is nearer the boat. */
@@ -303,14 +322,9 @@ export function startChallenge(
 ) {
   const chartBerths = kind === 'ferry' ? ferryBerths : sailBerths
   if (!chartBerths || chartBerths.length === 0) return false
-  let harbor = nearestHarbor(chartBerths, at.x, at.z, harborMarks)
-  let pickup = pickBerth(chartBerths, harbor, rng)
-  if (!pickup) {
-    const other = chartBerths.find((berth) => berth.harbor !== harbor)
-    if (!other) return false
-    harbor = other.harbor
-    pickup = pickBerth(chartBerths, harbor, rng)
-  }
+  // The nearer harbour, even when the other basin is the only one left in the list.
+  const harbor = harborNear(chartBerths, at.x, at.z)
+  const pickup = pickBerth(chartBerths, harbor, rng)
   if (!pickup) return false
   run = {
     phase: 'pickup',

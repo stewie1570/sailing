@@ -38,12 +38,16 @@ function stopped(pose: { x: number; z: number; yaw: number }, speed = 0): BoatSa
   return { ...pose, speed, sway: 0, yawRate: 0, engines: false, sails: false }
 }
 
-function acrossOf(berth: Berth, x: number, z: number) {
+function frameOf(berth: Berth, x: number, z: number) {
   const dx = x - berth.x
   const dz = z - berth.z
   const c = Math.cos(berth.rotationY)
   const s = Math.sin(berth.rotationY)
-  return dx * s + dz * c
+  return { along: dx * c - dz * s, across: dx * s + dz * c }
+}
+
+function acrossOf(berth: Berth, x: number, z: number) {
+  return frameOf(berth, x, z).across
 }
 
 function bowOn(berth: Berth, side: 1 | -1): BoatSample {
@@ -140,6 +144,17 @@ describe('reachable slips', () => {
       heightAt: () => -6,
     })).toBe(true)
   })
+
+  it('keeps a quay on the beach when the boat can still come alongside', () => {
+    const quay = linkspanBerths(CHART).find((item) => item.harbor === 0)!
+    const beach = {
+      isLand: (x: number, z: number) => acrossOf(quay, x, z) > -quay.thickness / 2,
+      heightAt: () => -6,
+    }
+    expect(berthReachable(quay, beach)).toBe(false)
+    expect(berthReachable(quay, beach, 'quay')).toBe(true)
+    expect(berthReachable(quay, { isLand: () => true, heightAt: () => -6 }, 'quay')).toBe(false)
+  })
 })
 
 describe('challenge run', () => {
@@ -188,6 +203,23 @@ describe('challenge run', () => {
     dismissChallenge()
     expect(getChallenge().phase).toBe('idle')
     expect(getChallenge().target).toBeNull()
+  })
+
+  it('picks a random finger in the nearer harbour', () => {
+    const chosen = new Set<string>()
+    for (const roll of [0, 0.33, 0.66, 0.95]) {
+      resetChallenge()
+      expect(startChallenge(0, () => roll, WEST)).toBe(true)
+      const target = getChallenge().target
+      expect(target?.harbor).toBe(0)
+      expect(target?.name).toBe('West Harbor')
+      chosen.add(`${target?.x.toFixed(1)},${target?.z.toFixed(1)}`)
+    }
+    expect(chosen.size).toBeGreaterThan(1)
+    resetChallenge()
+    expect(startChallenge(0, () => 0.2, EAST)).toBe(true)
+    expect(getChallenge().target?.harbor).toBe(1)
+    expect(getChallenge().target?.name).toBe('East Harbor')
   })
 
   it('starts in the nearer harbour and delivers to the other', () => {
@@ -246,6 +278,48 @@ describe('ferry linkspans', () => {
     const pose = bowIn(berth)
     expect(besidePackage(berth, pose, 'ferry')).toBe(true)
     expect(besidePackage(berth, { ...pose, engines: true }, 'ferry')).toBe(false)
+  })
+
+  it('picks a random linkspan in the nearer harbour when the quay is on the beach', () => {
+    resetChallenge()
+    const west = linkspanBerths(CHART).filter((berth) => berth.harbor === 0)
+    bindChallengeChart({
+      ...CHART,
+      isLand: (x, z) => west.some((berth) => {
+        const { along, across } = frameOf(berth, x, z)
+        return Math.abs(along) <= berth.length / 2 + 2 && across > -berth.thickness / 2
+      }),
+      heightAt: () => -6,
+    })
+    const chosen = new Set<string>()
+    for (const roll of [0, 0.17, 0.5, 0.83]) {
+      resetChallenge()
+      expect(startChallenge(0, () => roll, WEST, 'ferry')).toBe(true)
+      const target = getChallenge().target
+      expect(target?.harbor).toBe(0)
+      expect(target?.name).toBe('West Harbor')
+      chosen.add(`${target?.x.toFixed(1)},${target?.z.toFixed(1)}`)
+    }
+    expect(chosen.size).toBeGreaterThan(1)
+    resetChallenge()
+    expect(startChallenge(0, () => 0.4, EAST, 'ferry')).toBe(true)
+    expect(getChallenge().target?.harbor).toBe(1)
+    expect(getChallenge().target?.name).toBe('East Harbor')
+    resetChallenge()
+  })
+
+  it('does not send the ferry across the lake when the nearer quays are closed', () => {
+    resetChallenge()
+    const west = linkspanBerths(CHART).filter((berth) => berth.harbor === 0)
+    bindChallengeChart({
+      ...CHART,
+      isLand: (x, z) => west.some((berth) => Math.hypot(x - berth.x, z - berth.z) < 40),
+      heightAt: () => -6,
+    })
+    expect(startChallenge(0, () => 0, WEST, 'ferry')).toBe(false)
+    expect(getChallenge().phase).toBe('idle')
+    resetChallenge()
+    bindChallengeChart(CHART)
   })
 
   it('carries the cars from one harbour to the other', () => {
