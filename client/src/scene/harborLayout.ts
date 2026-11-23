@@ -194,17 +194,20 @@ const FERRY_CLEAR_W = 18
 const FERRY_CLEAR_L = 56
 const FERRY_WALL = 8
 
-/** One landing in the open water of each basin, clear of the sailboat fingers. */
+/**
+ * One landing on the inner shore of each basin, in the water between the
+ * sail fingers and the breakwater. The ferry approaches from inside the harbour.
+ */
 const TERMINALS: Terminal[] = [
   {
     id: 'west',
     harbor: 0,
-    x: 136.2,
-    y: 246,
-    ax: -1,
-    ay: 0,
-    bx: 0,
-    by: 1,
+    x: 122,
+    y: 267,
+    ax: 0,
+    ay: -1,
+    bx: 1,
+    by: 0,
     count: 4,
     clearWidth: FERRY_CLEAR_W,
     clearLength: FERRY_CLEAR_L,
@@ -213,10 +216,10 @@ const TERMINALS: Terminal[] = [
   {
     id: 'east',
     harbor: 1,
-    x: 878,
-    y: 505.2,
+    x: 872,
+    y: 561,
     ax: 0,
-    ay: 1,
+    ay: -1,
     bx: 1,
     by: 0,
     count: 3,

@@ -182,9 +182,8 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       }
       pinch = null
       if (drag !== event.pointerId || !prev) return
-      // Orbit outside drags the world with the pointer. Yaw follows that grab.
-      // Pitch already matched: dragging down looks down.
-      look.current.yaw += (event.clientX - prev.x) * 0.0032
+      // Drag left looks left, drag down looks down.
+      look.current.yaw -= (event.clientX - prev.x) * 0.0032
       look.current.pitch = Math.min(1.15, Math.max(-1.2, look.current.pitch - (event.clientY - prev.y) * 0.0032))
     }
     const onUp = (event: PointerEvent) => {
@@ -380,7 +379,7 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       const prev = follow.current
       if (bridge.current) {
         look.current.yaw -= nudged.yaw
-        look.current.pitch = Math.min(1.15, Math.max(-1.2, look.current.pitch - nudged.height * 0.06))
+        look.current.pitch = Math.min(1.15, Math.max(-1.2, look.current.pitch + nudged.height * 0.06))
         const zoomOut = leaveBridge.current || nudged.distance > 1.001
         leaveBridge.current = false
         if (zoomOut) {

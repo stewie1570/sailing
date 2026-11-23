@@ -200,69 +200,22 @@ function addDeck(g: Geo) {
 }
 
 const STEEL: RGB = [0.62, 0.64, 0.66]
-const STEEL_DARK: RGB = [0.34, 0.36, 0.38]
 
+/** One sloping plate at each end. No cheeks, so there is nothing that shows from only one side. */
 function addRamps(g: Geo) {
   for (const end of [1, -1]) {
     const zIn = end * (HALF - 1.6)
     const zOut = end * (HALF + 1.55)
-    const yIn = DECK + 0.1
-    const yOut = yIn - 0.48
+    const yIn = DECK + 0.08
+    const yOut = yIn - 0.42
     const x = 5.05
-    const lipX = x * 0.9
-    const thick = 0.14
-    const top = (px: number, py: number, pz: number) => vert(g, px, py, pz, STEEL)
-    const bot = (px: number, py: number, pz: number) => vert(g, px, py, pz, STEEL_DARK)
-    const t0 = top(-x, yIn, zIn)
-    const t1 = top(x, yIn, zIn)
-    const t2 = top(lipX, yOut, zOut)
-    const t3 = top(-lipX, yOut, zOut)
-    const b0 = bot(-x, yIn - thick, zIn)
-    const b1 = bot(x, yIn - thick, zIn)
-    const b2 = bot(lipX, yOut - thick, zOut)
-    const b3 = bot(-lipX, yOut - thick, zOut)
-    // Plate, hinge edge, and the sloping underside.
-    if (end > 0) {
-      quad(g, t0, t3, t2, t1)
-      quad(g, b0, b1, b2, b3)
-    } else {
-      quad(g, t0, t1, t2, t3)
-      quad(g, b0, b3, b2, b1)
-    }
-    quad(g, t0, b0, b3, t3)
-    quad(g, t1, t2, b2, b1)
-    quad(g, t3, b3, b2, t2)
-    // Hinge barrels where the ramp meets the deck.
-    addCylinderBetween(g, -x * 0.72, yIn, zIn, x * 0.72, yIn, zIn, 0.1, METAL_DARK)
-    // Treads and a yellow lip, sitting on the slope.
-    for (let i = 1; i <= 4; i++) {
-      const t = i / 5
-      const z = zIn + (zOut - zIn) * t
-      const y = yIn + (yOut - yIn) * t
-      const half = x * (1 - 0.08 * t) * 0.86
-      addBox(g, 0, y + 0.045, z, half * 2, 0.05, 0.14, STEEL_DARK)
-    }
-    addBox(g, 0, yOut + 0.04, zOut - end * 0.22, lipX * 1.7, 0.045, 0.32, YELLOW)
-    // Curbs along each edge of the roadway.
-    for (const side of [1, -1]) {
-      addCylinderBetween(
-        g,
-        side * x * 0.98, yIn + 0.16, zIn + end * 0.15,
-        side * lipX * 0.98, yOut + 0.16, zOut - end * 0.12,
-        0.07, RAIL,
-      )
-    }
-    // Wing gates, the blue cheeks beside each ramp.
-    for (const side of [1, -1]) {
-      const x0 = side * 4.7
-      const x1 = side * 5.45
-      const g0 = vert(g, x0, yIn, zIn, BLUE_DARK)
-      const g1 = vert(g, x1, yIn + 1.35, zIn + end * 0.4, BLUE_DARK)
-      const g2 = vert(g, x1, yOut + 0.9, zOut, BLUE_DARK)
-      const g3 = vert(g, x0, yOut, zOut, BLUE_DARK)
-      if (side > 0) quad(g, g0, g1, g2, g3)
-      else quad(g, g0, g3, g2, g1)
-    }
+    const lip = x * 0.92
+    const a = vert(g, -x, yIn, zIn, STEEL)
+    const b = vert(g, x, yIn, zIn, STEEL)
+    const c = vert(g, lip, yOut, zOut, STEEL)
+    const d = vert(g, -lip, yOut, zOut, STEEL)
+    if (end > 0) quad(g, a, d, c, b)
+    else quad(g, a, b, c, d)
   }
 }
 
