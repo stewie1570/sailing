@@ -15,6 +15,7 @@ import {
   type PodEnd,
   type Pods,
 } from '../scene/boat/pods'
+import { useController } from '../input/controller'
 import { useCancelSliderTouch } from './sliderTouch'
 
 /** Fraction of the dome the ball can travel. Matches the stem in the stylesheet. */
@@ -134,8 +135,15 @@ function Unit({ end, pods }: { end: PodEnd; pods: Pods }) {
 /** One bridge panel. Each pod is a single lever on a dome. */
 export function PodPanel() {
   const pods = usePods()
+  const { activeThrottles, pads } = useController()
+  const sticks = pads.length > 0
   return (
     <div className="pod-panel" aria-label="Azimuth pods">
+      {sticks && (
+        <div className="throttle-mode">
+          {activeThrottles ? 'Sticks are the levers' : 'Sticks move the levers'}
+        </div>
+      )}
       <div className="pod-units">
         <Unit end="bow" pods={pods} />
         <Unit end="stern" pods={pods} />

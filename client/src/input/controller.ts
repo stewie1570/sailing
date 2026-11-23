@@ -379,10 +379,12 @@ function drivingPad(pads: readonly PadSample[]) {
 }
 
 /**
- * Left stick places the bow lever, right stick the stern. Camera buttons
- * still look around. The sailboat's wheel, levers, and sheets are left alone.
+ * Left stick drives the bow lever, right stick the stern. Active throttles
+ * make a stick position the lever. Off, the stick walks the lever and leaves
+ * it. Camera buttons still look around. The sailboat's wheel, levers, and
+ * sheets are left alone.
  */
-function applyFerryPods(pads: readonly PadSample[]) {
+function applyFerryPods(pads: readonly PadSample[], dt: number) {
   const pad = drivingPad(pads)
   if (!pad) {
     if (stickMemory.bow || stickMemory.stern) {
@@ -395,7 +397,13 @@ function applyFerryPods(pads: readonly PadSample[]) {
     stickMemory.stern = false
     return
   }
-  const patch = ferryStickPatch(pad.axes, stickMemory, { bow: podDrag('bow'), stern: podDrag('stern') })
+  const patch = ferryStickPatch(
+    pad.axes,
+    stickMemory,
+    { bow: podDrag('bow'), stern: podDrag('stern') },
+    state.activeThrottles,
+    dt,
+  )
   if (patch.bowAz != null || patch.sternAz != null || patch.bowThrust != null || patch.sternThrust != null) {
     updatePods(patch)
   }
@@ -416,7 +424,7 @@ function applyLook(pads: readonly PadSample[], dt: number) {
 
 function apply(pads: readonly PadSample[], dt: number) {
   if (getVessel() === 'ferry') {
-    applyFerryPods(pads)
+    applyFerryPods(pads, dt)
     applyLook(pads, dt)
     return
   }
@@ -500,7 +508,9 @@ export function useControllerLoop() {
         return
       }
       seen.clear()
-      if (getVessel() !== 'ferry') {
+      if (getVessel() === 'ferry') {
+        if (activeEdge) setActiveThrottles(!state.activeThrottles)
+      } else {
         if (helmEdge) setHelmMode(state.helmMode === 'engine' ? 'sailing' : 'engine')
         if (state.helmMode === 'engine' && activeEdge) setActiveThrottles(!state.activeThrottles)
       }

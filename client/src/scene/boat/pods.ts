@@ -148,6 +148,9 @@ export function formatOrder(value: number) {
  */
 export const POD_DEAD = 0.18
 
+/** How fast a stick walks a lever across the dome, in radii per second at full deflection. */
+export const POD_NUDGE = 0.9
+
 export type PodEnd = 'bow' | 'stern'
 
 /**
@@ -179,21 +182,85 @@ export interface StickMemory {
   stern: boolean
 }
 
+/** Where the lever sits on the dome. x is right, y is down, and the rim is full thrust. */
+export function leverPoint(az: number, thrust: number) {
+  const mag = Math.min(1, Math.abs(thrust))
+  const aim = thrust < 0 ? wrapAzimuth(az + Math.PI) : az
+  return { x: -Math.sin(aim) * mag, y: -Math.cos(aim) * mag }
+}
+
+/**
+ * Walk the lever in the stick's direction and leave it there.
+ * A centred stick returns null, so the lever stays put.
+ */
+export function nudgePod(
+  az: number,
+  thrust: number,
+  stickX: number,
+  stickY: number,
+  dt: number,
+  rate = POD_NUDGE,
+) {
+  const mag = Math.hypot(stickX, stickY)
+  if (mag <= POD_DEAD || !(dt > 0)) return null
+  const gain = Math.min(1, (mag - POD_DEAD) / (1 - POD_DEAD))
+  const step = gain * rate * dt
+  const point = leverPoint(az, thrust)
+  let x = point.x + (stickX / mag) * step
+  let y = point.y + (stickY / mag) * step
+  const reach = Math.hypot(x, y)
+  if (reach > 1) {
+    x /= reach
+    y /= reach
+  }
+  if (reach < 0.02) return { thrust: 0 }
+  return { az: azimuthFromPointer(x, y), thrust: Math.min(1, reach) }
+}
+
 /**
  * Left stick (axes 0 and 1) is the bow pod. Right stick (axes 2 and 3) is
- * the stern. A stick outside the deadzone places that lever. Letting it
- * spring back to the centre stops the thrust and leaves the azimuth.
+ * the stern. With active sticks, a point outside the deadzone places that
+ * lever, and letting it spring back stops the thrust and leaves the azimuth.
+ * Without them, the stick walks the lever and a centred stick leaves it.
  * A stick that has not moved does not clear a lever set with the pointer.
  */
 export function ferryStickPatch(
   axes: ArrayLike<number>,
   memory: StickMemory,
   dragging: Record<PodEnd, boolean> = dragged,
+  active = true,
+  dt = 0,
+  current: Pods = getPods(),
 ): Partial<Pods> {
   const patch: Partial<Pods> = {}
-  take(patch, memory, 'bow', dragging.bow, podFromStick(axes[0] ?? 0, axes[1] ?? 0))
-  take(patch, memory, 'stern', dragging.stern, podFromStick(axes[2] ?? 0, axes[3] ?? 0))
+  if (active) {
+    take(patch, memory, 'bow', dragging.bow, podFromStick(axes[0] ?? 0, axes[1] ?? 0))
+    take(patch, memory, 'stern', dragging.stern, podFromStick(axes[2] ?? 0, axes[3] ?? 0))
+    return patch
+  }
+  walk(patch, 'bow', dragging.bow, axes[0] ?? 0, axes[1] ?? 0, dt, current)
+  walk(patch, 'stern', dragging.stern, axes[2] ?? 0, axes[3] ?? 0, dt, current)
   return patch
+}
+
+function walk(
+  patch: Partial<Pods>,
+  end: PodEnd,
+  skip: boolean,
+  stickX: number,
+  stickY: number,
+  dt: number,
+  current: Pods,
+) {
+  if (skip) return
+  const az = end === 'bow' ? current.bowAz : current.sternAz
+  const thrust = end === 'bow' ? current.bowThrust : current.sternThrust
+  const moved = nudgePod(az, thrust, stickX, stickY, dt)
+  if (!moved) return
+  const azKey = end === 'bow' ? 'bowAz' : 'sternAz'
+  const thrustKey = end === 'bow' ? 'bowThrust' : 'sternThrust'
+  if (moved.az != null) patch[azKey] = moved.az
+  patch[thrustKey] = moved.thrust
 }
 
 function take(

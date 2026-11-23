@@ -4,7 +4,7 @@ import { BRIDGE_EYE } from './ferryGeometry'
 import { boatShape } from './geometry'
 import { stepFerry, type FerryPose } from './ferryDynamics'
 import { buildFerry, ferryShape } from './ferryGeometry'
-import { azimuthFromPointer, ferryStickPatch, formatAzimuth, formatOrder, getPods, podFromStick, resetPods, stepPods, updatePods, type StickMemory } from './pods'
+import { azimuthFromPointer, ferryStickPatch, formatAzimuth, formatOrder, getPods, nudgePod, podFromStick, resetPods, stepPods, updatePods, type StickMemory } from './pods'
 
 function rest(): FerryPose {
   return { x: 0, z: 0, yaw: 0, speed: 0, sway: 0, yawRate: 0 }
@@ -72,6 +72,29 @@ describe('azimuth pods', () => {
     const held = ferryStickPatch([0, -1, 0, 0], memory, { bow: true, stern: false })
     expect(held.bowThrust).toBeUndefined()
     expect(memory.bow).toBe(true)
+  })
+
+  it('walks a pod lever with the stick and leaves it when the stick centres', () => {
+    const ahead = nudgePod(0, 0, 0, -1, 0.5)
+    expect(ahead?.az).toBeCloseTo(0, 5)
+    expect(ahead?.thrust).toBeCloseTo(0.45, 2)
+    expect(nudgePod(0, 0.45, 0, 0, 0.5)).toBeNull()
+
+    const held = ferryStickPatch([0, -1, 0, 0], { bow: false, stern: false }, { bow: false, stern: false }, false, 0.5, {
+      bowAz: 0, sternAz: 0, bowThrust: 0, sternThrust: 0,
+    })
+    expect(held.bowThrust).toBeGreaterThan(0.4)
+    expect(held.bowAz).toBeCloseTo(0, 5)
+
+    const released = ferryStickPatch([0, 0, 0, 0], { bow: true, stern: false }, { bow: false, stern: false }, false, 0.5, {
+      bowAz: 0, sternAz: 0, bowThrust: 0.5, sternThrust: 0,
+    })
+    expect(released).toEqual({})
+
+    const rim = nudgePod(0, 1, 0, -1, 1)
+    expect(rim?.thrust).toBeLessThanOrEqual(1)
+    const port = nudgePod(0, 1, -1, 0, 0.4)
+    expect(port?.az).toBeGreaterThan(0.2)
   })
 
   it('keeps thrust on the current azimuth and wraps the dial', () => {
