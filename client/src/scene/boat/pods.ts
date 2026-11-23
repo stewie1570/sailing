@@ -208,13 +208,18 @@ export function nudgePod(
   const point = leverPoint(az, thrust)
   let x = point.x + (stickX / mag) * step
   let y = point.y + (stickY / mag) * step
-  const reach = Math.hypot(x, y)
+  let reach = Math.hypot(x, y)
   if (reach > 1) {
     x /= reach
     y /= reach
+    reach = 1
   }
-  if (reach < 0.02) return { thrust: 0 }
-  return { az: azimuthFromPointer(x, y), thrust: Math.min(1, reach) }
+  // Landing on the centre is stop. A step that leaves the centre is kept:
+  // one frame from stop is shorter than this radius, and snapping it put the
+  // lever straight back.
+  const previous = Math.hypot(point.x, point.y)
+  if (reach < 0.02 && reach <= previous) return { thrust: 0 }
+  return { az: azimuthFromPointer(x, y), thrust: reach }
 }
 
 /**

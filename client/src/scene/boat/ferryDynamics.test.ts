@@ -96,6 +96,28 @@ describe('azimuth pods', () => {
     expect(rim?.thrust).toBeLessThanOrEqual(1)
     const port = nudgePod(0, 1, -1, 0, 0.4)
     expect(port?.az).toBeGreaterThan(0.2)
+
+    const frame = nudgePod(0, 0, 0, -1, 1 / 60)
+    expect(frame?.thrust).toBeGreaterThan(0)
+    expect(frame?.az).toBeCloseTo(0, 5)
+    let az = 0
+    let thrust = 0
+    for (let i = 0; i < 12; i++) {
+      const step = nudgePod(az, thrust, 0, -1, 1 / 60)
+      expect(step?.thrust).toBeGreaterThan(thrust)
+      az = step?.az ?? az
+      thrust = step?.thrust ?? thrust
+    }
+    for (let i = 0; i < 40; i++) {
+      const step = nudgePod(az, thrust, 0, 1, 1 / 60)
+      if (!step || step.thrust === 0) {
+        thrust = step?.thrust ?? thrust
+        break
+      }
+      az = step.az ?? az
+      thrust = step.thrust
+    }
+    expect(thrust).toBe(0)
   })
 
   it('keeps thrust on the current azimuth and wraps the dial', () => {
