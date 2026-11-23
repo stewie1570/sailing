@@ -176,7 +176,8 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       if (!bridge.current) return
       if (pointers.size >= 2) {
         const next = span()
-        if (pinch != null && pinch > 0 && next > pinch * 1.08) leaveBridge.current = true
+        // Outside, spreading the fingers dollies in and pinching them dollies out.
+        if (pinch != null && pinch > 0 && next < pinch * 0.92) leaveBridge.current = true
         pinch = next
         return
       }
