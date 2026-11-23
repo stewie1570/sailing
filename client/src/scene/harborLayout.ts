@@ -64,8 +64,8 @@ const MARINAS: { segments: Segment[]; combs: Comb[]; beacon: [number, number]; b
 
 /** Water inside each basin, in chart pixels. The chart paints this before the docks. */
 export const HARBOR_BASINS: [number, number][][] = [
-  [[90, 214], [134, 214], [138, 232], [146, 252], [136, 268], [118, 276], [96, 270], [90, 248]],
-  [[834, 512], [848, 504], [902, 502], [906, 558], [900, 566], [844, 564], [828, 520]],
+  [[82, 214], [134, 214], [138, 232], [146, 252], [136, 268], [118, 276], [96, 270], [90, 248], [76, 242], [73, 234], [74, 220], [78, 216]],
+  [[834, 512], [848, 504], [902, 502], [914, 508], [914, 532], [908, 556], [900, 566], [844, 564], [828, 520]],
 ]
 
 function insidePolygon(x: number, y: number, poly: readonly (readonly [number, number])[]) {
@@ -195,20 +195,21 @@ const FERRY_CLEAR_L = 56
 const FERRY_WALL = 8
 
 /**
- * One landing on the inner shore of each basin, in the water between the
- * sail fingers and the breakwater. The ferry approaches from inside the harbour.
+ * The quay runs along the shore opposite the inlet: the town shore on the
+ * west side of West Harbor, and the town shore on the east side of East
+ * Harbor. The ferry approaches from the water inside the basin.
  */
 const TERMINALS: Terminal[] = [
   {
     id: 'west',
     harbor: 0,
-    x: 122,
-    y: 267,
-    ax: 0,
-    ay: -1,
-    bx: 1,
-    by: 0,
-    count: 4,
+    x: 77,
+    y: 227,
+    ax: 0.9554,
+    ay: 0.2953,
+    bx: -0.2953,
+    by: 0.9554,
+    count: 7,
     clearWidth: FERRY_CLEAR_W,
     clearLength: FERRY_CLEAR_L,
     wall: FERRY_WALL,
@@ -216,13 +217,13 @@ const TERMINALS: Terminal[] = [
   {
     id: 'east',
     harbor: 1,
-    x: 872,
-    y: 561,
-    ax: 0,
-    ay: -1,
-    bx: 1,
-    by: 0,
-    count: 3,
+    x: 905,
+    y: 529,
+    ax: -0.9973,
+    ay: 0.0739,
+    bx: 0.0739,
+    by: 0.9973,
+    count: 15,
     clearWidth: FERRY_CLEAR_W,
     clearLength: FERRY_CLEAR_L,
     wall: FERRY_WALL,
