@@ -9,6 +9,7 @@
 // Run with: npm run build   (inside tools/mapgen)
 
 import sharp from 'sharp';
+import { cutFerryApproaches } from './ferryCut.mjs';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -419,3 +420,4 @@ writeFileSync(resolve(OUT, 'trees.json'), JSON.stringify(trees));
   await sharp(out, { raw: { width: W, height: H, channels: 3 } }).png().toFile(`/tmp/mapgen-height-preview-${Date.now()}.png`);
 }
 console.log(`buoys ${buoys.length}, harbors`, harbors);
+await cutFerryApproaches(OUT);
