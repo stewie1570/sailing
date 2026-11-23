@@ -181,21 +181,52 @@ function addHull(g: Geo) {
   }
 }
 
+/**
+ * One vehicle deck. The strips used to sit on the higher of their two edges,
+ * so where the gunwale rises the plates stepped apart and the lake showed
+ * through. Shared corners at one height make a single plate.
+ */
 function addDeck(g: Geo) {
   const U = 16
+  const deckY = DECK + 0.02
+  const edge: { x: number; y: number; z: number }[] = []
+  const center: number[] = []
+  const starboard: number[] = []
+  const port: number[] = []
+  for (let i = 0; i <= U; i++) {
+    const p = hullPoint(i / U, 1)
+    edge.push(p)
+    center.push(vert(g, 0, deckY, p.z, DECK_GREY))
+    starboard.push(vert(g, p.x, deckY, p.z, DECK_GREY))
+    port.push(vert(g, -p.x, deckY, p.z, DECK_GREY))
+  }
   for (let i = 0; i < U; i++) {
-    const a = hullPoint(i / U, 1)
-    const b = hullPoint((i + 1) / U, 1)
-    const y = Math.max(a.y, b.y) + 0.02
-    const c0 = vert(g, 0, y, a.z, DECK_GREY)
-    const c1 = vert(g, 0, y, b.z, DECK_GREY)
-    const s0 = vert(g, a.x, y, a.z, DECK_GREY)
-    const s1 = vert(g, b.x, y, b.z, DECK_GREY)
-    const p0 = vert(g, -a.x, y, a.z, DECK_GREY)
-    const p1 = vert(g, -b.x, y, b.z, DECK_GREY)
-    // Front faces point up. The other order is culled, so the water shows through the hull.
-    quad(g, c0, c1, s1, s0)
-    quad(g, p0, p1, c1, c0)
+    // Front faces point up. The other order is culled, so the water shows through.
+    quad(g, center[i], center[i + 1], starboard[i + 1], starboard[i])
+    quad(g, port[i], port[i + 1], center[i + 1], center[i])
+  }
+  addGunwaleLip(g, edge, deckY)
+}
+
+/** Close the wedge where the bow and stern gunwales rise above the plate. */
+function addGunwaleLip(g: Geo, edge: { x: number; y: number; z: number }[], deckY: number) {
+  for (const side of [1, -1]) {
+    const low: number[] = []
+    const high: number[] = []
+    for (const p of edge) {
+      low.push(vert(g, side * p.x, deckY, p.z, WHITE))
+      high.push(vert(g, side * p.x, Math.max(p.y, deckY), p.z, WHITE))
+    }
+    for (let i = 0; i < edge.length - 1; i++) {
+      if (edge[i].y <= deckY + 1e-3 && edge[i + 1].y <= deckY + 1e-3) continue
+      if (side > 0) {
+        quad(g, low[i], low[i + 1], high[i + 1], high[i])
+        quad(g, low[i], high[i], high[i + 1], low[i + 1])
+      } else {
+        quad(g, low[i], high[i], high[i + 1], low[i + 1])
+        quad(g, low[i], low[i + 1], high[i + 1], high[i])
+      }
+    }
   }
 }
 

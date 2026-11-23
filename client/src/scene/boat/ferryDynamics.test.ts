@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import * as THREE from 'three'
 import { bridgeExitLocal, overFerryDeck, shipToWorld, worldToShip } from './ferryBridge'
 import { BRIDGE_EYE } from './ferryGeometry'
 import { boatShape } from './geometry'
@@ -216,6 +217,13 @@ describe('ferry bridge camera', () => {
   })
 })
 
+function disposeFerry(mesh: THREE.Mesh) {
+  mesh.geometry.dispose()
+  const material = mesh.material
+  if (Array.isArray(material)) material.forEach((item) => item.dispose())
+  else material.dispose()
+}
+
 describe('ferry deck', () => {
   it('faces upward so the water does not show through', () => {
     const mesh = buildFerry()
@@ -225,6 +233,7 @@ describe('ferry deck', () => {
     expect(index).not.toBeNull()
     let faces = 0
     let upward = 0
+    const plate: number[] = []
     for (let i = 0; i < index!.count; i += 3) {
       const ia = index!.getX(i)
       const ib = index!.getX(i + 1)
@@ -232,6 +241,7 @@ describe('ferry deck', () => {
       const grey = [ia, ib, ic].every((v) => Math.abs(col.getX(v) - 0.55) < 0.02 && col.getY(v) > 0.5)
       if (!grey) continue
       faces++
+      plate.push(pos.getY(ia), pos.getY(ib), pos.getY(ic))
       const abx = pos.getX(ib) - pos.getX(ia)
       const abz = pos.getZ(ib) - pos.getZ(ia)
       const acx = pos.getX(ic) - pos.getX(ia)
@@ -240,10 +250,45 @@ describe('ferry deck', () => {
     }
     expect(faces).toBeGreaterThan(0)
     expect(upward).toBe(faces)
-    mesh.geometry.dispose()
-    const material = mesh.material
-    if (Array.isArray(material)) material.forEach((item) => item.dispose())
-    else material.dispose()
+    expect(Math.max(...plate) - Math.min(...plate)).toBeLessThan(1e-4)
+    disposeFerry(mesh)
+  })
+
+  it('is one plate from the chair, including the bow and the stern', () => {
+    const mesh = buildFerry()
+    mesh.updateMatrixWorld(true)
+    const pos = mesh.geometry.getAttribute('position')
+    const col = mesh.geometry.getAttribute('color')
+    let plateY = 0
+    for (let i = 0; i < pos.count; i++) {
+      if (Math.abs(col.getX(i) - 0.55) < 0.02 && col.getY(i) > 0.5) {
+        plateY = pos.getY(i)
+        break
+      }
+    }
+    const ray = new THREE.Raycaster()
+    const from = new THREE.Vector3(BRIDGE_EYE.x, BRIDGE_EYE.y, BRIDGE_EYE.z)
+    for (const z of [17.2, 18.6, 19.4, -17.2, -18.6, -19.4]) {
+      for (const x of [-2.2, 0, 1.4]) {
+        const below = new THREE.Vector3(x, plateY - 0.4, z)
+        const dir = below.clone().sub(from)
+        const reach = dir.length()
+        ray.set(from, dir.normalize())
+        const hits = ray.intersectObject(mesh, false).filter((hit) => hit.distance <= reach + 0.05)
+        expect(hits.length, `deck at ${x}, ${z}`).toBeGreaterThan(0)
+        expect(hits[0].point.y, `plate at ${x}, ${z}`).toBeCloseTo(plateY, 2)
+      }
+    }
+    // A look out through the raised gunwale meets the lip, not the lake.
+    for (const z of [19.2, -19.2]) {
+      const origin = new THREE.Vector3(0, plateY + 0.08, z)
+      ray.set(origin, new THREE.Vector3(1, 0, 0))
+      const hit = ray.intersectObject(mesh, false)[0]
+      expect(hit, `starboard lip at ${z}`).toBeTruthy()
+      expect(hit.point.x).toBeGreaterThan(3)
+      expect(hit.point.x).toBeLessThan(6.2)
+    }
+    disposeFerry(mesh)
   })
 })
 
