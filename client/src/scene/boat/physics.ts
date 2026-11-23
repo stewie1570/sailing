@@ -1,6 +1,5 @@
 import type { MapData } from '../../map/mapData'
 import { chartToWorld } from '../harborLayout'
-import { stepMotion, type AirDrive, type Drive } from './dynamics'
 
 /** Open water just outside West Harbor, bow pointing at the entrance. */
 export const SPAWN_CHART: readonly [number, number] = [178, 268]
@@ -94,8 +93,10 @@ export interface HullEmbed {
 }
 
 /**
- * Screws, rudder and hull resistance. On contact the hull is set back on the
- * skin and the closing speed rebounds. A glancing blow keeps sliding. A hull
+ * Hull resistance and whatever drives this vessel. `advance` is one motion
+ * step for the hull that owns the pose — screws and sails, or pods. This
+ * function does not know which. On contact the hull is set back on the skin
+ * and the closing speed rebounds. A glancing blow keeps sliding. A hull
  * that is already inside the ground or a dock — a hard hit that skipped the
  * skin — is pushed back out instead of being left there with no way on.
  *
@@ -104,10 +105,9 @@ export interface HullEmbed {
  */
 export function integrate(
   pose: Pose,
-  drive: Drive,
   dt: number,
   hit: (x: number, z: number, yaw: number, probe?: boolean) => boolean,
-  air?: AirDrive,
+  advance: (pose: Pose, dt: number) => void,
   embed?: (x: number, z: number, yaw: number) => HullEmbed,
 ) {
   let remaining = Math.min(Math.max(dt, 0), MOTION.maxFrame)
@@ -118,7 +118,7 @@ export function integrate(
     const prevX = pose.x
     const prevZ = pose.z
     const prevYaw = pose.yaw
-    stepMotion(pose, drive, step, air)
+    advance(pose, step)
     if (!hit(pose.x, pose.z, pose.yaw)) continue
     const impact = { speed: pose.speed, sway: pose.sway, yawRate: pose.yawRate }
     const endX = pose.x

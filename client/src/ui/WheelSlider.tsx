@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useVessel } from '../scene/boat/vessel'
 import { RUDDER_LOCK } from '../scene/boat/dynamics'
 import {
   RUDDER_GRAB,
@@ -89,6 +90,7 @@ function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number,
  * the rudder lies parallel with the hull. Dragging left is port helm.
  */
 export function WheelSlider() {
+  const ferry = useVessel() === 'ferry'
   const helm = useHelm()
   const rootRef = useRef<HTMLDivElement>(null)
   const notch = useRef(false)
@@ -96,6 +98,7 @@ export function WheelSlider() {
   useCancelSliderTouch(rootRef)
 
   useEffect(() => {
+    if (ferry) return
     let raf = 0
     const tick = () => {
       raf = requestAnimationFrame(tick)
@@ -172,7 +175,7 @@ export function WheelSlider() {
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
-  }, [])
+  }, [ferry])
 
   const apply = (raw: number, release: boolean) => {
     const d = detent(raw, notch.current, RUDDER_GRAB, RUDDER_RELEASE)
@@ -202,6 +205,7 @@ export function WheelSlider() {
   }
 
   const left = `${((helm.rudder + 1) / 2) * 100}%`
+  if (ferry) return null
 
   return (
     <div

@@ -1,41 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { leaveGame, useSession } from '../net/session'
 import { resetChallenge, startChallenge } from '../scene/challenge'
-import { ChallengeBanner, ChallengeResult } from './ChallengeHud'
+import { useVessel } from '../scene/boat/vessel'
 import { speedKnots, telemetry } from '../scene/boat/telemetry'
+import { ChallengeBanner, ChallengeResult } from './ChallengeHud'
 import { HelmDock } from './HelmDock'
 import { AisNote } from './AisNote'
 import { NavMap } from './NavMap'
 import { WheelSlider } from './WheelSlider'
 import { perf } from '../scene/quality'
 import { canFullscreen, enterFullscreen, exitFullscreen, fullscreenElement } from './fullscreen'
-
-function BoatSpeed() {
-  const valueRef = useRef<HTMLSpanElement>(null)
-
-  useEffect(() => {
-    let raf = 0
-    const tick = () => {
-      raf = requestAnimationFrame(tick)
-      const node = valueRef.current
-      if (!node) return
-      const kn = speedKnots(telemetry.speed, telemetry.sway)
-      node.textContent = `${kn < -0.05 ? '−' : ''}${Math.abs(kn).toFixed(1)}`
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [])
-
-  return (
-    <div className="hud hud-speed">
-      <div className="hud-speed-label">Speed</div>
-      <div className="hud-speed-value">
-        <span ref={valueRef}>0.0</span>
-        <span className="hud-speed-unit">kn</span>
-      </div>
-    </div>
-  )
-}
 
 function SimMenu() {
   const [open, setOpen] = useState(false)
@@ -126,6 +100,33 @@ function SimMenu() {
   )
 }
 
+function BoatSpeed() {
+  const valueRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    let raf = 0
+    const tick = () => {
+      raf = requestAnimationFrame(tick)
+      const node = valueRef.current
+      if (!node) return
+      const kn = speedKnots(telemetry.speed, telemetry.sway)
+      node.textContent = `${kn < -0.05 ? '−' : ''}${Math.abs(kn).toFixed(1)}`
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  return (
+    <div className="hud hud-speed">
+      <div className="hud-speed-label">Speed</div>
+      <div className="hud-speed-value">
+        <span ref={valueRef}>0.0</span>
+        <span className="hud-speed-unit">kn</span>
+      </div>
+    </div>
+  )
+}
+
 function RoomChip() {
   const session = useSession()
   const [copied, setCopied] = useState(false)
@@ -156,6 +157,7 @@ function RoomChip() {
 
 export function Hud({ loading }: { loading: boolean }) {
   const session = useSession()
+  const ferry = useVessel() === 'ferry'
   const [stats, setStats] = useState({ fps: 0, drawCalls: 0, triangles: 0 })
 
   useEffect(() => {
@@ -208,7 +210,9 @@ export function Hud({ loading }: { loading: boolean }) {
       <div className="hud hud-bottom">
         {loading
           ? 'Loading chart…'
-          : 'Drag to look · pinch or scroll to zoom · the gear sets a controller'}
+          : ferry
+            ? 'Drag to look · scroll onto the deck for the bridge · place each pod lever'
+            : 'Drag to look · pinch or scroll to zoom · the gear sets a controller'}
       </div>
 
       <ChallengeResult />

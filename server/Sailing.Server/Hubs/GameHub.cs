@@ -224,10 +224,19 @@ public sealed class GameHub(ILogger<GameHub> logger) : Hub<IGameClient>
         && Finite(ship.SpinLuff, -0.1, 1.1)
         && Finite(ship.Speed, -40, 40)
         && Finite(ship.Sway, -40, 40)
-        && Finite(ship.Sink, -1, 80);
+        && Finite(ship.Sink, -1, 80)
+        && KnownHull(ship.Kind)
+        && Finite(ship.BowAz, -8, 8)
+        && Finite(ship.SternAz, -8, 8)
+        && Finite(ship.BowThrust, -1.5, 1.5)
+        && Finite(ship.SternThrust, -1.5, 1.5);
 
     private static bool Finite(double value, double min, double max)
         => double.IsFinite(value) && value >= min && value <= max;
+
+    /// <summary>Missing means the sloop, which is what older helms still send.</summary>
+    private static bool KnownHull(string? kind)
+        => kind is null or "" or "sail" or "ferry";
 
     internal static string? NormalizeCode(string? raw)
     {
@@ -323,6 +332,11 @@ public sealed record ShipRelay(
     double SpinHoist = 0,
     double SpinLuff = 0,
     double Sink = 0,
-    string? Ram = "");
+    string? Ram = "",
+    string? Kind = null,
+    double BowAz = 0,
+    double SternAz = 0,
+    double BowThrust = 0,
+    double SternThrust = 0);
 
 public sealed record PongMessage(long ClientSentAt, long ServerTime);

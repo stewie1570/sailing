@@ -1,14 +1,17 @@
 import { useSyncExternalStore } from 'react'
 import { telemetry } from './boat/telemetry'
-import { fingerBerths, type Berth } from './harborLayout'
+import { FERRY_BEAM, FERRY_LOA, getVessel, type VesselKind } from './boat/vessel'
+import { fingerBerths, linkspanBerths, type Berth } from './harborLayout'
 
 /**
- * A delivery run between the two harbours. The pickup is a finger in whichever
- * harbour the boat is nearer. Stopping beside the parcel, with the engines at
- * stop and the sails furled, puts it on the aft deck. The run then points at a
- * finger in the other harbour. Stopping there the same way sets the parcel
- * down and freezes the clock. Fingers buried in the shore, or with no open
- * side, are left out of the draw.
+ * A delivery run between the two harbours. Pickup is a random dock in the
+ * harbour the boat is nearest: a finger for a sloop, a linkspan for a ferry.
+ * Stopping beside the parcel, with the drive at stop and any sails furled,
+ * puts it on deck. The run then points at the other harbour. Stopping there
+ * the same way sets the parcel down and freezes the clock. A finger whose
+ * deck is on the shore is left out, and so is any dock with no open side.
+ * A linkspan may sit on the beach; it stays in the draw when the boat can
+ * meet it from the water.
  */
 
 export interface BoatSample {
@@ -38,9 +41,11 @@ export interface ChallengeView {
   finishedAt: number | null
   /** Finger to paint. The pickup while collecting, then the delivery. */
   target: Berth | null
-  /** Where the parcel is drawn. */
+  /** Where the cargo is drawn. A sailboat carries one parcel; a ferry carries cars. */
   cargo: 'none' | 'dock' | 'deck'
   dockCargo: DockCargo | null
+  /** Which hull started the run. The sailboat path stays a parcel. */
+  kind: VesselKind
 }
 
 interface ChartSize {
@@ -66,6 +71,7 @@ interface ChallengeRun {
   dwell: number
   berths: readonly Berth[]
   rng: () => number
+  kind: VesselKind
 }
 
 /** How long the hull must stay stopped beside the parcel. */
@@ -82,8 +88,17 @@ const ALONG_REACH = 2.8
 /** Fraction of the finger length from the centre toward the tip. Clears the walkway. */
 const PACKAGE_FRAC = 0.18
 
-const STATIONS = [-6.2, -3, 0, 3, 6.2]
-const BEAMS = [-1.8, 0, 1.8]
+const SAIL_STATIONS = [-6.2, -3, 0, 3, 6.2]
+const SAIL_BEAMS = [-1.8, 0, 1.8]
+const FERRY_BOW = FERRY_LOA / 2 - 1.2
+const FERRY_STATIONS = [-FERRY_BOW, -FERRY_BOW * 0.45, 0, FERRY_BOW * 0.45, FERRY_BOW]
+const FERRY_BEAMS = [-(FERRY_BEAM / 2 - 0.8), 0, FERRY_BEAM / 2 - 0.8]
+
+function hullSamples(kind: VesselKind) {
+  return kind === 'ferry'
+    ? { stations: FERRY_STATIONS, beams: FERRY_BEAMS }
+    : { stations: SAIL_STATIONS, beams: SAIL_BEAMS }
+}
 
 const IDLE: ChallengeView = {
   phase: 'idle',
@@ -93,9 +108,11 @@ const IDLE: ChallengeView = {
   target: null,
   cargo: 'none',
   dockCargo: null,
+  kind: 'sail',
 }
 
-let chartBerths: readonly Berth[] | null = null
+let sailBerths: readonly Berth[] | null = null
+let ferryBerths: readonly Berth[] | null = null
 let harborMarks: readonly { x?: number; z?: number }[] = []
 let run: ChallengeRun | null = null
 let view: ChallengeView = IDLE
@@ -109,17 +126,19 @@ function onShore(ground: Ground, x: number, z: number) {
 }
 
 /**
- * A finger the boat can use. The pontoon where she would lie is in the water,
- * and at least one side has open water out to the fairway. Land or a bank on
- * the dock, or on both approaches, leaves it out of the draw.
+ * A dock the boat can use. A finger has to lie in the water. A linkspan is a
+ * quay, so its deck may be on the beach; the boat only needs open water on
+ * the side it approaches from. Land on both sides leaves either one out.
  */
-export function berthReachable(berth: Berth, ground: Ground) {
+export function berthReachable(berth: Berth, ground: Ground, landing: 'finger' | 'quay' = 'finger') {
   const parcel = packageAlong(berth)
   const limit = berth.length / 2 - 1
   const clamp = (along: number) => Math.min(limit, Math.max(-limit, along))
-  for (let along = parcel - 7; along <= parcel + 7; along += 3.5) {
-    const p = dockPoint(berth, clamp(along))
-    if (onShore(ground, p.x, p.z)) return false
+  if (landing === 'finger') {
+    for (let along = parcel - 7; along <= parcel + 7; along += 3.5) {
+      const p = dockPoint(berth, clamp(along))
+      if (onShore(ground, p.x, p.z)) return false
+    }
   }
   const face = berth.thickness / 2
   const sideClear = (side: 1 | -1) => {
@@ -134,18 +153,38 @@ export function berthReachable(berth: Berth, ground: Ground) {
   return sideClear(1) || sideClear(-1)
 }
 
+function usable(berths: readonly Berth[], ground: Ground | null, landing: 'finger' | 'quay') {
+  return ground ? berths.filter((berth) => berthReachable(berth, ground, landing)) : berths
+}
+
 export function bindChallengeChart(map: ChartSize | null) {
   if (!map) {
-    chartBerths = null
+    sailBerths = null
+    ferryBerths = null
     harborMarks = []
     return
   }
-  const berths = fingerBerths(map)
   const ground = map.isLand && map.heightAt
     ? { isLand: map.isLand.bind(map), heightAt: map.heightAt.bind(map) }
     : null
-  chartBerths = ground ? berths.filter((berth) => berthReachable(berth, ground)) : berths
+  sailBerths = usable(fingerBerths(map), ground, 'finger')
+  ferryBerths = usable(linkspanBerths(map), ground, 'quay')
   harborMarks = map.harbors ?? []
+}
+
+/** Harbour mark nearest the boat. Falls back when the chart has no positions. */
+function harborNear(berths: readonly Berth[], x: number, z: number) {
+  let best: number | null = null
+  let bestD = Infinity
+  harborMarks.forEach((mark, id) => {
+    if (typeof mark.x !== 'number' || typeof mark.z !== 'number') return
+    const d = Math.hypot(mark.x - x, mark.z - z)
+    if (d < bestD) {
+      bestD = d
+      best = id
+    }
+  })
+  return best ?? nearestHarbor(berths, x, z)
 }
 
 /** Harbour whose marked centre, or the middle of its slips, is nearer the boat. */
@@ -213,15 +252,16 @@ function dockFrame(berth: Berth, x: number, z: number) {
 }
 
 /** True when the hull is against the parcel, stopped, with the screws at stop and the sails furled. */
-export function besidePackage(berth: Berth, pose: BoatSample) {
+export function besidePackage(berth: Berth, pose: BoatSample, kind: VesselKind = 'sail') {
   const moving = Math.hypot(pose.speed, pose.sway) > STOP_SPEED || Math.abs(pose.yawRate) > STOP_YAW
   if (moving || pose.engines || pose.sails) return false
   const c = Math.cos(pose.yaw)
   const s = Math.sin(pose.yaw)
   const face = berth.thickness / 2
   const parcel = packageAlong(berth)
-  for (const lz of STATIONS) {
-    for (const lx of BEAMS) {
+  const { stations, beams } = hullSamples(kind)
+  for (const lz of stations) {
+    for (const lx of beams) {
       const x = pose.x + lx * c + lz * s
       const z = pose.z - lx * s + lz * c
       const local = dockFrame(berth, x, z)
@@ -252,6 +292,7 @@ function toView(current: ChallengeRun | null): ChallengeView {
     target,
     cargo: current.phase === 'carry' ? 'deck' : 'dock',
     dockCargo: target && current.phase !== 'carry' ? packageWorld(target) : null,
+    kind: current.kind,
   }
 }
 
@@ -277,16 +318,13 @@ export function startChallenge(
   now = performance.now(),
   rng: () => number = Math.random,
   at: { x: number; z: number } = telemetry,
+  kind: VesselKind = getVessel(),
 ) {
+  const chartBerths = kind === 'ferry' ? ferryBerths : sailBerths
   if (!chartBerths || chartBerths.length === 0) return false
-  let harbor = nearestHarbor(chartBerths, at.x, at.z, harborMarks)
-  let pickup = pickBerth(chartBerths, harbor, rng)
-  if (!pickup) {
-    const other = chartBerths.find((berth) => berth.harbor !== harbor)
-    if (!other) return false
-    harbor = other.harbor
-    pickup = pickBerth(chartBerths, harbor, rng)
-  }
+  // The nearer harbour, even when the other basin is the only one left in the list.
+  const harbor = harborNear(chartBerths, at.x, at.z)
+  const pickup = pickBerth(chartBerths, harbor, rng)
   if (!pickup) return false
   run = {
     phase: 'pickup',
@@ -297,6 +335,7 @@ export function startChallenge(
     dwell: 0,
     berths: chartBerths,
     rng,
+    kind,
   }
   publish()
   return true
@@ -306,7 +345,7 @@ export function stepChallenge(pose: BoatSample, dt: number, now = performance.no
   if (!run || run.phase === 'done') return
   const step = Math.min(Math.max(dt, 0), 0.1)
   const berth = run.phase === 'pickup' ? run.pickup : run.delivery
-  if (berth && besidePackage(berth, pose)) run.dwell = Math.min(DWELL, run.dwell + step)
+  if (berth && besidePackage(berth, pose, run.kind)) run.dwell = Math.min(DWELL, run.dwell + step)
   else run.dwell = Math.max(0, run.dwell - step * 3)
   if (run.dwell < DWELL) return
   run.dwell = 0

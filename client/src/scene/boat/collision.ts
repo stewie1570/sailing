@@ -142,7 +142,12 @@ function buildTrees(map: MapData, fraction: number): TreeGrid {
 }
 
 /** Docks, buildings, buoys, beacons and the trees the current quality actually draws. */
-export function colliderWorld(map: MapData, segments: readonly [number, number], treeFraction: number): ColliderWorld {
+export function colliderWorld(
+  map: MapData,
+  segments: readonly [number, number],
+  treeFraction: number,
+  shape: BoatShape = boatShape(),
+): ColliderWorld {
   const boxes = dockBoxes(map).map(boxOf)
   const roofHalf = ROOF_CONE_RADIUS * Math.SQRT1_2
   for (const b of townBuildings(map)) {
@@ -192,7 +197,7 @@ export function colliderWorld(map: MapData, segments: readonly [number, number],
     })
   }
   return {
-    shape: boatShape(),
+    shape,
     terrain: buildTerrain(map, segments[0], segments[1]),
     boxes,
     discs,
@@ -536,9 +541,15 @@ function hitsTrees(grid: TreeGrid, shape: BoatShape, x: number, z: number, yaw: 
  * like a hull driven through the bank. `ground` is metres of skin below the
  * terrain mesh. `prop` is a dock, buoy, beacon, building, or tree.
  */
-export function hullOverlap(world: ColliderWorld, x: number, z: number, yaw: number, heave = 0) {
+export function hullOverlap(
+  world: ColliderWorld,
+  x: number,
+  z: number,
+  yaw: number,
+  heave = 0,
+  shape: BoatShape = world.shape,
+) {
   let ground = 0
-  const shape = world.shape
   const t = world.terrain
   if (terrainMax(t, x - shape.radius, z - shape.radius, x + shape.radius, z + shape.radius) >= shape.skinMinY + heave) {
     const c = Math.cos(yaw)
@@ -566,24 +577,32 @@ export function hullOverlap(world: ColliderWorld, x: number, z: number, yaw: num
   return { ground, prop }
 }
 
-/** True when the sailboat mesh touches the shore, a dock, or any other solid. */
-export function blocked(world: ColliderWorld, x: number, z: number, yaw: number, heave = 0): boolean {
-  if (hitsTerrain(world.terrain, world.shape, x, z, yaw, heave)) return true
+/** True when this hull's mesh touches the shore, a dock, or any other solid. */
+export function blocked(
+  world: ColliderWorld,
+  x: number,
+  z: number,
+  yaw: number,
+  heave = 0,
+  shape: BoatShape = world.shape,
+): boolean {
+  if (hitsTerrain(world.terrain, shape, x, z, yaw, heave)) return true
   for (const box of world.boxes) {
-    if (hitsBox(box, world.shape, x, z, yaw, heave)) return true
+    if (hitsBox(box, shape, x, z, yaw, heave)) return true
   }
   for (const disc of world.discs) {
-    if (hitsDisc(disc, world.shape, x, z, yaw, heave)) return true
+    if (hitsDisc(disc, shape, x, z, yaw, heave)) return true
   }
-  return hitsTrees(world.trees, world.shape, x, z, yaw, heave)
+  return hitsTrees(world.trees, shape, x, z, yaw, heave)
 }
 
 /**
  * How deeply two hulls occupy the same water, in metres. Zero when they are clear.
  *
- * Both outlines are the same solid the dock test uses. `limit` stops the search
- * once the overlap is already at least that deep, which is all the helm needs
- * when it only has to refuse a pose that is no better than the one it left.
+ * `other` is the second hull's outline. It defaults to `shape`, which is the
+ * sloop meeting another sloop. A ferry passes its own box. Either way this is
+ * the published pose against a static outline, not the other helm's pods or sails.
+ * `limit` stops the search once the overlap is already at least that deep.
  */
 export function hullPenetration(
   shape: BoatShape,
@@ -596,10 +615,11 @@ export function hullPenetration(
   oyaw: number,
   oheave: number,
   limit = Infinity,
+  other: BoatShape = shape,
 ): number {
   const dx = ox - x
   const dz = oz - z
-  const reach = shape.radius * 2
+  const reach = shape.radius + other.radius
   if (dx * dx + dz * dz > reach * reach) return 0
   const c = Math.cos(yaw)
   const s = Math.sin(yaw)
@@ -607,12 +627,13 @@ export function hullPenetration(
   const os = Math.sin(oyaw)
   let worst = 0
   const slices = shape.slices
+  const theirs = other.slices
   for (let i = 0; i < slices.length; i++) {
     const a = slices[i]
     const a0 = a.y0 + heave
     const a1 = a.y1 + heave
-    for (let j = 0; j < slices.length; j++) {
-      const b = slices[j]
+    for (let j = 0; j < theirs.length; j++) {
+      const b = theirs[j]
       if (b.y1 + oheave < a0 || b.y0 + oheave > a1) continue
       const pen = convexPenetration(a.xz, x, z, c, s, b.xz, ox, oz, oc, os)
       if (pen > worst) worst = pen
@@ -638,10 +659,11 @@ export function hullClearance(
   oz: number,
   oyaw: number,
   oheave: number,
+  other: BoatShape = shape,
 ): number {
   const dx = ox - x
   const dz = oz - z
-  const reach = shape.radius * 2 + 4
+  const reach = shape.radius + other.radius + 4
   if (dx * dx + dz * dz > reach * reach) return Infinity
   const c = Math.cos(yaw)
   const s = Math.sin(yaw)
@@ -650,12 +672,13 @@ export function hullClearance(
   let closest = Infinity
   let compared = false
   const slices = shape.slices
+  const theirs = other.slices
   for (let i = 0; i < slices.length; i++) {
     const a = slices[i]
     const a0 = a.y0 + heave
     const a1 = a.y1 + heave
-    for (let j = 0; j < slices.length; j++) {
-      const b = slices[j]
+    for (let j = 0; j < theirs.length; j++) {
+      const b = theirs[j]
       if (b.y1 + oheave < a0 || b.y0 + oheave > a1) continue
       compared = true
       const signed = convexSigned(a.xz, x, z, c, s, b.xz, ox, oz, oc, os)

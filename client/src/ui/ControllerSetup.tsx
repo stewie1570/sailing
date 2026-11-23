@@ -20,6 +20,7 @@ import {
   type LayoutId,
 } from '../input/layouts'
 import type { HelmMode } from '../scene/boat/helm'
+import { useVessel } from '../scene/boat/vessel'
 
 function boundText(
   binding: Binding | undefined,
@@ -72,6 +73,7 @@ function layoutHelp(layout: LayoutChoice, detected: LayoutId | null, active: boo
 
 export function ControllerSetup({ onClose }: { onClose: () => void }) {
   const { activeThrottles, bindings, helmMode, layout, listening, pads } = useController()
+  const vessel = useVessel()
   const dialogRef = useRef<HTMLDivElement>(null)
   const selectedRef = useRef<HTMLButtonElement>(null)
   const actions = actionsFor(helmMode)
@@ -167,7 +169,7 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {pads.length > 0 && helmMode === 'engine' && (
+        {pads.length > 0 && (helmMode === 'engine' || vessel === 'ferry') && (
           <label className="controller-active">
             <input
               type="checkbox"
@@ -177,9 +179,13 @@ export function ControllerSetup({ onClose }: { onClose: () => void }) {
             <span>
               <span className="controller-active-name">Active throttles</span>
               <span className="controller-help">
-                {activeThrottles
-                  ? 'A stick position is the lever. Centred is stop. Buttons still nudge. The controller function toggles this.'
-                  : 'Sticks and buttons nudge the levers and leave them. Push farther and they move faster. The controller function toggles this.'}
+                {vessel === 'ferry'
+                  ? (activeThrottles
+                    ? 'A stick position is that pod’s lever. Centred is stop. The controller function toggles this.'
+                    : 'The sticks walk the pod levers and leave them. Push farther and they move faster. The controller function toggles this.')
+                  : (activeThrottles
+                    ? 'A stick position is the lever. Centred is stop. Buttons still nudge. The controller function toggles this.'
+                    : 'Sticks and buttons nudge the levers and leave them. Push farther and they move faster. The controller function toggles this.')}
               </span>
             </span>
           </label>

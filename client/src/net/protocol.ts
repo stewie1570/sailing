@@ -26,8 +26,15 @@ export interface RoomMessage {
   wind: WindSample
 }
 
-/** The pose, the speed, and the sail trim the owner is showing. Remote hulls copy this; they do not resimulate it. */
+/**
+ * The pose a remote helm is allowed to see. It copies this. It does not
+ * resimulate the owner's screws, sails, or pods.
+ * `kind` picks the mesh. Pod azimuth and thrust are the ferry's visible
+ * controls, the same way `rudder` is the sloop's. They are not forces.
+ */
 export interface ShipVisual {
+  /** Missing on an older packet. Treat that as the sloop. */
+  kind?: 'sail' | 'ferry'
   x: number
   z: number
   yaw: number
@@ -52,6 +59,11 @@ export interface ShipVisual {
   sink: number
   /** Player id this helm is driving into, or empty when it claims nobody. */
   ram: string
+  /** Ferry pods. 0 azimuth is ahead; positive aims that push toward port. Unused on a sloop. */
+  bowAz?: number
+  sternAz?: number
+  bowThrust?: number
+  sternThrust?: number
 }
 
 export interface ShipMessage extends ShipVisual {

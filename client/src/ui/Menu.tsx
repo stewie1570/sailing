@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { cleanName, filterCodeInput, isRoomCode } from '../net/protocol'
 import { hostGame, joinGame, leaveGame, sailAlone, useSession } from '../net/session'
+import { setVessel, useVessel } from '../scene/boat/vessel'
 
 export function Menu({ onLearn, hidden = false }: { onLearn: () => void; hidden?: boolean }) {
   const session = useSession()
+  const vessel = useVessel()
   const [name, setName] = useState(session.name)
   const [code, setCode] = useState('')
   const connecting = session.phase === 'connecting'
@@ -18,6 +20,29 @@ export function Menu({ onLearn, hidden = false }: { onLearn: () => void; hidden?
         <p className="menu-kicker">Sailing and docking</p>
         <h1>Lake Windermere</h1>
         <p className="menu-lead">Sail on your own, or share the lake with a four-character code.</p>
+
+        <div className="menu-vessel" role="radiogroup" aria-label="Boat">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={vessel === 'sail'}
+            className={vessel === 'sail' ? 'on' : ''}
+            disabled={connecting}
+            onClick={() => setVessel('sail')}
+          >
+            Sailboat
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={vessel === 'ferry'}
+            className={vessel === 'ferry' ? 'on' : ''}
+            disabled={connecting}
+            onClick={() => setVessel('ferry')}
+          >
+            Vehicle ferry
+          </button>
+        </div>
 
         <label className="menu-field">
           <span>Your name</span>

@@ -40,9 +40,10 @@ import {
   swell,
   type Pose,
 } from './physics'
-import { WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
+import { stepMotion, WHEEL_LOCK, RUDDER_LOCK } from './dynamics'
 import { getBoom, getClew, getHoist, getJibHoist, getSpinHalf, getSpinHoist, luffAmount, readRig, stepHoist, stepJibHoist, stepSpinHoist } from './sail'
-import { getWind, getWindDebug, stepWind } from './wind'
+import { getWind, getWindDebug } from './wind'
+import { hullShape } from './shapes'
 import { MAX_SAILORS } from '../../net/protocol'
 import { eachFreshShip, myPlayerId, noteLocalShip } from '../../net/session'
 import {
@@ -127,6 +128,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     heave: number
     sink: number
     ram: string
+    kind: string
     sunk: number
     pushed: boolean
   }[] | null>(null)
@@ -237,7 +239,6 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     const drive = getHelm()
     const time = state.clock.elapsedTime
     const frame = Math.min(Math.max(delta, 0), MOTION.maxFrame)
-    stepWind(frame)
     stepHoist(drive.halyard, frame)
     stepJibHoist(drive.jib, frame)
     stepSpinHoist(drive.spin, frame)
@@ -256,7 +257,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       // left us inside them, a move that climbs back out is still allowed. A bow
       // that drives into them names them; the named hull sinks and respawns.
       const fleet = fleetRef.current ??= Array.from({ length: MAX_SAILORS }, () => ({
-        id: '', x: 0, z: 0, yaw: 0, speed: 0, heave: 0, sink: 0, ram: '', sunk: 0, pushed: false,
+        id: '', x: 0, z: 0, yaw: 0, speed: 0, heave: 0, sink: 0, ram: '', kind: 'sail', sunk: 0, pushed: false,
       }))
       let fleetCount = 0
       eachFreshShip((ship) => {
@@ -269,6 +270,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
         other.speed = ship.speed || 0
         other.sink = ship.sink || 0
         other.ram = ship.ram || ''
+        other.kind = ship.kind === 'ferry' ? 'ferry' : 'sail'
         other.heave = swell(ship.x, ship.z, time) - other.sink
         other.pushed = false
       })
@@ -278,11 +280,13 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
         other.sunk = hullPenetration(
           world.shape, pose.x, pose.z, pose.yaw, started,
           other.x, other.z, other.yaw, other.heave,
+          Infinity,
+          hullShape(other.kind),
         )
       }
       let boatHit = false
       let ramSpeed = pose.speed
-      integrate(pose, drive, delta, (x, z, yaw, probe) => {
+      integrate(pose, delta, (x, z, yaw, probe) => {
         const heave = swell(x, z, time)
         if (blocked(world, x, z, yaw, heave)) return true
         for (let i = 0; i < fleetCount; i++) {
@@ -291,6 +295,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
             world.shape, x, z, yaw, heave,
             other.x, other.z, other.yaw, other.heave,
             Math.max(other.sunk, 1e-4),
+            hullShape(other.kind),
           )
           if (pen > 0 && pen > other.sunk - 0.001) {
             // Clearance samples must not count as driving into someone.
@@ -303,22 +308,25 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
           }
         }
         return false
-      }, {
-        wind,
-        sail: {
-          hoist: getHoist(),
-          sheet: drive.sheet,
-          jibHoist: getJibHoist(),
-          jibPort: drive.jibPort,
-          jibStarboard: drive.jibStarboard,
-          spinHoist: getSpinHoist(),
-        },
+      }, (body, step) => {
+        stepMotion(body, drive, step, {
+          wind,
+          sail: {
+            hoist: getHoist(),
+            sheet: drive.sheet,
+            jibHoist: getJibHoist(),
+            jibPort: drive.jibPort,
+            jibStarboard: drive.jibStarboard,
+            spinHoist: getSpinHoist(),
+          },
+        })
       }, (x, z, yaw) => hullOverlap(world, x, z, yaw, swell(x, z, time)))
       const here = swell(pose.x, pose.z, time)
-      const reach = world.shape.radius * 2 + RAM_TOUCH + 1.5
       const contacts: RamContact[] = []
       for (let i = 0; i < fleetCount; i++) {
         const other = fleet[i]
+        const theirs = hullShape(other.kind)
+        const reach = world.shape.radius + theirs.radius + RAM_TOUCH + 1.5
         let gap = Infinity
         if (!other.pushed) {
           const dx = other.x - pose.x
@@ -327,6 +335,7 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
             gap = hullClearance(
               world.shape, pose.x, pose.z, pose.yaw, here,
               other.x, other.z, other.yaw, other.heave,
+              theirs,
             )
           }
         }
@@ -364,27 +373,28 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     const trim = readRig(pose, wind)
     const hoistNow = getHoist()
     const flap = luffAmount(trim.main.aoa, trim.main.awa, hoistNow)
-    noteLocalShip(
-      pose.x,
-      pose.z,
-      pose.yaw,
-      drive.rudder,
-      drive.port,
-      drive.starboard,
-      hoistNow,
-      boomAngle,
-      getJibHoist(),
-      getClew(),
-      trim.main.awa,
-      flap,
-      trim.jib.luff,
-      getSpinHoist(),
-      trim.spin.luff,
-      pose.speed,
-      pose.sway,
-      wreck.depth,
-      activeClaim(wreck, performance.now()),
-    )
+    noteLocalShip({
+      kind: 'sail',
+      x: pose.x,
+      z: pose.z,
+      yaw: pose.yaw,
+      rudder: drive.rudder,
+      port: drive.port,
+      starboard: drive.starboard,
+      hoist: hoistNow,
+      boom: boomAngle,
+      jibHoist: getJibHoist(),
+      clew: getClew(),
+      vane: trim.main.awa,
+      luff: flap,
+      jibLuff: trim.jib.luff,
+      spinHoist: getSpinHoist(),
+      spinLuff: trim.spin.luff,
+      speed: pose.speed,
+      sway: pose.sway,
+      sink: wreck.depth,
+      ram: activeClaim(wreck, performance.now()),
+    })
     if (boomRef.current) boomRef.current.rotation.y = boomAngle
     if (sailRef.current) {
       const h = hoistNow

@@ -1,8 +1,11 @@
 import * as THREE from 'three'
 import type { MapData } from '../map/mapData'
+import { FERRY_BEAM, FERRY_LOA, SAIL_BEAM, SAIL_LOA, type VesselKind } from './boat/vessel'
 
 const WALK = 14
 const FINGER = 8.5
+/** Painted chart. Ferry landings are sized in metres and placed in these pixels. */
+export const CHART_MPP = 7.766666666666667
 
 type Kind = 'mole' | 'deck' | 'finger'
 
@@ -61,8 +64,8 @@ const MARINAS: { segments: Segment[]; combs: Comb[]; beacon: [number, number]; b
 
 /** Water inside each basin, in chart pixels. The chart paints this before the docks. */
 export const HARBOR_BASINS: [number, number][][] = [
-  [[90, 214], [134, 214], [138, 232], [146, 252], [136, 268], [118, 276], [96, 270], [90, 248]],
-  [[834, 512], [848, 504], [902, 502], [906, 558], [900, 566], [844, 564], [828, 520]],
+  [[82, 214], [134, 214], [138, 232], [146, 252], [136, 268], [118, 276], [96, 270], [90, 248], [76, 242], [73, 234], [74, 220], [78, 216]],
+  [[834, 512], [848, 504], [902, 502], [914, 508], [914, 532], [908, 556], [900, 566], [844, 564], [828, 520]],
 ]
 
 function insidePolygon(x: number, y: number, poly: readonly (readonly [number, number])[]) {
@@ -107,40 +110,393 @@ export interface HarborPiece {
   kind: Kind
   /** Index into the marina list. 0 is west, 1 is east, matching the chart harbors. */
   harbor: number
+  /** A sail finger a sloop can lie against. Linkspan wings are not slips. */
+  slip?: 'sail'
 }
 
-/** Moles, walkways and fingers in chart pixels. The meshes, the collision and the chart share this list. */
-export function harborPieces(): HarborPiece[] {
+interface FingerSpot {
+  /** Walkway end of the finger, chart pixels. */
+  bx: number
+  by: number
+  /** Tip, chart pixels. */
+  tx: number
+  ty: number
+  /** Unit normal from the walkway toward the tip, chart axes. */
+  nx: number
+  ny: number
+  side: 1 | -1
+}
+
+interface CombFrame {
+  ux: number
+  uy: number
+  nx: number
+  ny: number
+  len: number
+  sides: (1 | -1)[]
+  along: number[]
+}
+
+function combFrame(comb: Comb, basin: [number, number]): CombFrame {
+  const dx = comb.x1 - comb.x0
+  const dy = comb.y1 - comb.y0
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len
+  const uy = dy / len
+  const sides = comb.sides.length === 1 ? [sideToward(comb, basin[0], basin[1])] : comb.sides
+  const along: number[] = []
+  for (let d = comb.inset; d <= len - comb.inset + 0.01; d += comb.spacing) along.push(d)
+  return { ux, uy, nx: -uy, ny: ux, len, sides, along }
+}
+
+function combFingers(comb: Comb, basin: [number, number]): FingerSpot[] {
+  const frame = combFrame(comb, basin)
+  const out: FingerSpot[] = []
+  for (const d of frame.along) {
+    const bx = comb.x0 + frame.ux * d
+    const by = comb.y0 + frame.uy * d
+    for (const side of frame.sides) {
+      out.push({
+        bx,
+        by,
+        tx: bx + frame.nx * side * comb.length,
+        ty: by + frame.ny * side * comb.length,
+        nx: frame.nx * side,
+        ny: frame.ny * side,
+        side,
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * End-on linkspan. `ax, ay` is the direction a ferry approaches from, in chart
+ * pixels (unit). Slips sit in a row along `bx, by`. Sizes are metres.
+ */
+interface Terminal {
+  id: string
+  /** Same index as the marina this landing sits in. */
+  harbor: number
+  x: number
+  y: number
+  ax: number
+  ay: number
+  bx: number
+  by: number
+  count: number
+  clearWidth: number
+  clearLength: number
+  wall: number
+}
+
+const FERRY_CLEAR_W = 18
+const FERRY_CLEAR_L = 56
+const FERRY_WALL = 8
+
+/**
+ * Where the shore laps over a quay, a short lip on the water side of that
+ * stretch only. The rest of the quay stays put. The lip reaches just past
+ * the beach so a hull meets the dock before the bank.
+ */
+const QUAY_LIPS: { id: string; from: number; to: number; extra: number }[] = [
+  { id: 'west', from: -80, to: -22, extra: 10 },
+  { id: 'east', from: 132, to: 156, extra: 10 },
+]
+
+function quayLip(id: string, along: number, pad = 0) {
+  let extra = 0
+  for (const lip of QUAY_LIPS) {
+    if (lip.id === id && along >= lip.from - pad && along <= lip.to + pad) extra = Math.max(extra, lip.extra)
+  }
+  return extra
+}
+
+/**
+ * The quay runs along the shore opposite the inlet: the town shore on the
+ * west side of West Harbor, and the town shore on the east side of East
+ * Harbor. The ferry approaches from the water inside the basin.
+ */
+const TERMINALS: Terminal[] = [
+  {
+    id: 'west',
+    harbor: 0,
+    x: 77,
+    y: 227,
+    ax: 0.9554,
+    ay: 0.2953,
+    bx: -0.2953,
+    by: 0.9554,
+    count: 7,
+    clearWidth: FERRY_CLEAR_W,
+    clearLength: FERRY_CLEAR_L,
+    wall: FERRY_WALL,
+  },
+  {
+    id: 'east',
+    harbor: 1,
+    x: 905,
+    y: 529,
+    ax: -0.9973,
+    ay: 0.0739,
+    bx: 0.0739,
+    by: 0.9973,
+    count: 15,
+    clearWidth: FERRY_CLEAR_W,
+    clearLength: FERRY_CLEAR_L,
+    wall: FERRY_WALL,
+  },
+]
+
+function terminalPieces(terminal: Terminal, mpp: number): HarborPiece[] {
+  const pitch = terminal.clearWidth + terminal.wall
+  const span = terminal.count * pitch + terminal.wall
+  const headMetres = span - 6
+  const wingMetres = terminal.clearLength - 1.5
+  const px = (metres: number) => metres / mpp
+  const headHalf = px(headMetres) / 2
+  const out: HarborPiece[] = [{
+    x0: terminal.x - terminal.bx * headHalf,
+    y0: terminal.y - terminal.by * headHalf,
+    x1: terminal.x + terminal.bx * headHalf,
+    y1: terminal.y + terminal.by * headHalf,
+    thickness: terminal.wall,
+    kind: 'deck',
+    harbor: terminal.harbor,
+  }]
+  for (const lip of QUAY_LIPS) {
+    if (lip.id !== terminal.id) continue
+    // The collision box adds 6 m of length, so the drawn line is that much shorter.
+    const mid = (lip.from + lip.to) / 2
+    const half = px(lip.to - lip.from - 6) / 2
+    const shift = px(terminal.wall / 2 + lip.extra / 2)
+    const cx = terminal.x + terminal.bx * px(mid) + terminal.ax * shift
+    const cy = terminal.y + terminal.by * px(mid) + terminal.ay * shift
+    out.push({
+      x0: cx - terminal.bx * half,
+      y0: cy - terminal.by * half,
+      x1: cx + terminal.bx * half,
+      y1: cy + terminal.by * half,
+      thickness: lip.extra,
+      kind: 'deck',
+      harbor: terminal.harbor,
+    })
+  }
+  const along = px(terminal.wall / 2 + terminal.clearLength / 2)
+  const wingHalf = px(wingMetres) / 2
+  for (let i = 0; i <= terminal.count; i++) {
+    const offset = (i - terminal.count / 2) * pitch
+    const cx = terminal.x + terminal.bx * px(offset) + terminal.ax * along
+    const cy = terminal.y + terminal.by * px(offset) + terminal.ay * along
+    out.push({
+      x0: cx - terminal.ax * wingHalf,
+      y0: cy - terminal.ay * wingHalf,
+      x1: cx + terminal.ax * wingHalf,
+      y1: cy + terminal.ay * wingHalf,
+      thickness: terminal.wall,
+      kind: 'finger',
+      harbor: terminal.harbor,
+    })
+  }
+  return out
+}
+
+/** Moles, walkways, sail fingers and ferry linkspans. The meshes, the collision and the chart share this list. */
+export function harborPieces(metersPerPixel = CHART_MPP): HarborPiece[] {
   const out: HarborPiece[] = []
   MARINAS.forEach((marina, harbor) => {
     for (const seg of marina.segments) out.push({ ...seg, harbor })
     for (const comb of marina.combs) {
       out.push({ x0: comb.x0, y0: comb.y0, x1: comb.x1, y1: comb.y1, thickness: WALK, kind: 'deck', harbor })
-      const dx = comb.x1 - comb.x0
-      const dy = comb.y1 - comb.y0
-      const len = Math.hypot(dx, dy)
-      const ux = dx / len
-      const uy = dy / len
-      const nx = -uy
-      const ny = ux
-      const sides = comb.sides.length === 1 ? [sideToward(comb, marina.basin[0], marina.basin[1])] : comb.sides
-      for (let d = comb.inset; d <= len - comb.inset + 0.01; d += comb.spacing) {
-        const cx = comb.x0 + ux * d
-        const cy = comb.y0 + uy * d
-        for (const s of sides) {
-          out.push({
-            x0: cx,
-            y0: cy,
-            x1: cx + nx * s * comb.length,
-            y1: cy + ny * s * comb.length,
-            thickness: FINGER,
-            kind: 'finger',
-            harbor,
-          })
-        }
+      for (const finger of combFingers(comb, marina.basin)) {
+        out.push({
+          x0: finger.bx,
+          y0: finger.by,
+          x1: finger.tx,
+          y1: finger.ty,
+          thickness: FINGER,
+          kind: 'finger',
+          harbor,
+          slip: 'sail',
+        })
       }
     }
   })
+  for (const terminal of TERMINALS) out.push(...terminalPieces(terminal, metersPerPixel))
+  return out
+}
+
+export interface Slip {
+  id: string
+  kind: VesselKind
+  /** Chart-pixel centre of the hull when it is lying in the slip. */
+  px: number
+  py: number
+  /** World yaw. The bow points out of a sail slip, and into a ferry linkspan. */
+  yaw: number
+  /** Clear water, metres. Long enough and wide enough for that hull. */
+  length: number
+  width: number
+}
+
+function bowYaw(nx: number, ny: number) {
+  // Bow world (sin yaw, cos yaw) follows a chart direction: +x east, +y south.
+  return Math.atan2(nx, ny)
+}
+
+/** Sail slips are the water between adjacent fingers. Ferry slips are the linkspan pockets. */
+export function berths(metersPerPixel = CHART_MPP): Slip[] {
+  const out: Slip[] = []
+  for (const marina of MARINAS) {
+    marina.combs.forEach((comb, combIndex) => {
+      const frame = combFrame(comb, marina.basin)
+      const width = comb.spacing * metersPerPixel - FINGER
+      const length = comb.length * metersPerPixel
+      frame.sides.forEach((side, sideIndex) => {
+        const spots = frame.along
+        for (let i = 0; i < spots.length - 1; i++) {
+          const d = (spots[i] + spots[i + 1]) / 2
+          const bx = comb.x0 + frame.ux * d
+          const by = comb.y0 + frame.uy * d
+          const reach = comb.length * 0.55
+          const nx = frame.nx * side
+          const ny = frame.ny * side
+          out.push({
+            id: `sail-${comb.x0}-${comb.y0}-${sideIndex}-${i}-${combIndex}`,
+            kind: 'sail',
+            px: bx + nx * reach,
+            py: by + ny * reach,
+            yaw: bowYaw(nx, ny),
+            length,
+            width,
+          })
+        }
+      })
+    })
+  }
+  const pitch = FERRY_CLEAR_W + FERRY_WALL
+  for (const terminal of TERMINALS) {
+    for (let i = 0; i < terminal.count; i++) {
+      const metres = (i - (terminal.count - 1) / 2) * pitch
+      const offset = metres / metersPerPixel
+      const reach = (terminal.wall / 2 + terminal.clearLength / 2 + quayLip(terminal.id, metres, 8)) / metersPerPixel
+      out.push({
+        id: `ferry-${terminal.id}-${i}`,
+        kind: 'ferry',
+        px: terminal.x + terminal.bx * offset + terminal.ax * reach,
+        py: terminal.y + terminal.by * offset + terminal.ay * reach,
+        // Made fast bow-in: the bow points at the linkspan, opposite the approach.
+        yaw: bowYaw(-terminal.ax, -terminal.ay),
+        length: terminal.clearLength,
+        width: terminal.clearWidth,
+      })
+    }
+  }
+  return out
+}
+
+export function berthsFor(kind: VesselKind, metersPerPixel = CHART_MPP): Slip[] {
+  return berths(metersPerPixel).filter((berth) => berth.kind === kind)
+}
+
+/**
+ * One slip of this class. Challenges draw from this so a sloop is not sent to
+ * a linkspan, and a ferry is not sent into a finger gap.
+ */
+export function randomBerth(kind: VesselKind, random: () => number = Math.random, metersPerPixel = CHART_MPP): Slip {
+  const list = berthsFor(kind, metersPerPixel)
+  const index = Math.min(list.length - 1, Math.max(0, Math.floor(random() * list.length)))
+  return list[index]
+}
+
+/** The slip is big enough for that hull, with water left on every side. */
+export function berthFits(berth: Slip) {
+  if (berth.kind === 'ferry') return berth.length >= FERRY_LOA + 4 && berth.width >= FERRY_BEAM + 4
+  return berth.length >= SAIL_LOA + 4 && berth.width >= SAIL_BEAM + 4
+}
+
+/**
+ * A dock a hull stops against. Local +X runs along the piece. Fingers run
+ * from the walkway toward the tip. A linkspan head runs along the row of slips.
+ */
+export interface Berth {
+  harbor: number
+  name: string
+  x: number
+  z: number
+  y: number
+  rotationY: number
+  length: number
+  height: number
+  thickness: number
+}
+
+interface ChartSize {
+  metersPerPixel: number
+  width: number
+  height: number
+  harbors?: readonly { name: string }[]
+}
+
+function pieceBerth(seg: HarborPiece, map: ChartSize, lengthBonus: number): Berth | null {
+  const dx = seg.x1 - seg.x0
+  const dy = seg.y1 - seg.y0
+  const lenPx = Math.hypot(dx, dy)
+  if (lenPx < 0.4) return null
+  const m = map.metersPerPixel
+  const cx = (seg.x0 + seg.x1) / 2
+  const cy = (seg.y0 + seg.y1) / 2
+  return {
+    harbor: seg.harbor,
+    name: map.harbors?.[seg.harbor]?.name ?? 'Harbor',
+    x: (cx - map.width / 2) * m,
+    z: (cy - map.height / 2) * m,
+    y: 0.2,
+    rotationY: -Math.atan2(dy, dx),
+    length: lenPx * m + lengthBonus,
+    height: 0.7,
+    thickness: seg.thickness,
+  }
+}
+
+/** Finger pontoons a sloop can lie alongside. Same world box as the finger meshes. */
+export function fingerBerths(map: ChartSize): Berth[] {
+  const out: Berth[] = []
+  for (const seg of harborPieces(map.metersPerPixel)) {
+    if (seg.slip !== 'sail') continue
+    const berth = pieceBerth(seg, map, 1.5)
+    if (berth) out.push(berth)
+  }
+  return out
+}
+
+/**
+ * The linkspan head of each ferry slip. The hull noses up to this face.
+ * One per pocket, so a challenge can pick a single berth in either basin.
+ */
+export function linkspanBerths(map: ChartSize): Berth[] {
+  const out: Berth[] = []
+  const m = map.metersPerPixel
+  const pitch = FERRY_CLEAR_W + FERRY_WALL
+  for (const terminal of TERMINALS) {
+    for (let i = 0; i < terminal.count; i++) {
+      const offset = (i - (terminal.count - 1) / 2) * pitch
+      const extra = quayLip(terminal.id, offset, 8)
+      const hx = terminal.x + terminal.bx * (offset / m) + terminal.ax * (extra / 2 / m)
+      const hy = terminal.y + terminal.by * (offset / m) + terminal.ay * (extra / 2 / m)
+      out.push({
+        harbor: terminal.harbor,
+        name: map.harbors?.[terminal.harbor]?.name ?? 'Harbor',
+        x: (hx - map.width / 2) * m,
+        z: (hy - map.height / 2) * m,
+        y: 0.2,
+        rotationY: -Math.atan2(terminal.by, terminal.bx),
+        length: terminal.clearWidth,
+        height: 0.7,
+        thickness: terminal.wall + extra,
+      })
+    }
+  }
   return out
 }
 
@@ -160,7 +516,7 @@ export interface DockBox {
 export function dockBoxes(map: MapData): DockBox[] {
   const out: DockBox[] = []
   const m = map.metersPerPixel
-  for (const seg of harborPieces()) {
+  for (const seg of harborPieces(map.metersPerPixel)) {
     const dx = seg.x1 - seg.x0
     const dy = seg.y1 - seg.y0
     const lenPx = Math.hypot(dx, dy)
@@ -178,53 +534,6 @@ export function dockBoxes(map: MapData): DockBox[] {
       height: mole ? 4.3 : 0.7,
       thickness: seg.thickness,
       kind: seg.kind,
-    })
-  }
-  return out
-}
-
-export interface Berth {
-  harbor: number
-  name: string
-  /** Centre of the finger, world metres. Local +X runs from the walkway toward the tip. */
-  x: number
-  z: number
-  y: number
-  rotationY: number
-  length: number
-  height: number
-  thickness: number
-}
-
-interface ChartSize {
-  metersPerPixel: number
-  width: number
-  height: number
-  harbors?: readonly { name: string }[]
-}
-
-/** Finger pontoons a boat can lie alongside. Same world box as {@link dockBoxes} for kind `finger`. */
-export function fingerBerths(map: ChartSize): Berth[] {
-  const out: Berth[] = []
-  const m = map.metersPerPixel
-  for (const seg of harborPieces()) {
-    if (seg.kind !== 'finger') continue
-    const dx = seg.x1 - seg.x0
-    const dy = seg.y1 - seg.y0
-    const lenPx = Math.hypot(dx, dy)
-    if (lenPx < 0.4) continue
-    const cx = (seg.x0 + seg.x1) / 2
-    const cy = (seg.y0 + seg.y1) / 2
-    out.push({
-      harbor: seg.harbor,
-      name: map.harbors?.[seg.harbor]?.name ?? 'Harbor',
-      x: (cx - map.width / 2) * m,
-      z: (cy - map.height / 2) * m,
-      y: 0.2,
-      rotationY: -Math.atan2(dy, dx),
-      length: lenPx * m + 1.5,
-      height: 0.7,
-      thickness: seg.thickness,
     })
   }
   return out

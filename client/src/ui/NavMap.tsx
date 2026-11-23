@@ -533,7 +533,7 @@ function overShip(pointer: { x: number; y: number }, other: ChartShip) {
   return Math.abs(dx) <= half && dy < -2 && dy > -30
 }
 
-/** Gold ring on the target finger, and an edge arrow when that dock is off the chart. */
+/** Gold ring on the target dock, and an edge arrow when that dock is off the chart. */
 function drawChallenge(
   ctx: CanvasRenderingContext2D,
   toScreen: (x: number, z: number) => { x: number; y: number },
