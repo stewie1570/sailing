@@ -2084,9 +2084,29 @@ html:-webkit-full-screen {
     background: rgba(8, 18, 30, 0.72);
   }
   .pod-dome { width: 104px; height: 104px; }
-  .pod-read, .pod-lag { width: 104px; }
   .pod-card.ahead,
   .pod-card.astern { display: none; }
+  /* Pinned to the bottom: "Dead slow" beside a long azimuth wraps, the extra
+     line lifts the dome under the finger, and the reading chases the touch.
+     Keep a single line that fits under the dome, so a held touch cannot move it. */
+  .pod-read,
+  .pod-lag {
+    width: 104px;
+    height: 1.4em;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .pod-read {
+    gap: 4px;
+    font-size: 10px;
+  }
+  .pod-read span {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 .sim-menu { position: relative; }
