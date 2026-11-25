@@ -79,3 +79,34 @@ export function publishWheel(x: number, y: number, radius: number, visible: bool
   wheelScreen.radius = radius
   wheelScreen.visible = visible
 }
+
+/**
+ * Hub and rim in world metres. The picture is moved after the chase step, so
+ * the screen position is projected from the camera that actually draws.
+ */
+export const wheelWorld = {
+  on: false,
+  hx: 0,
+  hy: 0,
+  hz: 0,
+  rx: 0,
+  ry: 0,
+  rz: 0,
+}
+
+export function publishWheelWorld(
+  hub: { x: number; y: number; z: number } | null,
+  rim?: { x: number; y: number; z: number },
+) {
+  if (!hub || !rim) {
+    wheelWorld.on = false
+    return
+  }
+  wheelWorld.on = true
+  wheelWorld.hx = hub.x
+  wheelWorld.hy = hub.y
+  wheelWorld.hz = hub.z
+  wheelWorld.rx = rim.x
+  wheelWorld.ry = rim.y
+  wheelWorld.rz = rim.z
+}
