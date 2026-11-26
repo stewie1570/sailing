@@ -1584,8 +1584,9 @@ html:-webkit-full-screen {
  * Phones only — the same cutoff as PHONE_HELM in WheelSlider.tsx.
  * A tablet (short side 744+) and a desktop do not match, so their panel,
  * chart, and rudder stay put. On a phone the engine levers move to the
- * side edges. Landscape levers run nearly the full height; portrait levers
- * are half the screen, centred beside the helm. The rudder takes the gap
+ * side edges. Landscape levers run nearly the full height. Portrait levers
+ * are half the screen and sit on the bottom, with the chart between them.
+ * The rudder takes the gap
  * between them, and the chart sits behind those controls with its scale
  * buttons in a row along the bottom.
  */
@@ -1947,15 +1948,11 @@ html:-webkit-full-screen {
     top: calc(max(8px, env(safe-area-inset-top)) + 148px);
   }
 
-  /* The side levers only need half the screen. Keep the knobs beside the wheel. */
+  /* Same half-height tracks, sat on the bottom so the chart is between them. */
   .throttles.mode-engine .throttle-slot {
-    top: 25dvh;
-    bottom: auto;
+    top: auto;
+    bottom: calc(max(6px, env(safe-area-inset-bottom)) + var(--m-dock));
     height: 50dvh;
-  }
-  .throttles.mode-engine .throttle-name {
-    top: 75dvh;
-    bottom: auto;
   }
 }
 
