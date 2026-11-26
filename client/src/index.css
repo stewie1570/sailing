@@ -418,7 +418,7 @@ html:-webkit-full-screen {
 .sheet-track {
   position: relative;
   width: 44px;
-  height: 156px;
+  height: 187px;
   border-radius: 9px;
   background: linear-gradient(#243140, #121a24 40%, #0c1218);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 10px 16px rgba(0, 0, 0, 0.35);
@@ -859,7 +859,7 @@ html:-webkit-full-screen {
     line-height: 1.15;
     white-space: normal;
   }
-  .sheet-track { width: 40px; height: 80px; }
+  .sheet-track { width: 40px; height: 96px; }
   .sheet-knob { width: 30px; height: 16px; margin-left: -15px; }
   .sheet-knob::after { left: 6px; right: 6px; top: 7px; }
 }
@@ -892,7 +892,7 @@ html:-webkit-full-screen {
     grid-area: sheets;
     margin-top: 0;
   }
-  .sheet-track { height: 92px; }
+  .sheet-track { height: 110px; }
 }
 /* Phones only. A tablet (short side 744+) and a desktop keep the panel, the scale, and the backing.
    The status card (link and frame rate) goes away; the menu stays as a button. */
@@ -965,7 +965,7 @@ html:-webkit-full-screen {
     font-size: 8px;
     letter-spacing: 0.02em;
   }
-  .sheet-track { width: 36px; height: 72px; }
+  .sheet-track { width: 36px; height: 86px; }
   .sail-panel .sheet-row { margin-top: 6px; }
 }
 @media (max-width: 500px) {
@@ -994,7 +994,7 @@ html:-webkit-full-screen {
   /* "STBD" and "SPIN" share this width, so unfurling the kite does not move the panel. */
   .sheet-col { width: 48px; min-width: 48px; max-width: 48px; }
   .sail-panel .sheet-row { align-self: end; }
-  .sheet-track { width: 36px; height: 128px; }
+  .sheet-track { width: 36px; height: 154px; }
 }
 /* Expand is 10% under half the width and 7% under half the height, so the chart labels clear the rudder. */
 .navmap.wide {
