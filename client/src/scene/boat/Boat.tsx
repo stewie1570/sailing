@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
-import { applyCameraNudge, chaseAim, DECK_LOOK, helmLookLocal, stepChaseCamera, type ChaseLook } from '../cameraDrive'
+import { applyCameraNudge, chaseAim, DECK_LOOK, helmLookLocal, PHONE_HELM, stepChaseCamera, type ChaseLook } from '../cameraDrive'
 import { clearChaseBody, publishChaseBody } from '../cameraClip'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { inHarbor } from '../harborLayout'
@@ -65,9 +65,6 @@ import { publishTelemetry, publishWheel, publishWheelWorld } from './telemetry'
 import { createEngineWash, createHullWake, disposeEngineWash, disposeHullWake, poseEngineWash, poseHullWake } from './wash'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
-
-/** Same cutoff as the phone helm layout in index.css. Tablets stay on the deck aim. */
-const PHONE_HELM = '(max-width: 500px), (max-height: 500px) and (max-width: 950px)'
 
 function chaseLookFor(phone: boolean, wheel: { x: number; y: number; z: number }): ChaseLook {
   return phone ? helmLookLocal(wheel, WHEEL_RADIUS) : DECK_LOOK
@@ -450,7 +447,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       // Trail the heading by about a second, then sit at the same angle relative to the boat.
       // On a phone the centre of that picture stays just above the wheel.
       const lagged = chaseYaw(prev.yaw, pose.yaw, delta, CHASE_YAW_LAG)
-      const look = chaseLookFor(window.matchMedia(PHONE_HELM).matches, hardware.wheel)
+      const phone = window.matchMedia(PHONE_HELM).matches
+      const look = chaseLookFor(phone, hardware.wheel)
       const aim = stepChaseCamera(camera.position, prev, pose, y, lagged, chaseLook.current, look)
       chaseLook.current = look
       prev.yaw = lagged

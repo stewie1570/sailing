@@ -7,8 +7,10 @@ import {
   HELM_LOOK_CLEARANCE,
   chaseAim,
   helmLookLocal,
+  helmMinDistance,
   stepChaseCamera,
 } from './cameraDrive'
+import { vesselView } from './boat/vessel'
 
 describe('helmLookLocal', () => {
   it('sits just above the wheel rim on the centreline', () => {
@@ -80,5 +82,22 @@ describe('stepChaseCamera', () => {
     const offset = rotateYaw(0 - look.x, -12 - look.z, yaw)
     expect(camera.x).toBeCloseTo(expected.x + offset.x)
     expect(camera.z).toBeCloseTo(expected.z + offset.z)
+  })
+})
+
+describe('helmMinDistance', () => {
+  it('reaches the aft deck just behind the wheel', () => {
+    const view = vesselView('sail')
+    const helm = helmLookLocal(helmHardware().wheel, WHEEL_RADIUS)
+    const min = helmMinDistance(helm)
+    expect(min).toBeGreaterThan(1)
+    expect(min).toBeLessThan(view.minDistance)
+
+    const dy = view.height - helm.y
+    const dz = -view.back - helm.z
+    const len = Math.hypot(dy, dz)
+    const z = helm.z + (dz / len) * min
+    expect(z).toBeLessThan(helm.z)
+    expect(z).toBeGreaterThan(-6)
   })
 })

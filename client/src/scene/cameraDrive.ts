@@ -1,4 +1,5 @@
 import { rotateYaw } from './boat/physics'
+import { vesselView } from './boat/vessel'
 
 /**
  * Camera nudges from the controller, consumed once per chase frame.
@@ -74,6 +75,9 @@ export interface ChaseLook {
 /** Desktop and tablet. Midships, just above the deck. */
 export const DECK_LOOK: ChaseLook = { x: 0, y: 1.15, z: 0 }
 
+/** Same cutoff as the phone helm layout. Tablets stay on the deck aim. */
+export const PHONE_HELM = '(max-width: 500px), (max-height: 500px) and (max-width: 950px)'
+
 /**
  * Gap above the wheel rim. The phone picture stays centred in that air,
  * so the helm sits just under the middle of the view.
@@ -83,6 +87,21 @@ export const HELM_LOOK_CLEARANCE = 0.22
 /** Phone chase aim: just above the steering wheel, on the centreline. */
 export function helmLookLocal(wheel: { x: number; y: number; z: number }, rim: number): ChaseLook {
   return { x: wheel.x, y: wheel.y + rim + HELM_LOOK_CLEARANCE, z: wheel.z }
+}
+
+/**
+ * Closest a phone may dolly while the picture stays centred on the helm.
+ * The orbit limit is still the deck minimum, 4.5 m from midships. From the
+ * wheel that same spot is on the aft deck, just behind the helm.
+ */
+export function helmMinDistance(helm: ChaseLook) {
+  const view = vesselView('sail')
+  const dy = view.height - view.look
+  const dz = -view.back
+  const len = Math.hypot(dy, dz) || 1
+  const closeY = view.look + (dy / len) * view.minDistance
+  const closeZ = (dz / len) * view.minDistance
+  return Math.hypot(closeY - helm.y, closeZ - helm.z)
 }
 
 /** World point the chase picture is centred on. */

@@ -1,6 +1,6 @@
 import { OrbitControls } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Suspense, use, useEffect, useMemo } from 'react'
+import { Suspense, use, useEffect, useMemo, useState } from 'react'
 import * as THREE from 'three'
 import { loadMapData, type MapData } from '../map/mapData'
 import { useMySlot } from '../net/session'
@@ -9,9 +9,11 @@ import { Ferry } from './boat/Ferry'
 import { RemoteFleet } from './boat/RemoteFerry'
 import { bindChallengeChart } from './challenge'
 import { ChallengeDirector, ChallengeMarkers } from './ChallengeView'
+import { helmHardware, WHEEL_RADIUS } from './boat/geometry'
 import { chaseOffset, MOTION, spawnPose } from './boat/physics'
 import { stepWind } from './boat/wind'
 import { useVessel, vesselView } from './boat/vessel'
+import { helmLookLocal, helmMinDistance, PHONE_HELM } from './cameraDrive'
 import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
@@ -101,11 +103,28 @@ function WindClock() {
   return null
 }
 
+function usePhoneHelm() {
+  const [phone, setPhone] = useState(() => window.matchMedia(PHONE_HELM).matches)
+  useEffect(() => {
+    const media = window.matchMedia(PHONE_HELM)
+    const sync = () => setPhone(media.matches)
+    media.addEventListener('change', sync)
+    return () => media.removeEventListener('change', sync)
+  }, [])
+  return phone
+}
+
 function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
   const map = use(mapPromise)
   const slot = useMySlot()
   const vessel = useVessel()
   const view = vesselView(vessel)
+  const phone = usePhoneHelm()
+  // The phone aim is the wheel, so the deck's 4.5 m floor would stop the lens
+  // off the stern. The same floor, measured from the wheel, lands just behind it.
+  const minDistance = phone && vessel === 'sail'
+    ? helmMinDistance(helmLookLocal(helmHardware().wheel, WHEEL_RADIUS))
+    : view.minDistance
 
   // Start just astern of the boat, close enough to read the hull. The boat keeps this
   // offset, and the view yaws with the helm about a second behind.
@@ -163,7 +182,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
         dampingFactor={0.08}
         rotateSpeed={0.6}
         zoomSpeed={0.8}
-        minDistance={view.minDistance}
+        minDistance={minDistance}
         maxDistance={9000}
         // keep the camera above the surface
         maxPolarAngle={Math.PI / 2 - 0.015}
