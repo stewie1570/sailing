@@ -1587,8 +1587,9 @@ html:-webkit-full-screen {
  * side edges. Landscape levers run nearly the full height. Portrait levers
  * are half the screen and sit on the bottom, with the chart between them.
  * The rudder takes the gap
- * between them, and the chart sits behind those controls with its scale
- * buttons in a row along the bottom.
+ * between them. Portrait keeps the chart behind those controls, with its
+ * scale buttons in a row along the bottom. Landscape lifts the chart above
+ * the helm — see the landscape query below.
  */
 @media (max-width: 500px), (max-height: 500px) and (max-width: 950px) {
   :root {
@@ -2018,6 +2019,55 @@ html:-webkit-full-screen {
   }
   .app:has(.hud-room) .hud-stack > .challenge-banner {
     top: calc(max(2px, env(safe-area-inset-top)) + 46px);
+  }
+
+  /*
+   * The helm sits near the middle of this short frame. Sit the chart on top
+   * of that, scale buttons included, so the wheel and its slider stay clear.
+   * Covering the water is fine: the scale row toggles the chart.
+   */
+  .hud.navmap,
+  .hud.navmap.wide,
+  body[data-helm='sailing'] .hud.navmap,
+  body[data-helm='sailing'] .hud.navmap.wide {
+    top: auto;
+    bottom: calc(50% + 16px);
+  }
+  .hud.navmap.wide,
+  body[data-helm='sailing'] .hud.navmap.wide {
+    top: calc(max(2px, env(safe-area-inset-top)) + 36px);
+  }
+  .app:has(.hud-room) .hud.navmap.wide {
+    top: calc(max(2px, env(safe-area-inset-top)) + 78px);
+  }
+  .hud.navmap canvas,
+  body[data-helm='sailing'] .hud.navmap canvas {
+    height: 64px;
+  }
+  .hud.navmap.wide canvas,
+  body[data-helm='sailing'] .hud.navmap.wide canvas {
+    flex: 1 1 auto;
+    height: auto;
+    min-height: 48px;
+  }
+  .navmap-zoom {
+    position: static;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    width: auto;
+    margin: 6px 0 0;
+  }
+  .hud.navmap.off .navmap-zoom {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(50% + 16px);
+    width: min(300px, calc(100vw - env(safe-area-inset-left) - env(safe-area-inset-right) - 2 * (var(--m-lever) + var(--m-gap))));
+    margin: 0 auto;
+  }
+  .hud.navmap.off .ais-banner {
+    bottom: calc(50% + 16px + var(--m-zoom) + 8px);
   }
 }
 

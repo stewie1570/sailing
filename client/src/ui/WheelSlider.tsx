@@ -38,8 +38,9 @@ function boxOf(sel: string): DOMRect | null {
 
 /**
  * On a phone the levers own the side edges, so the rudder takes the gap between
- * them. It stays off the mode tabs and the chart buttons,
- * and it is allowed to cross the chart — the chart sits behind this slider.
+ * them. It stays off the mode tabs. Portrait keeps the scale row as a floor
+ * and lets the slider cross the chart. Landscape parks the chart above the
+ * helm, so that row is not a floor — the slider stays on the wheel.
  */
 function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number, vh: number) {
   const slots = [...document.querySelectorAll('.throttle-slot')]
@@ -66,9 +67,10 @@ function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number,
   x = lo <= hi ? Math.min(hi, Math.max(lo, x)) : (leftLimit + rightLimit) / 2
 
   const overlapsX = (rect: DOMRect) => rect.right > x - half + 6 && rect.left < x + half - 6
+  const landscape = window.matchMedia('(max-height: 500px) and (max-width: 950px) and (min-width: 501px)').matches
   const above = [boxOf('.hud-speed'), boxOf('.helm-tabs'), boxOf('.hud-status')]
     .filter((rect): rect is DOMRect => !!rect && overlapsX(rect))
-  const below = [boxOf('.navmap-zoom'), sailing].filter(
+  const below = [landscape ? null : boxOf('.navmap-zoom'), sailing].filter(
     (rect): rect is DOMRect => !!rect && overlapsX(rect),
   )
   let minY = 36
