@@ -38,8 +38,8 @@ function boxOf(sel: string): DOMRect | null {
 
 /**
  * On a phone the levers own the side edges, so the rudder takes the gap between
- * them. It stays off the mode tabs and the chart buttons,
- * and it is allowed to cross the chart — the chart sits behind this slider.
+ * them. It stays off the mode tabs and the chart buttons, and it may cross the
+ * chart. The bar itself is centred on the wheel: the box around it is not.
  */
 function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number, vh: number) {
   const slots = [...document.querySelectorAll('.throttle-slot')]
@@ -81,8 +81,15 @@ function placePhoneRudder(el: HTMLDivElement, w: typeof wheelScreen, vw: number,
 
   const onWheel = w.visible && Number.isFinite(w.x) && Number.isFinite(w.y)
   el.style.width = `${Math.round(width)}px`
-  el.style.transform = `translate3d(${x - half}px, ${y - 22}px, 0)`
+  el.style.transform = `translate3d(${x - half}px, ${y - trackMid(el)}px, 0)`
   el.style.opacity = onWheel ? '1' : '0.92'
+}
+
+/** Centre of the visible bar, not of the box around it. */
+function trackMid(el: HTMLElement) {
+  const track = el.querySelector('.wheel-track')
+  if (!(track instanceof HTMLElement)) return el.offsetHeight / 2 || 22
+  return track.offsetTop + track.offsetHeight / 2
 }
 
 /**
@@ -170,7 +177,7 @@ export function WheelSlider() {
         y = parked.y
       }
       el.style.width = `${diameter}px`
-      el.style.transform = `translate3d(${x - half}px, ${y - 22}px, 0)`
+      el.style.transform = `translate3d(${x - half}px, ${y - trackMid(el)}px, 0)`
       el.style.opacity = onWheel ? '1' : '0.92'
     }
     raf = requestAnimationFrame(tick)

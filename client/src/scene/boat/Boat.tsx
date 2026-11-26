@@ -2,7 +2,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
-import { applyCameraNudge } from '../cameraDrive'
+import { applyCameraNudge, chaseAim, DECK_LOOK, helmLookLocal, PHONE_HELM, stepChaseCamera, type ChaseLook } from '../cameraDrive'
 import { clearChaseBody, publishChaseBody } from '../cameraClip'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { inHarbor } from '../harborLayout'
@@ -36,7 +36,6 @@ import {
   CHASE_YAW_LAG,
   integrate,
   MOTION,
-  rotateYaw,
   spawnPose,
   swell,
   type Pose,
@@ -66,6 +65,10 @@ import { publishTelemetry, publishWheel, publishWheelWorld } from './telemetry'
 import { createEngineWash, createHullWake, disposeEngineWash, disposeHullWake, poseEngineWash, poseHullWake } from './wash'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
+
+function chaseLookFor(phone: boolean, wheel: { x: number; y: number; z: number }): ChaseLook {
+  return phone ? helmLookLocal(wheel, WHEEL_RADIUS) : DECK_LOOK
+}
 
 function disposeMesh(mesh: THREE.Mesh) {
   mesh.geometry.dispose()
@@ -145,6 +148,8 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const portSpinRef = useRef<THREE.Group>(null)
   const stbdSpinRef = useRef<THREE.Group>(null)
   const follow = useRef({ x: pose.x, y: 0, z: pose.z, yaw: pose.yaw })
+  // The scene starts aimed at the deck centre. The first phone frame moves the aim up over the wheel.
+  const chaseLook = useRef<ChaseLook>(DECK_LOOK)
   const scratch = useMemo(() => ({ hub: new THREE.Vector3(), rim: new THREE.Vector3() }), [])
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls)
@@ -213,8 +218,11 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
         follow.current.x = pose.x
         follow.current.z = pose.z
         follow.current.yaw = pose.yaw
+        const look = chaseLookFor(window.matchMedia(PHONE_HELM).matches, helmHardware().wheel)
+        chaseLook.current = look
         const orbit = controls as OrbitLike | null
-        orbit?.target.set(pose.x, follow.current.y + 1.15, pose.z)
+        const aim = chaseAim(pose, follow.current.y, pose.yaw, look)
+        orbit?.target.set(aim.x, aim.y, aim.z)
       },
     }
     sailing.boat = api
@@ -437,18 +445,14 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
     if (orbit?.target) {
       const prev = follow.current
       // Trail the heading by about a second, then sit at the same angle relative to the boat.
+      // On a phone the centre of that picture stays just above the wheel.
       const lagged = chaseYaw(prev.yaw, pose.yaw, delta, CHASE_YAW_LAG)
-      const dYaw = lagged - prev.yaw
+      const phone = window.matchMedia(PHONE_HELM).matches
+      const look = chaseLookFor(phone, hardware.wheel)
+      const aim = stepChaseCamera(camera.position, prev, pose, y, lagged, chaseLook.current, look)
+      chaseLook.current = look
       prev.yaw = lagged
-      camera.position.x += pose.x - prev.x
-      camera.position.y += y - prev.y
-      camera.position.z += pose.z - prev.z
-      if (dYaw !== 0) {
-        const off = rotateYaw(camera.position.x - pose.x, camera.position.z - pose.z, dYaw)
-        camera.position.x = pose.x + off.x
-        camera.position.z = pose.z + off.z
-      }
-      orbit.target.set(pose.x, y + 1.15, pose.z)
+      orbit.target.set(aim.x, aim.y, aim.z)
       applyCameraNudge(camera, orbit.target)
       camera.lookAt(orbit.target)
       prev.x = pose.x
