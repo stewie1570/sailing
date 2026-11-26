@@ -1584,7 +1584,8 @@ html:-webkit-full-screen {
  * Phones only — the same cutoff as PHONE_HELM in WheelSlider.tsx.
  * A tablet (short side 744+) and a desktop do not match, so their panel,
  * chart, and rudder stay put. On a phone the engine levers move to the
- * side edges and grow to nearly the full height, the rudder takes the gap
+ * side edges. Landscape levers run nearly the full height; portrait levers
+ * are half the screen, centred beside the helm. The rudder takes the gap
  * between them, and the chart sits behind those controls with its scale
  * buttons in a row along the bottom.
  */
@@ -1944,6 +1945,82 @@ html:-webkit-full-screen {
   }
   .app:has(.hud-room):has(.challenge-banner) .hud.navmap.wide {
     top: calc(max(8px, env(safe-area-inset-top)) + 148px);
+  }
+
+  /* The side levers only need half the screen. Keep the knobs beside the wheel. */
+  .throttles.mode-engine .throttle-slot {
+    top: 25dvh;
+    bottom: auto;
+    height: 50dvh;
+  }
+  .throttles.mode-engine .throttle-name {
+    top: 75dvh;
+    bottom: auto;
+  }
+}
+
+/*
+ * Landscape phones. The speed is one line, pushed into the top edge.
+ * The challenge leaves the bow: a short block on the left, not a banner
+ * across the water ahead.
+ */
+@media (max-height: 500px) and (max-width: 950px) and (min-width: 501px) {
+  .hud-speed {
+    top: max(2px, env(safe-area-inset-top));
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+  .hud-speed-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    line-height: 1;
+  }
+  .hud-speed-value {
+    font-size: 22px;
+    line-height: 1;
+  }
+  .hud-room {
+    top: max(2px, env(safe-area-inset-top));
+    right: calc(50% + 78px);
+  }
+  .hud-stack > .challenge-banner {
+    top: max(2px, env(safe-area-inset-top));
+    left: calc(max(8px, env(safe-area-inset-left)) + 52px);
+    right: auto;
+    width: min(240px, calc(50vw - 160px - max(8px, env(safe-area-inset-left))));
+    max-width: min(240px, calc(50vw - 160px - max(8px, env(safe-area-inset-left))));
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    align-items: baseline;
+    column-gap: 8px;
+    row-gap: 0;
+    white-space: normal;
+    text-align: left;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .hud-stack > .challenge-banner .challenge-kicker {
+    order: 1;
+    font-size: 11px;
+  }
+  .hud-stack > .challenge-banner .challenge-clock {
+    order: 2;
+    margin-left: auto;
+    font-size: 11px;
+  }
+  .hud-stack > .challenge-banner strong {
+    order: 3;
+    flex: 1 0 100%;
+    min-width: 0;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  .app:has(.hud-room) .hud-stack > .challenge-banner {
+    top: calc(max(2px, env(safe-area-inset-top)) + 46px);
   }
 }
 

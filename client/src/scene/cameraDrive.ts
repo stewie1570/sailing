@@ -63,3 +63,74 @@ export function applyNudge(camera: Movable, target: { x: number; y: number; z: n
 export function applyCameraNudge(camera: Movable, target: { x: number; y: number; z: number }) {
   applyNudge(camera, target, consumeCameraNudge())
 }
+
+/** Where the chase picture is centred, in ship-local metres. */
+export interface ChaseLook {
+  x: number
+  y: number
+  z: number
+}
+
+/** Desktop and tablet. Midships, just above the deck. */
+export const DECK_LOOK: ChaseLook = { x: 0, y: 1.15, z: 0 }
+
+/**
+ * Gap above the wheel rim. The phone picture stays centred in that air,
+ * so the helm sits just under the middle of the view.
+ */
+export const HELM_LOOK_CLEARANCE = 0.22
+
+/** Phone chase aim: just above the steering wheel, on the centreline. */
+export function helmLookLocal(wheel: { x: number; y: number; z: number }, rim: number): ChaseLook {
+  return { x: wheel.x, y: wheel.y + rim + HELM_LOOK_CLEARANCE, z: wheel.z }
+}
+
+/** World point the chase picture is centred on. */
+export function chaseAim(
+  pose: { x: number; z: number },
+  y: number,
+  yaw: number,
+  look: ChaseLook,
+): { x: number; y: number; z: number } {
+  const off = rotateYaw(look.x, look.z, yaw)
+  return { x: pose.x + off.x, y: y + look.y, z: pose.z + off.z }
+}
+
+interface ChasePoint {
+  x: number
+  y: number
+  z: number
+}
+
+/**
+ * Carry the chase camera with the hull and aim it.
+ * `prevLook` is the aim used last frame, so a switch (deck centre to the
+ * helm) retargets without sliding the lens. While the aim stays put, the
+ * lens keeps its offset and yaws with `yaw`, the lagged heading.
+ */
+export function stepChaseCamera(
+  camera: ChasePoint,
+  prev: { x: number; y: number; z: number; yaw: number },
+  pose: { x: number; z: number },
+  y: number,
+  yaw: number,
+  prevLook: ChaseLook,
+  look: ChaseLook,
+): ChasePoint {
+  const dYaw = yaw - prev.yaw
+  const motionBefore = rotateYaw(prevLook.x, prevLook.z, prev.yaw)
+  const motionAfter = rotateYaw(prevLook.x, prevLook.z, yaw)
+  let cx = camera.x + (pose.x - prev.x) + (motionAfter.x - motionBefore.x)
+  let cy = camera.y + (y - prev.y)
+  let cz = camera.z + (pose.z - prev.z) + (motionAfter.z - motionBefore.z)
+  const aim = chaseAim(pose, y, yaw, look)
+  if (dYaw !== 0) {
+    const off = rotateYaw(cx - aim.x, cz - aim.z, dYaw)
+    cx = aim.x + off.x
+    cz = aim.z + off.z
+  }
+  camera.x = cx
+  camera.y = cy
+  camera.z = cz
+  return aim
+}
