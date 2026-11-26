@@ -797,3 +797,104 @@ function overlapFromEdges(
   if (separated) return -maxGap
   return min === Infinity ? 0 : min
 }
+
+/** A dock, building, parcel or car. Yaw is about Y, the same sense as a hull. */
+export interface CameraBox {
+  x: number
+  z: number
+  y0: number
+  y1: number
+  cos: number
+  sin: number
+  halfX: number
+  halfZ: number
+}
+
+/** A buoy, beacon, trunk or crown. The radius is constant over the height. */
+export interface CameraDisc {
+  x: number
+  z: number
+  y0: number
+  y1: number
+  r: number
+}
+
+const boxList: CameraBox[] = []
+const discList: CameraDisc[] = []
+const discPool: CameraDisc[] = []
+
+function takeDisc(): CameraDisc {
+  let slot = discPool[discList.length]
+  if (!slot) {
+    slot = { x: 0, z: 0, y0: 0, y1: 0, r: 0 }
+    discPool.push(slot)
+  }
+  discList.push(slot)
+  return slot
+}
+
+/**
+ * Solids near the lens. The arrays are reused on the next call, so the caller
+ * has to finish with them before asking again. Trees are a trunk plus the
+ * crown cylinder the hull already treats as solid.
+ */
+export function solidsNear(world: ColliderWorld, x: number, z: number): { boxes: CameraBox[]; discs: CameraDisc[] } {
+  boxList.length = 0
+  discList.length = 0
+  const reach = 28
+  for (const box of world.boxes) {
+    const dx = box.x - x
+    const dz = box.z - z
+    const span = Math.hypot(box.halfX, box.halfZ) + reach
+    if (dx * dx + dz * dz > span * span) continue
+    boxList.push(box)
+  }
+  for (const disc of world.discs) {
+    const dx = disc.x - x
+    const dz = disc.z - z
+    const r = Math.max(disc.r0, disc.r1)
+    if (dx * dx + dz * dz > (r + reach) * (r + reach)) continue
+    const slot = takeDisc()
+    slot.x = disc.x
+    slot.z = disc.z
+    slot.y0 = disc.y0
+    slot.y1 = disc.y1
+    slot.r = r
+  }
+  const grid = world.trees
+  const treeReach = grid.maxR + 8
+  const i0 = Math.floor((x - treeReach) / grid.cell)
+  const i1 = Math.floor((x + treeReach) / grid.cell)
+  const j0 = Math.floor((z - treeReach) / grid.cell)
+  const j1 = Math.floor((z + treeReach) / grid.cell)
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const bucket = grid.buckets.get((i + 4096) * 8192 + (j + 4096))
+      if (!bucket) continue
+      for (const tree of bucket) {
+        const dx = tree.x - x
+        const dz = tree.z - z
+        const crownR = CROWN.radius * tree.sx
+        if (dx * dx + dz * dz > (crownR + 8) * (crownR + 8)) continue
+        const trunk = takeDisc()
+        trunk.x = tree.x
+        trunk.z = tree.z
+        trunk.y0 = tree.y
+        trunk.y1 = tree.y + TRUNK.height * tree.h
+        trunk.r = TRUNK.radiusBottom * tree.sx
+        const crown = takeDisc()
+        crown.x = tree.x
+        crown.z = tree.z
+        crown.y0 = tree.y + CROWN.y0 * tree.h
+        crown.y1 = tree.y + CROWN.y1 * tree.h
+        crown.r = crownR
+      }
+    }
+  }
+  return { boxes: boxList, discs: discList }
+}
+
+/** Height of the shore mesh under the lens. Open water is below zero. */
+export function cameraGround(world: ColliderWorld, x: number, z: number) {
+  return terrainMeshHeight(world.terrain, x, z)
+}

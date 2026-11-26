@@ -5,6 +5,7 @@ import type { MapData } from '../../map/mapData'
 import { MAX_SAILORS } from '../../net/protocol'
 import { eachFreshShip, myPlayerId, noteLocalShip } from '../../net/session'
 import { applyNudge, consumeCameraNudge } from '../cameraDrive'
+import { clearChaseBody, publishChaseBody } from '../cameraClip'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
 import { stepFerry } from './ferryDynamics'
@@ -219,6 +220,8 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
     }
   }, [camera, controls, gl])
 
+  useEffect(() => () => clearChaseBody(), [])
+
   useFrame((state, delta) => {
     const time = state.clock.elapsedTime
     const wreck = wreckRef.current
@@ -398,7 +401,9 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
           prev.yaw = pose.yaw
         } else {
           orbit.enabled = false
-          if (cam.isPerspectiveCamera && cam.near > 0.4) {
+          // The chase lens may already have closed in on a solid. Anything
+          // still wider than the chair's plane is the outside value to restore.
+          if (cam.isPerspectiveCamera && cam.near > 0.2) {
             outsideNear.current = cam.near
             cam.near = 0.15
             cam.updateProjectionMatrix()
@@ -430,7 +435,7 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
           look.current.yaw = 0
           look.current.pitch = 0
           orbit.enabled = false
-          if (cam.isPerspectiveCamera && cam.near > 0.4) {
+          if (cam.isPerspectiveCamera && cam.near > 0.2) {
             outsideNear.current = cam.near
             cam.near = 0.15
             cam.updateProjectionMatrix()
@@ -446,6 +451,7 @@ export function Ferry({ map, slot = 0 }: { map: MapData; slot?: number }) {
       prev.y = y
       prev.z = pose.z
     }
+    publishChaseBody({ x: pose.x, z: pose.z, yaw: pose.yaw, y, kind: 'ferry', shape, world })
     // The cabin is only the outside shell. From the chair it is left off,
     // so the view is the deck and the lake.
     house.visible = !bridge.current

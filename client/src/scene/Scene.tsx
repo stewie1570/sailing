@@ -16,6 +16,7 @@ import { Buoys } from './Buoys'
 import { environment } from './environment'
 import { Harbors } from './Harbors'
 import { MAX_FPS, perf, QUALITY_PRESETS, useQuality } from './quality'
+import { CameraGuard } from './CameraGuard'
 import { Sky } from './Sky'
 import { Terrain } from './Terrain'
 import { Trees } from './Trees'
@@ -169,6 +170,7 @@ function World({ mapPromise }: { mapPromise: Promise<MapData> }) {
         screenSpacePanning={false}
         touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
+      <CameraGuard />
     </>
   )
 }
@@ -199,6 +201,8 @@ export function Scene({ onReady }: { onReady?: () => void }) {
         logarithmicDepthBuffer: false,
       }}
       dpr={[1, QUALITY_PRESETS[quality].maxDpr]}
+      // 1.5 m keeps depth on the far shore. CameraGuard closes it in when the
+      // lens nears a solid, so the hull does not open up before the camera arrives.
       camera={{ fov: 55, near: 1.5, far: 45000 }}
       onCreated={({ gl, scene }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping

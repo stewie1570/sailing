@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { MapData } from '../../map/mapData'
 import { applyCameraNudge } from '../cameraDrive'
+import { clearChaseBody, publishChaseBody } from '../cameraClip'
 import { QUALITY_PRESETS, useQuality } from '../quality'
 import { inHarbor } from '../harborLayout'
 import { blocked, colliderWorld, hullClearance, hullOverlap, hullPenetration } from './collision'
@@ -61,7 +62,7 @@ import {
   stepWreck,
   type RamContact,
 } from './ram'
-import { publishTelemetry, publishWheel } from './telemetry'
+import { publishTelemetry, publishWheel, publishWheelWorld } from './telemetry'
 import { createEngineWash, createHullWake, disposeEngineWash, disposeHullWake, poseEngineWash, poseHullWake } from './wash'
 
 type OrbitLike = { target: THREE.Vector3; update: () => void }
@@ -144,13 +145,9 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
   const portSpinRef = useRef<THREE.Group>(null)
   const stbdSpinRef = useRef<THREE.Group>(null)
   const follow = useRef({ x: pose.x, y: 0, z: pose.z, yaw: pose.yaw })
-  const scratch = useMemo(
-    () => ({ hub: new THREE.Vector3(), rim: new THREE.Vector3(), toHub: new THREE.Vector3(), cam: new THREE.Vector3() }),
-    [],
-  )
+  const scratch = useMemo(() => ({ hub: new THREE.Vector3(), rim: new THREE.Vector3() }), [])
   const camera = useThree((s) => s.camera)
   const controls = useThree((s) => s.controls)
-  const gl = useThree((s) => s.gl)
 
   useEffect(() => {
     return () => {
@@ -459,26 +456,23 @@ export function Boat({ map, slot = 0 }: { map: MapData; slot?: number }) {
       prev.z = pose.z
     }
 
-    if (!g) return
+    publishChaseBody({ x: pose.x, z: pose.z, yaw: pose.yaw, y, kind: 'sail', shape: world.shape, world })
+    if (!g) {
+      publishWheelWorld(null)
+      return
+    }
+    // The guard projects this after it has moved the lens, so the slider
+    // sits on the picture rather than on an aim that may be inside the hull.
     scratch.hub.set(hardware.wheel.x, hardware.wheel.y, hardware.wheel.z).applyMatrix4(g.matrixWorld)
     scratch.rim.set(hardware.wheel.x + WHEEL_RADIUS, hardware.wheel.y, hardware.wheel.z).applyMatrix4(g.matrixWorld)
-    scratch.toHub.copy(scratch.hub).sub(camera.position)
-    const ahead = scratch.toHub.dot(camera.getWorldDirection(scratch.cam)) > 0.2
-    const hx = scratch.hub.x
-    const hy = scratch.hub.y
-    const hz = scratch.hub.z
-    const rx = scratch.rim.x
-    const ry = scratch.rim.y
-    const rz = scratch.rim.z
-    scratch.hub.set(hx, hy, hz).project(camera)
-    scratch.rim.set(rx, ry, rz).project(camera)
-    const rect = gl.domElement.getBoundingClientRect()
-    const sx = rect.left + (scratch.hub.x * 0.5 + 0.5) * rect.width
-    const sy = rect.top + (-scratch.hub.y * 0.5 + 0.5) * rect.height
-    const rsx = rect.left + (scratch.rim.x * 0.5 + 0.5) * rect.width
-    const rsy = rect.top + (-scratch.rim.y * 0.5 + 0.5) * rect.height
-    publishWheel(sx, sy, Math.hypot(rsx - sx, rsy - sy), ahead)
+    publishWheelWorld(scratch.hub, scratch.rim)
   })
+
+  useEffect(() => () => {
+    clearChaseBody()
+    publishWheelWorld(null)
+    publishWheel(0, 0, 0, false)
+  }, [])
 
   const wheelPos = hardware.wheel
   const rudderPos = hardware.rudder
